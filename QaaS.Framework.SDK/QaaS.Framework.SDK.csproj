@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
+        <PackageReference Include="RabbitMQ.Client" Version="7.0.0" />
+        <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.1" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\QaaS.Framework.Configurations\QaaS.Framework.Configurations.csproj" />
+        <ProjectReference Include="..\QaaS.Framework.Serialization\QaaS.Framework.Serialization.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="SessionCommunicationData\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="SessionCommunicationData\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="SessionCommunicationData\**" />
+    </ItemGroup>
+</Project>
