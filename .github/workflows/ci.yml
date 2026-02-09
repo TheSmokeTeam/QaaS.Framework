@@ -44,6 +44,10 @@ jobs:
       - name: Test
         run: dotnet test QaaS.Framework.sln --no-build --no-restore --configuration Release
       - name: Pack
-        run: dotnet pack QaaS.Framework.sln --configuration Release --no-build --output ./packages
+        run: |
+          TAG_VERSION=${{ github.ref_name }}
+          # Remove leading 'v' if present
+          TAG_VERSION_CLEAN=${TAG_VERSION#v}
+          dotnet pack QaaS.Framework.sln --configuration Release --no-build --output ./packages --version $TAG_VERSION_CLEAN
       - name: Push NuGet
         run: dotnet nuget push ./packages/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source "https://nuget.pkg.github.com/${{ github.repository }}/"
