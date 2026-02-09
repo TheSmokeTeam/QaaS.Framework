@@ -50,4 +50,4 @@ jobs:
           TAG_VERSION_CLEAN=${TAG_VERSION#v}
           dotnet pack QaaS.Framework.sln --configuration Release --no-build --output ./packages --version $TAG_VERSION_CLEAN
       - name: Push NuGet
-        run: dotnet nuget push ./packages/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source "https://nuget.pkg.github.com/${{ github.repository }}/"
+        run: dotnet nuget push ./packages/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/"
