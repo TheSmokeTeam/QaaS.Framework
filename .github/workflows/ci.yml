@@ -6,7 +6,6 @@ on:
     tags: ["*"]
   pull_request:
 
-# Default: least privilege. Override per-job when needed.
 permissions:
   contents: read
 
@@ -18,7 +17,7 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
-  # If you have a solution file, set it here (recommended). Otherwise set to a project or omit and use `dotnet build` with no args.
+  # Change this to your .sln path (or set to a project file if you don't use a solution).
   SOLUTION: YourSolution.sln
 
 jobs:
@@ -27,21 +26,21 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read # only needed if you restore dependencies from GitHub Packages
+      packages: read # needed only if you restore from GitHub Packages
 
     steps:
       - uses: actions/checkout@v6
 
       - name: Setup .NET
-        # setup-dotnet supports caching and GitHub Packages auth helpers. :contentReference[oaicite:0]{index=0}
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
-          # Best practice: enable deterministic restore + caching using packages.lock.json. :contentReference[oaicite:1]{index=1}
           cache: true
-          cache-dependency-path: "**/packages.lock.json"
+          # FIX: ensure these paths resolve (requires committed lock files)
+          cache-dependency-path: |
+            **/packages.lock.json
 
-      - name: Configure GitHub Packages feed (for restore/push)
+      - name: Configure GitHub Packages feed (restore/push)
         run: |
           dotnet nuget remove source github 2>/dev/null || true
           dotnet nuget add source \
@@ -50,9 +49,8 @@ jobs:
             --password "${{ secrets.GITHUB_TOKEN }}" \
             --store-password-in-clear-text \
             "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
-        # GitHub’s recommended workflow auth uses GITHUB_TOKEN + dotnet nuget add source. :contentReference[oaicite:2]{index=2}
 
-      - name: Restore
+      - name: Restore (locked)
         run: dotnet restore "${{ env.SOLUTION }}" --locked-mode
 
       - name: Build
@@ -69,7 +67,6 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
 
-          # Basic NuGet/SemVer-ish validation: X.Y.Z (optionally with -prerelease)
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([\-][0-9A-Za-z\.\-]+)?$ ]]; then
             echo "Tag '$TAG' -> version '$VERSION' is not a valid NuGet version. Use tags like v1.2.3 or 1.2.3 or 1.2.3-alpha."
             exit 1
@@ -101,7 +98,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
-      packages: write # required to publish to GitHub Packages :contentReference[oaicite:3]{index=3}
+      packages: write
 
     steps:
       - name: Setup .NET
@@ -124,7 +121,6 @@ jobs:
             --password "${{ secrets.GITHUB_TOKEN }}" \
             --store-password-in-clear-text \
             "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
-        # Official guidance for authenticating in Actions uses GITHUB_TOKEN. :contentReference[oaicite:4]{index=4}
 
       - name: Push packages
         run: |
