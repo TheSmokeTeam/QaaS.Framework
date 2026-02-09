@@ -17,7 +17,6 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
-  # Change this to your .sln path (or set to a project file if you don't use a solution).
   SOLUTION: YourSolution.sln
 
 jobs:
@@ -26,19 +25,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read # needed only if you restore from GitHub Packages
+      packages: read
 
     steps:
       - uses: actions/checkout@v6
 
+      # FIX: remove setup-dotnet cache so it won't fail when packages.lock.json doesn't exist
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
-          cache: true
-          # FIX: ensure these paths resolve (requires committed lock files)
-          cache-dependency-path: |
-            **/packages.lock.json
 
       - name: Configure GitHub Packages feed (restore/push)
         run: |
@@ -50,8 +46,9 @@ jobs:
             --store-password-in-clear-text \
             "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
 
-      - name: Restore (locked)
-        run: dotnet restore "${{ env.SOLUTION }}" --locked-mode
+      # FIX: don't use --locked-mode if you don't have committed lock files
+      - name: Restore
+        run: dotnet restore "${{ env.SOLUTION }}"
 
       - name: Build
         run: dotnet build "${{ env.SOLUTION }}" -c "${{ env.CONFIGURATION }}" --no-restore
