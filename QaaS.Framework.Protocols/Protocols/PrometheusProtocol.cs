@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using QaaS.Framework.SDK.Session.DataObjects;
 using Newtonsoft.Json.Linq;
-using ClosedLibsWrappers.implementations;
 using Microsoft.Extensions.Logging;
 using QaaS.Framework.Protocols.ConfigurationObjects.Prometheus;
 using QaaS.Framework.Serialization;
@@ -69,7 +68,7 @@ public class PrometheusProtocol : IFetcher
     /// </summary>
     protected virtual string HttpGetResultBodyAsString(string queryRequestUri)
     {
-        using var client = new HttpClientWrapper();
+        using var client = new HttpClient();
         client.Timeout = TimeSpan.FromSeconds(_fetcherConfig.TimeoutMs);
 
         if (!string.IsNullOrWhiteSpace(_fetcherConfig.ApiKey))

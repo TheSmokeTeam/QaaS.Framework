@@ -1,6 +1,4 @@
 ﻿using System.Net.Http.Headers;
-using ClosedLibsWrappers.implementations;
-using ClosedLibsWrappers.interfaces;
 using JWT.Builder;
 using Microsoft.Extensions.Logging;
 using QaaS.Framework.Protocols.ConfigurationObjects.Http;
@@ -15,7 +13,7 @@ namespace QaaS.Framework.Protocols.Protocols;
 public class HttpProtocol : ITransactor
 {
     private readonly ILogger _logger;
-    private readonly IHttpClient _httpClient;
+    private readonly HttpClient _httpClient;
     private HttpTransactorConfig _transactorConfiguration;
     public HttpMethods Method;
 
@@ -27,7 +25,7 @@ public class HttpProtocol : ITransactor
         var baseAddress = configuration.BaseAddress!.EndsWith('/')
             ? configuration.BaseAddress.Remove(configuration.BaseAddress.Length - 1)
             : configuration.BaseAddress;
-        _httpClient = new HttpClientWrapper
+        _httpClient = new HttpClient
         {
             Timeout = TimeSpan.FromMilliseconds(timeout.TotalMilliseconds),
             BaseAddress = configuration.Port != null
