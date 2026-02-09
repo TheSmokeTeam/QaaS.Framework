@@ -2,52 +2,132 @@ name: CI
 
 on:
   push:
-    branches:
-      - '**'
+    branches: ["**"]
+    tags: ["*"]
   pull_request:
-    branches:
-      - '**'
-  workflow_dispatch:
-  release:
-    types: [published]
+
+# Default: least privilege. Override per-job when needed.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  CONFIGURATION: Release
+  # If you have a solution file, set it here (recommended). Otherwise set to a project or omit and use `dotnet build` with no args.
+  SOLUTION: YourSolution.sln
 
 jobs:
-  build-test:
+  build_test_pack:
+    name: Restore / Build / Test (and Pack on tags)
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - name: Restore
-        run: dotnet restore QaaS.Framework.sln
-      - name: Build
-        run: dotnet build QaaS.Framework.sln --configuration Release --no-restore
-      - name: Test
-        run: dotnet test QaaS.Framework.sln --no-build --no-restore --configuration Release
+    permissions:
+      contents: read
+      packages: read # only needed if you restore dependencies from GitHub Packages
 
-  pack-push:
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
-    needs: build-test
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v6
+
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        # setup-dotnet supports caching and GitHub Packages auth helpers. :contentReference[oaicite:0]{index=0}
+        uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
-      - name: Restore
-        run: dotnet restore QaaS.Framework.sln
-      - name: Build
-        run: dotnet build QaaS.Framework.sln --configuration Release --no-restore
-      - name: Test
-        run: dotnet test QaaS.Framework.sln --no-build --no-restore --configuration Release
-      - name: Pack
+          dotnet-version: "10.0.x"
+          # Best practice: enable deterministic restore + caching using packages.lock.json. :contentReference[oaicite:1]{index=1}
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Configure GitHub Packages feed (for restore/push)
         run: |
-          TAG_VERSION=${{ github.ref_name }}
-          # Remove leading 'v' if present
-          TAG_VERSION_CLEAN=${TAG_VERSION#v}
-          dotnet pack QaaS.Framework.sln --configuration Release --no-build --output ./packages --version $TAG_VERSION_CLEAN
-      - name: Push NuGet
-        run: dotnet nuget push ./packages/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/"
+          dotnet nuget remove source github 2>/dev/null || true
+          dotnet nuget add source \
+            --name github \
+            --username "${{ github.actor }}" \
+            --password "${{ secrets.GITHUB_TOKEN }}" \
+            --store-password-in-clear-text \
+            "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+        # GitHub’s recommended workflow auth uses GITHUB_TOKEN + dotnet nuget add source. :contentReference[oaicite:2]{index=2}
+
+      - name: Restore
+        run: dotnet restore "${{ env.SOLUTION }}" --locked-mode
+
+      - name: Build
+        run: dotnet build "${{ env.SOLUTION }}" -c "${{ env.CONFIGURATION }}" --no-restore
+
+      - name: Test
+        run: dotnet test "${{ env.SOLUTION }}" -c "${{ env.CONFIGURATION }}" --no-build
+
+      - name: Compute package version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: ver
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          # Basic NuGet/SemVer-ish validation: X.Y.Z (optionally with -prerelease)
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([\-][0-9A-Za-z\.\-]+)?$ ]]; then
+            echo "Tag '$TAG' -> version '$VERSION' is not a valid NuGet version. Use tags like v1.2.3 or 1.2.3 or 1.2.3-alpha."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Pack (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          dotnet pack "${{ env.SOLUTION }}" \
+            -c "${{ env.CONFIGURATION }}" \
+            --no-build \
+            -p:ContinuousIntegrationBuild=true \
+            -p:PackageVersion="${{ steps.ver.outputs.version }}" \
+            -o ./artifacts
+
+      - name: Upload NuGet packages artifact (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v6
+        with:
+          name: nupkgs
+          path: ./artifacts/*.nupkg
+
+  publish:
+    name: Push to GitHub Packages (tags only)
+    runs-on: ubuntu-latest
+    needs: build_test_pack
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      packages: write # required to publish to GitHub Packages :contentReference[oaicite:3]{index=3}
+
+    steps:
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download packed artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: nupkgs
+          path: ./artifacts
+
+      - name: Configure GitHub Packages feed
+        run: |
+          dotnet nuget remove source github 2>/dev/null || true
+          dotnet nuget add source \
+            --name github \
+            --username "${{ github.actor }}" \
+            --password "${{ secrets.GITHUB_TOKEN }}" \
+            --store-password-in-clear-text \
+            "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+        # Official guidance for authenticating in Actions uses GITHUB_TOKEN. :contentReference[oaicite:4]{index=4}
+
+      - name: Push packages
+        run: |
+          dotnet nuget push "./artifacts/*.nupkg" \
+            --source github \
+            --skip-duplicate
