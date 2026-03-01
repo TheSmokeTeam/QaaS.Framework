@@ -17,6 +17,7 @@ env:
   CONFIGURATION: Release
   PROJECT_PATH: QaaS.Framework.sln
   PACKAGE_OUTPUT_DIRECTORY: ./artifacts
+  NUGET_SOURCE_URL: 'https://api.nuget.org/v3/index.json'
 
 jobs:
   build:
@@ -41,7 +42,7 @@ jobs:
     name: Test
     runs-on: windows-latest
     needs: build
-    steps:
+    steps:git
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -84,8 +85,12 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version-without-v }}"
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Tag '$VERSION' is not a valid SemVer version (X.X.X or X.X.X-prerelease)."
+          # Regex Breakdown:
+          # ^[0-9]+\.[0-9]+\.[0-9]+  -> Matches X.X.X
+          # (-(alpha|beta)\.[0-9]+)? -> OPTIONAL: hyphen, then "alpha" or "beta", then dot, then digits
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
+            echo "Error: '$VERSION' is not a valid version."
+            echo "Allowed formats: X.X.X, X.X.X-alpha.N, or X.X.X-beta.N"
             exit 1
           fi
 
@@ -93,4 +98,4 @@ jobs:
         run: dotnet pack ${{ env.PROJECT_PATH }} --no-restore --no-build --configuration ${{ env.CONFIGURATION }} --include-symbols -p:PackageVersion=${{ steps.version.outputs.version-without-v }} --output ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
 
       - name: Push package
-        run: dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIRECTORY }}\*.nupkg -k ${{ secrets.NUGET_AUTH_TOKEN }} -s ${{ vars.NUGET_SOURCE_URL }} --skip-duplicate
+        run: dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIRECTORY }}\*.nupkg -k ${{ secrets.NUGET_AUTH_TOKEN }} -s ${{ vars.NUGET_SOURCE_URL }} # don't skip duplicate purposely
