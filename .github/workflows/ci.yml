@@ -16,7 +16,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
   PROJECT_PATH: QaaS.Framework.sln
-  PACKAGE_OUTPUT_DIRECTORY: ./artifacts
+  PACKAGE_OUTPUT_DIRECTORY: ${{ github.workspace }}\BuildOutput
   NUGET_SOURCE_URL: 'https://api.nuget.org/v3/index.json'
 
 jobs:
@@ -69,5 +69,4 @@ jobs:
 
       - name: Push package
         if: startsWith(github.ref, 'refs/tags/')
-        # Updated vars.NUGET_SOURCE_URL to env.NUGET_SOURCE_URL to match your env block
         run: dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIRECTORY }}\*.nupkg -k ${{ secrets.NUGET_AUTH_TOKEN }} -s ${{ env.NUGET_SOURCE_URL }}
