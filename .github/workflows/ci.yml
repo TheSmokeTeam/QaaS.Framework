@@ -20,8 +20,8 @@ env:
   NUGET_SOURCE_URL: 'https://api.nuget.org/v3/index.json'
 
 jobs:
-  build:
-    name: Build
+  build-test-deploy:
+    name: Build, Test & Deploy
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -37,51 +37,20 @@ jobs:
 
       - name: Build project
         run: dotnet build ${{ env.PROJECT_PATH }} --no-restore --configuration ${{ env.CONFIGURATION }}
-
-  test:
-    name: Test
-    runs-on: windows-latest
-    needs: build
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install dotnet
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Restore packages
-        run: dotnet restore ${{ env.PROJECT_PATH }}
 
       - name: Test solution
-        run: dotnet test ${{ env.PROJECT_PATH }} --configuration ${{ env.CONFIGURATION }} --no-restore --maxcpucount
+        # Added --no-build so it reuses the compilation from the previous step
+        run: dotnet test ${{ env.PROJECT_PATH }} --configuration ${{ env.CONFIGURATION }} --no-restore --no-build --maxcpucount
 
-  deploy:
-    name: Deploy
-    runs-on: windows-latest
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install dotnet
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Restore packages
-        run: dotnet restore ${{ env.PROJECT_PATH }}
-
-      - name: Build project
-        run: dotnet build ${{ env.PROJECT_PATH }} --no-restore --configuration ${{ env.CONFIGURATION }}
+      # --- DEPLOYMENT STEPS (Run only on tags) ---
 
       - name: Get Version
+        if: startsWith(github.ref, 'refs/tags/')
         id: version
         uses: battila7/get-version-action@v2
 
       - name: Validate SemVer tag
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version-without-v }}"
@@ -95,7 +64,10 @@ jobs:
           fi
 
       - name: Pack project
+        if: startsWith(github.ref, 'refs/tags/')
         run: dotnet pack ${{ env.PROJECT_PATH }} --no-restore --no-build --configuration ${{ env.CONFIGURATION }} --include-symbols -p:PackageVersion=${{ steps.version.outputs.version-without-v }} --output ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
 
       - name: Push package
-        run: dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIRECTORY }}\*.nupkg -k ${{ secrets.NUGET_AUTH_TOKEN }} -s ${{ vars.NUGET_SOURCE_URL }} # don't skip duplicate purposely
+        if: startsWith(github.ref, 'refs/tags/')
+        # Updated vars.NUGET_SOURCE_URL to env.NUGET_SOURCE_URL to match your env block
+        run: dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIRECTORY }}\*.nupkg -k ${{ secrets.NUGET_AUTH_TOKEN }} -s ${{ env.NUGET_SOURCE_URL }}
