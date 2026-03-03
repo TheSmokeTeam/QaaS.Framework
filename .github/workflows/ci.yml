@@ -13,7 +13,7 @@ permissions:
 
 env:
   DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true/
   CONFIGURATION: Release
   PROJECT_PATH: QaaS.Framework.sln
   PACKAGE_OUTPUT_DIRECTORY: ${{ github.workspace }}\BuildOutput
