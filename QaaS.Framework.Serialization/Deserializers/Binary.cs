@@ -1,4 +1,5 @@
-﻿using System.Runtime.Serialization.Formatters.Binary;
+using System.Reflection;
+using MessagePack;
 
 namespace QaaS.Framework.Serialization.Deserializers;
 
@@ -10,11 +11,37 @@ public class Binary: IDeserializer
     /// <inheritdoc />
     public object? Deserialize(byte[]? data, Type? deserializeType = null)
     {
-        if (data is null) return null;
-        
-        using var stream = new MemoryStream(data);
-        var formatter = new BinaryFormatter();
+        if (data is null)
+        {
+            return null;
+        }
 
-        return formatter.Deserialize(stream);
+        if (deserializeType is null)
+        {
+            return MessagePackSerializer.Deserialize<object?>(data, MessagePackSerializer.Typeless.DefaultOptions);
+        }
+
+        var deserializeMethod = typeof(MessagePackSerializer).GetMethod(
+                                   nameof(MessagePackSerializer.Deserialize),
+                                   BindingFlags.Static | BindingFlags.Public,
+                                   null,
+                                   new[]
+                                   {
+                                       typeof(ReadOnlyMemory<byte>),
+                                       typeof(MessagePackSerializerOptions),
+                                       typeof(CancellationToken)
+                                   },
+                                   null)?.MakeGenericMethod(deserializeType)
+                               ?? throw new ArgumentException(
+                                   "Could not create generic method for type specific binary deserialization");
+
+        return deserializeMethod.Invoke(
+            null,
+            new object?[]
+            {
+                (ReadOnlyMemory<byte>)data,
+                MessagePackSerializer.Typeless.DefaultOptions,
+                default(CancellationToken)
+            });
     }
 }

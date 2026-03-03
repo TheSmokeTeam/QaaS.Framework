@@ -5,7 +5,7 @@
 /// </summary>
 public record Redis
 {
-    public string Key { get; init; }
+    public string Key { get; init; } = string.Empty;
     
     public string? HashField { get; init; }
     

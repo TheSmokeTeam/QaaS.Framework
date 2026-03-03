@@ -21,6 +21,18 @@ All available options (not case sensitive) are: {nameof(LogEventLevel.Verbose)},
     public string? LoggerConfigurationFilePath { get; init; } = null;
 
     
-    [Option("send-logs",HelpText =@"Weather to send the logs to Smokes's logs database")]
+    [Option("send-logs",HelpText =@"Weather to send the logs to Smokes's logs database", Default = true)]
     public bool SendLogs { get; init; } = true;
+
+    [Option("elastic-uri", Default = null,
+        HelpText = "Elasticsearch URI used by the logger sink when send-logs is enabled.")]
+    public string? ElasticUri { get; init; } = null;
+
+    [Option("elastic-username", Default = null,
+        HelpText = "Optional Elasticsearch username for the logger sink.")]
+    public string? ElasticUsername { get; init; } = null;
+
+    [Option("elastic-password", Default = null,
+        HelpText = "Optional Elasticsearch password for the logger sink.")]
+    public string? ElasticPassword { get; init; } = null;
 }

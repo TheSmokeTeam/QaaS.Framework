@@ -22,7 +22,7 @@ namespace QaaS.Framework.SDK.DataSourceObjects;
 
 public class DataSourceBuilder : IYamlConvertible
 {
-    private DataSource _dataSource;
+    private DataSource _dataSource = null!;
 
     [Required, Description("Name of data source to reference it by (must be unique)")]
     public string? Name { get; internal set; }
@@ -147,7 +147,10 @@ public class DataSourceBuilder : IYamlConvertible
         var generator = generators.FirstOrDefault(pair => pair.Key == Name!).Value ??
                         throw new ArgumentException($"Data source {Name}'s provided generator {Generator} was" +
                                                     $" not found in provided generators.");
-        context.Logger.LogDebugWithMetaData("Started building Generator of type {type}", context.GetMetaDataFromContext(), Generator);
+        context.Logger.LogDebugWithMetaData(
+            "Started building Generator of type {type}",
+            context.GetMetaDataFromContext(),
+            new object?[] { Generator ?? string.Empty });
         var otherDataSources =
             dataSources.Where(dataSource => dataSource.Name != _dataSource.Name).ToImmutableList();
         var usedDataSources = EnumerableExtensions.GetFilteredConfigurationObjectList(

@@ -8,7 +8,7 @@ public record ActionFailure
     /// <summary>
     /// The failed action name
     /// </summary>
-    public string Name { get; init; }
+    public string Name { get; init; } = string.Empty;
     
     /// <summary>
     /// The failed action
@@ -18,10 +18,10 @@ public record ActionFailure
     /// <summary>
     /// The failed action type
     /// </summary>
-    public string ActionType { get; init; }
+    public string ActionType { get; init; } = string.Empty;
     
     /// <summary>
     /// The failure reason
     /// </summary>
-    public Reason Reason { get; init; }
+    public Reason Reason { get; init; } = new();
 }

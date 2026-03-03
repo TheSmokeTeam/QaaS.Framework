@@ -12,13 +12,13 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 {
     private const string DefaultName = "QaaS";
     private readonly ILogger _logger;
-    private IConnection _connection;
-    private IChannel _channel;
+    private IConnection _connection = null!;
+    private IChannel _channel = null!;
 
     private readonly string? _queueName;
     private readonly RabbitMq? _defaultMetaData;
-    private string ExchangeName { get; set; }
-    private string RoutingKey { get; set; }
+    private string ExchangeName { get; set; } = string.Empty;
+    private string RoutingKey { get; set; } = string.Empty;
 
     private readonly RabbitMqReaderConfig? _rabbitMqReaderConfig;
     private readonly string _defaultQueueName = $"{DefaultName}_{Guid.NewGuid()}";

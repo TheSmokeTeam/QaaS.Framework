@@ -23,27 +23,25 @@ public static class S3Extentions
     public static T RunS3OperationWithRetryMechanism<T>(Func<T> s3OperationWithParameters,
         string operationDescription, int? maxRetryCount = null, ILogger? logger = null)
     {
-        bool retryIfTooManyRequestsWereSentTooFast;
         var retryCount = 0;
-        T result = default;
-        do
+        while (true)
         {
-            retryIfTooManyRequestsWereSentTooFast = false;
             try
             {
-                result = s3OperationWithParameters.Invoke();
+                return s3OperationWithParameters.Invoke();
             }
             catch (AmazonS3Exception ex)
             {
                 // If error is not the too many requests error or the retry count has reached its limit, throw exception
-                if (ex.ErrorCode != "TooManyRequests" || retryCount++ >= maxRetryCount)
+                if (ex.ErrorCode != "TooManyRequests" ||
+                    (maxRetryCount.HasValue && retryCount++ >= maxRetryCount.Value))
+                {
                     throw;
-                retryIfTooManyRequestsWereSentTooFast = true;
+                }
+
                 logger?.LogDebug("Encountered `TooManyRequests` exception when performing the operation:" +
                                  " {OperationDescription} on s3, retrying...", operationDescription);
             }
-        } while (retryIfTooManyRequestsWereSentTooFast);
-
-        return result;
+        }
     }
 }

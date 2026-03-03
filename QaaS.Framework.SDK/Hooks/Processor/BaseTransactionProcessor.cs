@@ -15,12 +15,12 @@ namespace QaaS.Framework.SDK.Hooks.Processor;
 public abstract class BaseTransactionProcessor<TConfiguration> : ITransactionProcessor where TConfiguration : new()
 {
     /// <inheritdoc />
-    public Context Context { get; set; }
+    public Context Context { get; set; } = null!;
 
     /// <summary>
     /// The relevant configuration for this stub's scope loaded and validated into a configuration object.
     /// </summary>
-    public TConfiguration Configuration { get; set; }
+    public TConfiguration Configuration { get; set; } = default!;
  
     /// <summary>
     /// The options of the binder that binds the IConfiguration to the <see cref="Configuration"/>

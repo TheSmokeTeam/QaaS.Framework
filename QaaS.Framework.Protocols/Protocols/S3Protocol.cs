@@ -20,9 +20,9 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
     private IS3Client? _s3Client;
     private readonly S3BucketSenderConfig? _senderConfig;
     private readonly S3BucketReaderConfig? _readerConfig;
-    private readonly DataFilter _dataFilter;
+    private readonly DataFilter _dataFilter = new();
     private DateTime? _readStartTimeUtc;
-    public ObjectNameGenerator Generator { get; set; }
+    public ObjectNameGenerator Generator { get; set; } = null!;
 
     protected virtual DateTime GetCurrentDateTimeUtc() => DateTime.UtcNow;
 

@@ -63,7 +63,7 @@ public static class SessionDataExtensions
             inputValue = (sessionData?.Inputs).GetCommunicationDataByName(inputName, "Inputs");
             return true;
         }
-        catch (ArgumentException e)
+        catch (ArgumentException)
         {
             inputValue = null;
             return false;
@@ -102,7 +102,7 @@ public static class SessionDataExtensions
             outputValue = (sessionData?.Outputs).GetCommunicationDataByName(outputName, "Outputs");
             return true;
         }
-        catch (ArgumentException e)
+        catch (ArgumentException)
         {
             outputValue = null;
             return false;

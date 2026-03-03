@@ -10,7 +10,7 @@ public record AssertionAttachment
     /// <summary>
     /// The path where the data will be stored. The path is relative to the test results directory.
     /// </summary>
-    public string Path { get; set; }
+    public string Path { get; set; } = string.Empty;
     /// <summary>
     /// The actual data to store
     /// </summary>

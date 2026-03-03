@@ -12,6 +12,6 @@ public class XmlElement: ISerializer
     {
         return data is null 
             ? null 
-            : Encoding.UTF8.GetBytes(data.ToString());
+            : Encoding.UTF8.GetBytes(data.ToString() ?? string.Empty);
     }
 }

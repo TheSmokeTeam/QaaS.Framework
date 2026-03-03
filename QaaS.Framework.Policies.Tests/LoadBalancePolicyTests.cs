@@ -5,17 +5,12 @@ using ITimer = QaaS.Framework.Policies.Extentions.Stopwatch.ITimer;
 
 namespace QaaS.Framework.Policies.Tests;
 
+[TestFixture]
 public class LoadBalancePolicyTests
 {
     private readonly Mock<ITimer>? _mockTimer = new();
     private Mock<LoadBalancePolicy>? _mockBaseLoadBalancePolicy;
-
-    // private readonly FieldInfo? _currentRateField =
-    //     typeof(LoadBalancePolicy).GetField("CurrentRate", BindingFlags.NonPublic | BindingFlags.Instance);
-    //
-    // private readonly FieldInfo? _currentTimeIntervalMsField =
-    //     typeof(LoadBalancePolicy).GetField("CurrentTimeIntervalMs", BindingFlags.NonPublic | BindingFlags.Instance);
-    //
+    
     private readonly FieldInfo? _messageIntervalMsField =
         typeof(LoadBalancePolicy).GetField("MessageIntervalMilliseconds",
             BindingFlags.NonPublic | BindingFlags.Instance);

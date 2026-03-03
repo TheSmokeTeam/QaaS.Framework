@@ -23,4 +23,8 @@
         </PackageReference>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\QaaS.Framework.Serialization\QaaS.Framework.Serialization.csproj" />
+    </ItemGroup>
+
 </Project>

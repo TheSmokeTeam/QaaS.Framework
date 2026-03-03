@@ -23,6 +23,6 @@ public abstract record BaseSessionData
     /// <summary>
     /// The failures encountered while the session ran
     /// </summary>
-    public List<ActionFailure> SessionFailures { get; init; }
+    public List<ActionFailure> SessionFailures { get; init; } = [];
 }
  

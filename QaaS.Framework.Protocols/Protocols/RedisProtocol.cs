@@ -16,6 +16,9 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
 
     public IEnumerable<DetailedData<object>> SendChunk(IEnumerable<Data<object>> chunkDataToSend)
     {
+        if (_redisDb == null)
+            throw new InvalidOperationException("Redis is not connected. Call Connect() before sending data.");
+
         var retryCount = 0;
         var redisTransaction = _redisDb.CreateTransaction();
         var toSend = chunkDataToSend.ToArray();

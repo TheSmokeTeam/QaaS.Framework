@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace QaaS.Framework.Configurations.CustomValidationAttributes;
@@ -34,8 +33,13 @@ public class AtLeastOnePropertyNotNullAttribute: ValidationAttribute
     }
         
     /// <inheritdoc />
-    protected override ValidationResult? IsValid([NotNull] object value, ValidationContext validationContext)
+    protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
+        if (value is null)
+        {
+            return new ValidationResult($"{validationContext.ObjectType.Name} cannot be null");
+        }
+
         var valueType = value.GetType();
         var allObjectProperties = valueType.GetProperties(
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);

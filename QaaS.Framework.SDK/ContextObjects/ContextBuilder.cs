@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using QaaS.Framework.Configurations;
 using QaaS.Framework.Configurations.ConfigurationBuilderExtensions;
 using QaaS.Framework.Configurations.References;
@@ -16,8 +17,10 @@ public class ContextBuilder : IContextBuilder
     private readonly IConfigurationBuilder _configurationBuilder;
     private readonly IList<string>? _referenceResolutionPaths;
     private readonly IList<string>? _uniqueIdPathRegexes;
-    private IInternalRunningSessions _currentRunningSessions;
-    private ILogger _logger;
+    private IInternalRunningSessions _currentRunningSessions =
+        new RunningSessions(
+            new Dictionary<string, QaaS.Framework.SDK.Session.SessionDataObjects.RunningSessionData<object, object>>());
+    private ILogger _logger = NullLogger.Instance;
     private bool _resolveCaseLast = false;
     private bool _resolveWithEnvironmentVariables = false;
     private string? _configurationFile;
@@ -192,3 +195,4 @@ public class ContextBuilder : IContextBuilder
             Logger = _logger
         };
 }
+

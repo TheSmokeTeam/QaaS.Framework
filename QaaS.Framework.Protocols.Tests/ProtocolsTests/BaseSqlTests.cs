@@ -83,6 +83,7 @@ public class BaseSqlTests
             .Verifiable();
         _dbConnectionMock.Setup(mock => mock.Open()).Verifiable();
         _dbConnectionMock.Setup(mock => mock.Close()).Verifiable();
+        _dbConnectionMock.Setup(mock => mock.Dispose()).Verifiable();
     }
 
     [Test]
@@ -138,7 +139,6 @@ public class BaseSqlTests
     public void TestSend_CallSendFunctionWithNullDataBody_ShouldThrowException()
     {
         // Arrange
-        const int chunkSize = 5;
         const int dataSize = 25;
         var data = new List<Data<object>>(dataSize);
         for (var dataIndex = 0; dataIndex < dataSize; dataIndex++)
@@ -151,5 +151,85 @@ public class BaseSqlTests
 
         // Act + Assert
         Assert.Throws<ArgumentException>(() => sqlTableSenderMock.SendChunk(data.ToImmutableList()).ToArray());
+    }
+
+    [Test]
+    public void Connect_And_Disconnect_OpenCloseAndDisposeConnection()
+    {
+        var protocol = new MockSqlProtocol(
+            "test",
+            new SqlConfig
+            {
+                TableName = "tbl",
+                ConnectionString = "Host=localhost"
+            },
+            Globals.Logger,
+            _dbConnectionMock!.Object);
+
+        protocol.Connect();
+        protocol.Disconnect();
+
+        _dbConnectionMock.Verify(connection => connection.Open(), Times.Once);
+        _dbConnectionMock.Verify(connection => connection.Close(), Times.Once);
+        _dbConnectionMock.Verify(connection => connection.Dispose(), Times.Once);
+    }
+
+    [Test]
+    public void ReadChunk_WithSingleRow_ReturnsDetailedData()
+    {
+        var now = DateTime.UtcNow;
+        _dataReaderMock!.SetupSequence(mock => mock.Read())
+            .Returns(true)
+            .Returns(false);
+        _dataReaderMock.Setup(mock => mock.FieldCount).Returns(1);
+        _dataReaderMock.Setup(mock => mock.GetName(0)).Returns("created_at");
+        _dataReaderMock.Setup(mock => mock.GetValue(0)).Returns(now);
+        _dbConnectionMock!.SetupGet(connection => connection.State).Returns(ConnectionState.Open);
+
+        var protocol = new MockSqlProtocol(
+            new SqlReaderConfig
+            {
+                TableName = "tbl",
+                ConnectionString = "Host=localhost",
+                InsertionTimeField = "created_at"
+            },
+            Globals.Logger,
+            _dbConnectionMock.Object);
+
+        var result = protocol.ReadChunk(TimeSpan.Zero).ToList();
+
+        Assert.That(result, Has.Count.EqualTo(1));
+        Assert.That(result[0].Body, Is.TypeOf<JsonObject>());
+        Assert.That(result[0].Timestamp, Is.Not.Null);
+    }
+
+    [Test]
+    public void RowInsertIntoTable_ExecutesInsertStatements()
+    {
+        _dbCommandMock!.SetupSet(command => command.CommandText = It.Is<string>(text =>
+            text.Contains("INSERT INTO", StringComparison.OrdinalIgnoreCase))).Verifiable();
+
+        var protocol = new MockSqlProtocol(
+            "target_table",
+            new SqlConfig
+            {
+                TableName = "target_table",
+                ConnectionString = "Host=localhost"
+            },
+            Globals.Logger,
+            _dbConnectionMock!.Object);
+
+        var dataTable = new DataTable();
+        dataTable.Columns.Add("id", typeof(int));
+        dataTable.Columns.Add("name", typeof(string));
+        dataTable.Rows.Add(1, "alice");
+
+        var rowInsertMethod = typeof(BaseSqlProtocol<IDbConnection>).GetMethod(
+            "RowInsertIntoTable",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        rowInsertMethod!.Invoke(protocol, [dataTable]);
+
+        _dbCommandMock.Verify(command => command.ExecuteNonQuery(), Times.Once);
+        _dbCommandMock.VerifySet(command => command.CommandText = It.IsAny<string>(), Times.AtLeastOnce);
     }
 }

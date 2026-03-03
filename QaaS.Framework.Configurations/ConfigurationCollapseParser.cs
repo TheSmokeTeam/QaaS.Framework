@@ -19,10 +19,10 @@ public static class ConfigurationCollapseParser
             .AddInMemoryCollection(GetConfigurationPathsAndValuesWithCollapsedArrows(configuration)).Build();
     }
         
-    private static IEnumerable<KeyValuePair<string, string>> GetConfigurationPathsAndValuesWithCollapsedArrows
+    private static IEnumerable<KeyValuePair<string, string?>> GetConfigurationPathsAndValuesWithCollapsedArrows
         (IConfiguration configurationRoot)
     {
-        var configurationPathsAndValues = new List<KeyValuePair<string, string>>();
+        var configurationPathsAndValues = new List<KeyValuePair<string, string?>>();
 
         return GetDirectChildrenAfterCollapsingArrows(configurationRoot)
             .Aggregate(configurationPathsAndValues,
@@ -30,15 +30,15 @@ public static class ConfigurationCollapseParser
                     current.Concat(GetConfigurationPathsAndValuesWithCollapsedArrows(configurationSection)).ToList());
     }
 
-    private static IEnumerable<KeyValuePair<string, string>> GetConfigurationPathsAndValuesWithCollapsedArrows(
+    private static IEnumerable<KeyValuePair<string, string?>> GetConfigurationPathsAndValuesWithCollapsedArrows(
         IConfigurationSection configurationSection, string configurationPath = "")
     {
-        var configurationValues = new List<KeyValuePair<string, string>>();
+        var configurationValues = new List<KeyValuePair<string, string?>>();
         var reachedConfigurationEndpoint = !configurationSection.GetChildren().Any();
         if (reachedConfigurationEndpoint)
         {
-            configurationValues.Add(new KeyValuePair<string, string>(configurationPath + 
-                                                                     configurationSection.Key,
+            configurationValues.Add(new KeyValuePair<string, string?>(configurationPath + 
+                                                                      configurationSection.Key,
                 configurationSection.Value));
             return configurationValues;
         }

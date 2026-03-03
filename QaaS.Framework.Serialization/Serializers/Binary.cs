@@ -1,4 +1,4 @@
-﻿using System.Runtime.Serialization.Formatters.Binary;
+using MessagePack;
 
 namespace QaaS.Framework.Serialization.Serializers;
 
@@ -9,13 +9,7 @@ public class Binary: ISerializer
 {
     /// <inheritdoc />
     public byte[]? Serialize(object? data)
-    {
-        if (data is null) return null;
-        
-        using var memoryStream = new MemoryStream();
-        var formatter = new BinaryFormatter();
-        formatter.Serialize(memoryStream, data);
-
-        return memoryStream.ToArray();
-    }
+        => data is null
+            ? null
+            : MessagePackSerializer.Serialize<object?>(data, MessagePackSerializer.Typeless.DefaultOptions);
 }

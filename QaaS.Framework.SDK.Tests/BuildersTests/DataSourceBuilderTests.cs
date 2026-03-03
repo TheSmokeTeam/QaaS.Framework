@@ -1,17 +1,15 @@
 ﻿using System.Collections.Immutable;
 using System.Reflection;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using QaaS.Framework.SDK.ContextObjects;
 using QaaS.Framework.SDK.DataSourceObjects;
 using QaaS.Framework.SDK.Hooks.Generator;
 using QaaS.Framework.SDK.Session.DataObjects;
 using QaaS.Framework.SDK.Session.SessionDataObjects;
-using QaaS.Framework.SDK.Session.SessionDataObjects.RunningSessionsObjects;
 using QaaS.Framework.Serialization;
 
 namespace QaaS.Framework.SDK.Tests.BuildersTests;
 
+[TestFixture]
 public class DataSourceBuilderTests
 {
     private static PropertyInfo _generatorInfo =

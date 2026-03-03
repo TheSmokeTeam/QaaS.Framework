@@ -3,6 +3,7 @@ using QaaS.Framework.Configurations.CustomValidationAttributes;
 
 namespace QaaS.Framework.Configurations.Tests;
 
+[TestFixture]
 public class ValueAppearsInListAttributeTests
 {
     public class TestValueAppearsInList

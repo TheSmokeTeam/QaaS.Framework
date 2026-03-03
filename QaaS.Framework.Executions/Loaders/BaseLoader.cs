@@ -39,11 +39,23 @@ public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptio
                 .MinimumLevel.Is(options.SendLogs ? LogEventLevel.Verbose : configuredLogLevel)
                 .WriteTo.Console(configuredLogLevel);
 
-        return AddElasticSinkIfEnabled(loggerConfiguration, options.SendLogs).CreateLogger();
+        var warnings = new List<string>();
+        var serilogLogger = AddElasticSinkIfEnabled(loggerConfiguration, options, warnings).CreateLogger();
+        foreach (var warning in warnings)
+        {
+            serilogLogger.Warning("{WarningMessage}", warning);
+        }
+
+        return serilogLogger;
     }
 
-    private LoggerConfiguration AddElasticSinkIfEnabled(LoggerConfiguration config, bool sendLogs)
-        => sendLogs ? config.AddQaaSElasticSink() : config;
+    private LoggerConfiguration AddElasticSinkIfEnabled(
+        LoggerConfiguration config,
+        TOptions options,
+        ICollection<string> warnings)
+        => options.SendLogs
+            ? config.AddQaaSElasticSink(options.ElasticUri, options.ElasticUsername, options.ElasticPassword, warnings.Add)
+            : config;
 
     private ILogger BuildLogger(Serilog.ILogger serilogLogger) =>
         new SerilogLoggerFactory(serilogLogger).CreateLogger(GetType().Name);

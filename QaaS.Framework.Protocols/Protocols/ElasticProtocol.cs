@@ -16,10 +16,10 @@ public class ElasticProtocol : IChunkReader, IChunkSender, IDisposable
 {
     private readonly IElasticClient _elasticClient;
     private readonly ILogger _logger;
-    private readonly List<string> _activeScrollIds;
-    private readonly ElasticReaderConfig _readerConfiguration;
-    private readonly ElasticSenderConfig _senderConfiguration;
-    private readonly ElasticIndicesRegex _elasticIndicesConfiguration;
+    private readonly List<string> _activeScrollIds = [];
+    private readonly ElasticReaderConfig _readerConfiguration = null!;
+    private readonly ElasticSenderConfig _senderConfiguration = null!;
+    private readonly ElasticIndicesRegex _elasticIndicesConfiguration = null!;
     private readonly DataFilter _dataFilter;
 
 
@@ -63,7 +63,6 @@ public class ElasticProtocol : IChunkReader, IChunkSender, IDisposable
                 .ServerCertificateValidationCallback((_, _, _, _) => true)), // Ignores SSL certificate validation
         dataFilter, logger)
     {
-        _activeScrollIds = [];
     }
 
     /// <summary>

@@ -1,6 +1,5 @@
 ﻿using System.Collections;
 using System.ComponentModel.DataAnnotations;
-using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace QaaS.Framework.Configurations.CustomValidationAttributes;
@@ -36,8 +35,13 @@ public class AtLeastOneEnumerablePropertyNotEmptyAttribute: ValidationAttribute
     }
         
     /// <inheritdoc />
-    protected override ValidationResult IsValid([NotNull] object value, ValidationContext validationContext)
+    protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
+        if (value is null)
+        {
+            return new ValidationResult($"{validationContext.ObjectType.Name} cannot be null");
+        }
+
         var valueType = value.GetType();
 
         var allObjectEnumerableProperties = valueType.GetProperties(
@@ -46,9 +50,9 @@ public class AtLeastOneEnumerablePropertyNotEmptyAttribute: ValidationAttribute
 
         if (_enumerablePropertyNamesToCheck == null)
         {
-            return allObjectEnumerableProperties.Any(property => property.GetValue(value) != null &&
-                                                                 ((IEnumerable)property.GetValue(value))!
-                                                                 .Cast<object>()!.Any()) ?
+            return allObjectEnumerableProperties.Any(property =>
+                property.GetValue(value) is IEnumerable enumerable &&
+                enumerable.Cast<object?>().Any()) ?
                 ValidationResult.Success : new ValidationResult(
                     $"All enumerable properties in {validationContext.ObjectType.Name} are empty " +
                     $"(contain 0 items or are null), at least 1 enumerable property must have at least 1 item in it");
@@ -57,8 +61,9 @@ public class AtLeastOneEnumerablePropertyNotEmptyAttribute: ValidationAttribute
         var specificEnumerablePropertiesToCheck = allObjectEnumerableProperties.Where(
             property => _enumerablePropertyNamesToCheck.Contains(property.Name)).ToArray();
             
-        return specificEnumerablePropertiesToCheck.Any(property => property.GetValue(value) != null &&
-                                                                   ((IEnumerable) property.GetValue(value))!.Cast<object>()!.Any()) ?
+        return specificEnumerablePropertiesToCheck.Any(property =>
+            property.GetValue(value) is IEnumerable enumerable &&
+            enumerable.Cast<object?>().Any()) ?
             ValidationResult.Success : new ValidationResult(
                 $"All of the following enumerable properties : " +
                 $"[{string.Join(", ", specificEnumerablePropertiesToCheck.Select(property => property.Name))}] " +

@@ -12,13 +12,13 @@ namespace QaaS.Framework.SDK.Hooks.Probe;
 [JsonSchema]
 public abstract class BaseProbe<TConfiguration> : IProbe where TConfiguration : new()
 {
-    public Context Context { get; set; }
+    public Context Context { get; set; } = null!;
     
     /// <summary>
     /// The relevant configuration for this probe's scope loaded and validated
     /// into a configuration object
     /// </summary>
-    public TConfiguration Configuration { get; set; }
+    public TConfiguration Configuration { get; set; } = default!;
     
     /// <summary>
     /// The options of the binder that binds the IConfiguration to the <see cref="Configuration"/>
