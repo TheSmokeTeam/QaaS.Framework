@@ -19,7 +19,7 @@ public class NullUnlessAllAttribute : ValidationAttribute
     /// </summary>
     /// <param name="stringConditions"> A string representing a list of key value pairs where every item in the
     /// list is seperated by `,` and every pair is seperated by `:`, ignores spaces.
-    /// for example: "age:5,name:REDA,child:true"
+    /// for example: "age:5,name:John,child:true"
     ///  </param>
     public NullUnlessAllAttribute(string stringConditions)
     {
