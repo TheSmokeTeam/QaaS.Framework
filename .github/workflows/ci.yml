@@ -2,125 +2,71 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
-    tags: ["*"]
+    branches:
+      - "**"
+    tags:
+      - "*"
   pull_request:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true/
   CONFIGURATION: Release
-  SOLUTION: YourSolution.sln
+  PROJECT_PATH: QaaS.Framework.sln
+  PACKAGE_OUTPUT_DIRECTORY: ${{ github.workspace }}\BuildOutput
+  NUGET_SOURCE_URL: 'https://api.nuget.org/v3/index.json'
 
 jobs:
-  build_test_pack:
-    name: Restore / Build / Test (and Pack on tags)
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-
+  build-test-deploy:
+    name: Build, Test & Deploy
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # FIX: remove setup-dotnet cache so it won't fail when packages.lock.json doesn't exist
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+      - name: Install dotnet
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: 10.0.x
 
-      - name: Configure GitHub Packages feed (restore/push)
-        run: |
-          dotnet nuget remove source github 2>/dev/null || true
-          dotnet nuget add source \
-            --name github \
-            --username "${{ github.actor }}" \
-            --password "${{ secrets.GITHUB_TOKEN }}" \
-            --store-password-in-clear-text \
-            "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+      - name: Restore packages
+        run: dotnet restore ${{ env.PROJECT_PATH }}
 
-      # FIX: don't use --locked-mode if you don't have committed lock files
-      - name: Restore
-        run: dotnet restore "${{ env.SOLUTION }}"
+      - name: Build project
+        run: dotnet build ${{ env.PROJECT_PATH }} --no-restore --configuration ${{ env.CONFIGURATION }}
 
-      - name: Build
-        run: dotnet build "${{ env.SOLUTION }}" -c "${{ env.CONFIGURATION }}" --no-restore
+      - name: Test solution
+        # Added --no-build so it reuses the compilation from the previous step
+        run: dotnet test ${{ env.PROJECT_PATH }} --configuration ${{ env.CONFIGURATION }} --no-restore --no-build --maxcpucount
 
-      - name: Test
-        run: dotnet test "${{ env.SOLUTION }}" -c "${{ env.CONFIGURATION }}" --no-build
+      # --- DEPLOYMENT STEPS (Run only on tags) ---
 
-      - name: Compute package version from tag
+      - name: Get Version
         if: startsWith(github.ref, 'refs/tags/')
-        id: ver
+        id: version
+        uses: battila7/get-version-action@v2
+
+      - name: Validate SemVer tag
+        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#v}"
-
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([\-][0-9A-Za-z\.\-]+)?$ ]]; then
-            echo "Tag '$TAG' -> version '$VERSION' is not a valid NuGet version. Use tags like v1.2.3 or 1.2.3 or 1.2.3-alpha."
+          VERSION="${{ steps.version.outputs.version-without-v }}"
+          # Regex Breakdown:
+          # ^[0-9]+\.[0-9]+\.[0-9]+  -> Matches X.X.X
+          # (-(alpha|beta)\.[0-9]+)? -> OPTIONAL: hyphen, then "alpha" or "beta", then dot, then digits
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
+            echo "Error: '$VERSION' is not a valid version."
+            echo "Allowed formats: X.X.X, X.X.X-alpha.N, or X.X.X-beta.N"
             exit 1
           fi
 
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Pack (tags only)
+      - name: Pack project
         if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          dotnet pack "${{ env.SOLUTION }}" \
-            -c "${{ env.CONFIGURATION }}" \
-            --no-build \
-            -p:ContinuousIntegrationBuild=true \
-            -p:PackageVersion="${{ steps.ver.outputs.version }}" \
-            -o ./artifacts
+        run: dotnet pack ${{ env.PROJECT_PATH }} --no-restore --no-build --configuration ${{ env.CONFIGURATION }} --include-symbols -p:PackageVersion=${{ steps.version.outputs.version-without-v }} --output ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
 
-      - name: Upload NuGet packages artifact (tags only)
+      - name: Push package
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v6
-        with:
-          name: nupkgs
-          path: ./artifacts/*.nupkg
-
-  publish:
-    name: Push to GitHub Packages (tags only)
-    runs-on: ubuntu-latest
-    needs: build_test_pack
-    if: startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "10.0.x"
-
-      - name: Download packed artifacts
-        uses: actions/download-artifact@v7
-        with:
-          name: nupkgs
-          path: ./artifacts
-
-      - name: Configure GitHub Packages feed
-        run: |
-          dotnet nuget remove source github 2>/dev/null || true
-          dotnet nuget add source \
-            --name github \
-            --username "${{ github.actor }}" \
-            --password "${{ secrets.GITHUB_TOKEN }}" \
-            --store-password-in-clear-text \
-            "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
-
-      - name: Push packages
-        run: |
-          dotnet nuget push "./artifacts/*.nupkg" \
-            --source github \
-            --skip-duplicate
+        run: dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIRECTORY }}\*.nupkg -k ${{ secrets.NUGET_AUTH_TOKEN }} -s ${{ env.NUGET_SOURCE_URL }}

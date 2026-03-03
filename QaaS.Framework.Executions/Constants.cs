@@ -28,7 +28,7 @@ public static class Constants
     
     private static ElasticsearchSinkOptions GetElasticSearchSinkOptions()
     {
-        return new ElasticsearchSinkOptions(new Uri("REDA"))
+        return new ElasticsearchSinkOptions(new Uri("Smoke")) // TODO: figure out a way to make this optional
         {
             IndexFormat = "qaas-{0:yyyy.MM.dd}",
             TemplateName = "qaas",
@@ -36,7 +36,7 @@ public static class Constants
             AutoRegisterTemplateVersion = AutoRegisterTemplateVersion.ESv7,
             OverwriteTemplate = true,
             TypeName = null,
-            ModifyConnectionSettings = client => client.BasicAuthentication("REDA", "REDA")
+            ModifyConnectionSettings = client => client.BasicAuthentication("Smoke", "Smoke") // TODO: figure out a way to make this optional
                 .ServerCertificateValidationCallback((connection, certificate, chain, errors) => true
                 ).EnableHttpCompression().EnableDebugMode()
         };

@@ -21,6 +21,6 @@ All available options (not case sensitive) are: {nameof(LogEventLevel.Verbose)},
     public string? LoggerConfigurationFilePath { get; init; } = null;
 
     
-    [Option("send-logs",HelpText =@"Weather to send the logs to REDA's logs database")]
+    [Option("send-logs",HelpText =@"Weather to send the logs to Smokes's logs database")]
     public bool SendLogs { get; init; } = true;
 }
