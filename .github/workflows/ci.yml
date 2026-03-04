@@ -2,10 +2,8 @@ name: CI
 
 on:
   push:
-    branches:
-      - "**"
-    tags:
-      - "*"
+    branches: ["**"]
+    tags: ["*"]
   pull_request:
 
 permissions:
@@ -13,11 +11,10 @@ permissions:
 
 env:
   DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true/
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
   CONFIGURATION: Release
   PROJECT_PATH: QaaS.Framework.sln
   PACKAGE_OUTPUT_DIRECTORY: ${{ github.workspace }}\BuildOutput
-  NUGET_SOURCE_URL: 'https://api.nuget.org/v3/index.json'
 
 jobs:
   build-test-deploy:
@@ -39,7 +36,6 @@ jobs:
         run: dotnet build ${{ env.PROJECT_PATH }} --no-restore --configuration ${{ env.CONFIGURATION }}
 
       - name: Test solution
-        # Added --no-build so it reuses the compilation from the previous step
         run: dotnet test ${{ env.PROJECT_PATH }} --configuration ${{ env.CONFIGURATION }} --no-restore --no-build --maxcpucount
 
       # --- DEPLOYMENT STEPS (Run only on tags) ---
@@ -54,19 +50,21 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version-without-v }}"
-          # Regex Breakdown:
-          # ^[0-9]+\.[0-9]+\.[0-9]+  -> Matches X.X.X
-          # (-(alpha|beta)\.[0-9]+)? -> OPTIONAL: hyphen, then "alpha" or "beta", then dot, then digits
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta)\.[0-9]+)?$ ]]; then
-            echo "Error: '$VERSION' is not a valid version."
-            echo "Allowed formats: X.X.X, X.X.X-alpha.N, or X.X.X-beta.N"
+            echo "Error: '$VERSION' is not a valid version format."
             exit 1
           fi
 
       - name: Pack project
         if: startsWith(github.ref, 'refs/tags/')
-        run: dotnet pack ${{ env.PROJECT_PATH }} --no-restore --no-build --configuration ${{ env.CONFIGURATION }} --include-symbols -p:PackageVersion=${{ steps.version.outputs.version-without-v }} --output ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
+        run: |
+          dotnet pack ${{ env.PROJECT_PATH }} `
+            --no-restore --no-build `
+            --configuration ${{ env.CONFIGURATION }} `
+            --include-symbols `
+            -p:PackageVersion=${{ steps.version.outputs.version-without-v }} `
+            --output ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
 
       - name: Push package
         if: startsWith(github.ref, 'refs/tags/')
-        run: dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIRECTORY }}\*.nupkg -k ${{ secrets.NUGET_AUTH_TOKEN }} -s ${{ env.NUGET_SOURCE_URL }}
+        run: dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIRECTORY }}\*.nupkg -k ${{ secrets.NUGET_AUTH_TOKEN }} -s https://api.nuget.org/v3/index.json --skip-duplicate
