@@ -10,10 +10,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using QaaS.Framework.Configurations.CustomExceptions;
 using QaaS.Framework.Protocols.ConfigurationObjects;
+using QaaS.Framework.Protocols.ConfigurationObjects.Elastic;
+using QaaS.Framework.Protocols.ConfigurationObjects.Grpc;
 using QaaS.Framework.Protocols.ConfigurationObjects.Http;
+using QaaS.Framework.Protocols.ConfigurationObjects.IbmMq;
+using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
+using QaaS.Framework.Protocols.ConfigurationObjects.MongoDb;
 using QaaS.Framework.Protocols.ConfigurationObjects.Prometheus;
+using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 using QaaS.Framework.Protocols.ConfigurationObjects.Redis;
 using QaaS.Framework.Protocols.ConfigurationObjects.S3;
+using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
 using QaaS.Framework.Protocols.ConfigurationObjects.Socket;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 using QaaS.Framework.Protocols.Extentions;
@@ -21,6 +28,7 @@ using QaaS.Framework.Protocols.Protocols;
 using QaaS.Framework.Protocols.Protocols.Factories;
 using QaaS.Framework.Protocols.Utils;
 using QaaS.Framework.Protocols.Utils.S3Utils;
+using QaaS.Framework.SDK.Session;
 using QaaS.Framework.SDK.Session.DataObjects;
 using QaaS.Framework.SDK.Session.MetaDataObjects;
 
@@ -391,6 +399,205 @@ public class ProtocolBehaviorTests
                 TransactorFactory.CreateTransactor(new UnsupportedTransactorConfig(), logger, TimeSpan.FromSeconds(1)));
             Assert.Throws<InvalidOperationException>(() =>
                 FetcherFactory.CreateFetcher(new UnsupportedFetcherConfig(), logger));
+        });
+    }
+
+    [Test]
+    public void Factories_CreateAllSupportedProtocolImplementations()
+    {
+        var logger = NullLogger.Instance;
+        var dataFilter = new DataFilter { Body = true };
+
+        var (redisSender, redisChunk) = SenderFactory.CreateSender(true, new RedisSenderConfig
+        {
+            HostNames = ["localhost:6379"],
+            RedisDataType = RedisDataType.SetString
+        }, logger, dataFilter);
+        var (msSqlSender, msSqlChunk) = SenderFactory.CreateSender(true, new MsSqlSenderConfig
+        {
+            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
+            TableName = "tbl"
+        }, logger, dataFilter);
+        var (oracleSender, oracleChunk) = SenderFactory.CreateSender(false, new OracleSenderConfig
+        {
+            ConnectionString = "Data Source=localhost;User Id=u;Password=p;",
+            TableName = "tbl"
+        }, logger, dataFilter);
+        var (mongoSender, mongoChunk) = SenderFactory.CreateSender(true, new MongoDbCollectionSenderConfig
+        {
+            ConnectionString = "mongodb://localhost:27017",
+            DatabaseName = "db",
+            CollectionName = "col"
+        }, logger, dataFilter);
+        var (elasticSender, elasticChunk) = SenderFactory.CreateSender(true, new ElasticSenderConfig
+        {
+            Url = "http://localhost:9200",
+            Username = "u",
+            Password = "p",
+            IndexName = "idx"
+        }, logger, dataFilter);
+
+        var (rabbitSender, rabbitChunk) = SenderFactory.CreateSender(false, new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            QueueName = "q"
+        }, logger, dataFilter);
+        var (kafkaSender, kafkaChunk) = SenderFactory.CreateSender(false, new KafkaTopicSenderConfig
+        {
+            HostNames = ["localhost:9092"],
+            Username = "u",
+            Password = "p",
+            TopicName = "topic"
+        }, logger, dataFilter);
+        var (sftpSender, sftpChunk) = SenderFactory.CreateSender(false, new SftpSenderConfig
+        {
+            Hostname = "localhost",
+            Username = "u",
+            Password = "p",
+            Path = "/tmp"
+        }, logger, dataFilter);
+        var (socketSender, socketChunk) = SenderFactory.CreateSender(false, new SocketSenderConfig
+        {
+            Host = "127.0.0.1",
+            Port = 1001,
+            ProtocolType = ProtocolType.Tcp
+        }, logger, dataFilter);
+        var (s3Sender, s3Chunk) = SenderFactory.CreateSender(false, new S3BucketSenderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://localhost:9000",
+            AccessKey = "ak",
+            SecretKey = "sk"
+        }, logger, dataFilter);
+
+        var (rabbitReader, rabbitChunkReader) = ReaderFactory.CreateReader(new RabbitMqReaderConfig
+        {
+            Host = "localhost",
+            QueueName = "q"
+        }, logger, dataFilter);
+        var (kafkaReader, kafkaChunkReader) = ReaderFactory.CreateReader(new KafkaTopicReaderConfig
+        {
+            HostNames = ["localhost:9092"],
+            Username = "u",
+            Password = "p",
+            TopicName = "topic",
+            GroupId = "g"
+        }, logger, dataFilter);
+        var (socketReader, socketChunkReader) = ReaderFactory.CreateReader(new SocketReaderConfig
+        {
+            Host = "127.0.0.1",
+            Port = 1001,
+            ProtocolType = ProtocolType.Tcp
+        }, logger, dataFilter);
+        var (ibmReader, ibmChunkReader) = ReaderFactory.CreateReader(new IbmMqReaderConfig
+        {
+            HostName = "h",
+            Port = 1414,
+            Channel = "c",
+            Manager = "m",
+            QueueName = "q"
+        }, logger, dataFilter);
+        var (postgresReader, postgresChunkReader) = ReaderFactory.CreateReader(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl",
+            InsertionTimeField = "created_at"
+        }, logger, dataFilter);
+        var (oracleReader, oracleChunkReader) = ReaderFactory.CreateReader(new OracleReaderConfig
+        {
+            ConnectionString = "Data Source=localhost;User Id=u;Password=p;",
+            TableName = "tbl",
+            InsertionTimeField = "created_at"
+        }, logger, dataFilter);
+        var (msSqlReader, msSqlChunkReader) = ReaderFactory.CreateReader(new MsSqlReaderConfig
+        {
+            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
+            TableName = "tbl",
+            InsertionTimeField = "created_at"
+        }, logger, dataFilter);
+        var (trinoReader, trinoChunkReader) = ReaderFactory.CreateReader(new TrinoReaderConfig
+        {
+            ConnectionString = string.Empty,
+            TableName = "tbl",
+            InsertionTimeField = "created_at",
+            Username = "u",
+            Password = "p",
+            ClientTag = "tag",
+            Schema = "sch",
+            Catalog = "cat",
+            Hostname = "http://localhost:8080"
+        }, logger, dataFilter);
+        var (elasticReader, elasticChunkReader) = ReaderFactory.CreateReader(new ElasticReaderConfig
+        {
+            Url = "http://localhost:9200",
+            Username = "u",
+            Password = "p",
+            IndexPattern = "logs-*"
+        }, logger, dataFilter);
+        var (s3Reader, s3ChunkReader) = ReaderFactory.CreateReader(new S3BucketReaderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://localhost:9000",
+            AccessKey = "ak",
+            SecretKey = "sk"
+        }, logger, dataFilter);
+
+        var transactor = TransactorFactory.CreateTransactor(new GrpcTransactorConfig
+        {
+            Host = "localhost",
+            Port = 5001,
+            AssemblyName = typeof(FakeGrpcService).Assembly.GetName().Name!,
+            ProtoNameSpace = "QaaS.Framework.Protocols.Tests.ProtocolsTests",
+            ServiceName = nameof(FakeGrpcService),
+            RpcName = nameof(FakeGrpcService.FakeGrpcServiceClient.Echo)
+        }, logger, TimeSpan.FromSeconds(1));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(redisSender, Is.Null);
+            Assert.That(msSqlSender, Is.Null);
+            Assert.That(oracleSender, Is.Not.Null);
+            Assert.That(mongoSender, Is.Null);
+            Assert.That(elasticSender, Is.Null);
+            Assert.That(redisChunk, Is.Not.Null);
+            Assert.That(msSqlChunk, Is.Not.Null);
+            Assert.That(oracleChunk, Is.Null);
+            Assert.That(mongoChunk, Is.Not.Null);
+            Assert.That(elasticChunk, Is.Not.Null);
+
+            Assert.That(rabbitSender, Is.Not.Null);
+            Assert.That(kafkaSender, Is.Not.Null);
+            Assert.That(sftpSender, Is.Not.Null);
+            Assert.That(socketSender, Is.Not.Null);
+            Assert.That(s3Sender, Is.Not.Null);
+            Assert.That(rabbitChunk, Is.Null);
+            Assert.That(kafkaChunk, Is.Null);
+            Assert.That(sftpChunk, Is.Null);
+            Assert.That(socketChunk, Is.Null);
+            Assert.That(s3Chunk, Is.Null);
+
+            Assert.That(rabbitReader, Is.Not.Null);
+            Assert.That(kafkaReader, Is.Not.Null);
+            Assert.That(socketReader, Is.Not.Null);
+            Assert.That(ibmReader, Is.Not.Null);
+            Assert.That(postgresReader, Is.Null);
+            Assert.That(oracleReader, Is.Null);
+            Assert.That(msSqlReader, Is.Null);
+            Assert.That(trinoReader, Is.Null);
+            Assert.That(elasticReader, Is.Null);
+            Assert.That(s3Reader, Is.Null);
+            Assert.That(rabbitChunkReader, Is.Null);
+            Assert.That(kafkaChunkReader, Is.Null);
+            Assert.That(socketChunkReader, Is.Null);
+            Assert.That(ibmChunkReader, Is.Null);
+            Assert.That(postgresChunkReader, Is.Not.Null);
+            Assert.That(oracleChunkReader, Is.Not.Null);
+            Assert.That(msSqlChunkReader, Is.Not.Null);
+            Assert.That(trinoChunkReader, Is.Not.Null);
+            Assert.That(elasticChunkReader, Is.Not.Null);
+            Assert.That(s3ChunkReader, Is.Not.Null);
+
+            Assert.That(transactor, Is.TypeOf<GrpcProtocol>());
         });
     }
 

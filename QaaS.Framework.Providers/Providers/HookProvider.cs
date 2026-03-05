@@ -1,5 +1,4 @@
-﻿using System.Reflection;
-using System.Text;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using QaaS.Framework.Providers.ObjectCreation;
 using QaaS.Framework.SDK.ContextObjects;
@@ -23,16 +22,41 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
     {
         _context = context;
         _objectCreator = objectCreator;
-        _hookAssemblies = new[]
-            {
-                Assembly.GetEntryAssembly() ?? throw new ArgumentException(
-                    "Could not find Entry Assembly, was called from an unmanaged code")
-            }
-            .Concat(GetAllAssembliesDirectlyReferencedByProject()).ToArray();
+        _hookAssemblies = GetHookAssemblies().ToArray();
     }
 
-    private static IEnumerable<Assembly> GetAllAssembliesDirectlyReferencedByProject() =>
-        Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.dll").Select(Assembly.LoadFrom);
+    private static IEnumerable<Assembly> GetHookAssemblies()
+    {
+        var assemblies = new Dictionary<string, Assembly>(StringComparer.Ordinal);
+
+        AddAssembly(assemblies, Assembly.GetEntryAssembly());
+
+        foreach (var loadedAssembly in AppDomain.CurrentDomain.GetAssemblies())
+            AddAssembly(assemblies, loadedAssembly);
+
+        foreach (var assemblyPath in Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.dll"))
+        {
+            try
+            {
+                AddAssembly(assemblies, Assembly.LoadFrom(assemblyPath));
+            }
+            catch
+            {
+                // ignore broken/unloadable binaries; debug details are logged when probing types per assembly.
+            }
+        }
+
+        return assemblies.Values;
+    }
+
+    private static void AddAssembly(IDictionary<string, Assembly> assemblies, Assembly? assembly)
+    {
+        if (assembly is null || assembly.IsDynamic) return;
+
+        var key = assembly.FullName ?? assembly.GetName().Name;
+        if (string.IsNullOrWhiteSpace(key) || assemblies.ContainsKey(key)) return;
+        assemblies[key] = assembly;
+    }
 
     /// <summary>
     /// Whether the given hook (by name) is supported in the given assembly

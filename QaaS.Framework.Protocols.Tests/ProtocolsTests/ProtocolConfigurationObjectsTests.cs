@@ -6,6 +6,7 @@ using QaaS.Framework.Protocols.ConfigurationObjects.Grpc;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
+using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
 namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 
@@ -170,5 +171,17 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(sftpSender.NamingType, Is.EqualTo(ObjectNamingGeneratorType.GrowingNumericalSeries));
             Assert.That(Validator.TryValidateObject(sftpSender, new ValidationContext(sftpSender), null, true), Is.True);
         });
+    }
+
+    [Test]
+    public void SqlUdtSenderConfig_Defaults_Work()
+    {
+        var config = new SqlUdtSenderConfig
+        {
+            TableName = "tbl",
+            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;"
+        };
+
+        Assert.That(config.IsUDTInsertion, Is.False);
     }
 }

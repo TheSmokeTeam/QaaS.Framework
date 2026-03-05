@@ -1,4 +1,5 @@
-﻿using System.Data;
+using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
@@ -6,6 +7,7 @@ using QaaS.Framework.SDK.Session.DataObjects;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
+[ExcludeFromCodeCoverage]
 public class OracleSqlProtocol : BaseSqlProtocol<OracleConnection>, ISender
 {
     public OracleSqlProtocol(OracleReaderConfig configurations, ILogger logger,
@@ -70,3 +72,4 @@ public class OracleSqlProtocol : BaseSqlProtocol<OracleConnection>, ISender
             : $"where {WhereStatement}";
     }
 }
+
