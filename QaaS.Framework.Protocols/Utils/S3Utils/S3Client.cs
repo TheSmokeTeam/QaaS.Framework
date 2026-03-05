@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -10,6 +11,7 @@ namespace QaaS.Framework.Protocols.Utils.S3Utils;
 /// <summary>
 /// Contains functionality for manipulating s3 data for a single client
 /// </summary>
+[ExcludeFromCodeCoverage]
 public class S3Client : IS3Client
 {
     private readonly ILogger? _logger;
@@ -248,3 +250,4 @@ public class S3Client : IS3Client
         Client.Dispose();
     }
 }
+

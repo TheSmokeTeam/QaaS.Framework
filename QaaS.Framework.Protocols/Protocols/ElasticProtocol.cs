@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 using BlushingPenguin.JsonPath;
 using Elasticsearch.Net;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,7 @@ using QaaS.Framework.Serialization;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
+[ExcludeFromCodeCoverage]
 public class ElasticProtocol : IChunkReader, IChunkSender, IDisposable
 {
     private readonly IElasticClient _elasticClient;

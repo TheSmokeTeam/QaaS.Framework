@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Data;
+using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
@@ -201,6 +202,43 @@ public class ProtocolAdvancedBehaviorTests
 
         Assert.That(responses, Has.Count.EqualTo(1));
         s3Mock.Verify(m => m.DeleteObjectsAsync(It.IsAny<DeleteObjectsRequest>(), default), Times.Once);
+    }
+
+    [Test]
+    public void S3Client_PutObjectsInS3BucketSync_StoresItems_And_CreatesBucketWhenMissing()
+    {
+        var s3Mock = new Mock<IAmazonS3>();
+        s3Mock.Setup(client => client.EnsureBucketExistsAsync("bucket"))
+            .Returns(Task.CompletedTask);
+        s3Mock.Setup(client => client.PutObjectAsync(It.IsAny<PutObjectRequest>(), default))
+            .ReturnsAsync(new PutObjectResponse { HttpStatusCode = HttpStatusCode.OK });
+
+        var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
+        var responses = client.PutObjectsInS3BucketSync("bucket",
+            [
+                new KeyValuePair<string, byte[]>("k1", Encoding.UTF8.GetBytes("v1")),
+                new KeyValuePair<string, byte[]>("k2", Encoding.UTF8.GetBytes("v2"))
+            ]).ToList();
+
+        Assert.That(responses, Has.Count.EqualTo(2));
+        s3Mock.Verify(mock => mock.PutObjectAsync(It.IsAny<PutObjectRequest>(), default), Times.Exactly(2));
+
+        var missingBucketMock = new Mock<IAmazonS3>();
+        missingBucketMock.Setup(client => client.EnsureBucketExistsAsync("missing"))
+            .ThrowsAsync(new AmazonS3Exception("missing") { StatusCode = HttpStatusCode.NotFound });
+        missingBucketMock.Setup(client => client.PutBucketAsync("missing", default))
+            .ReturnsAsync(new PutBucketResponse());
+        missingBucketMock.Setup(client => client.PutObjectAsync(It.IsAny<PutObjectRequest>(), default))
+            .ReturnsAsync(new PutObjectResponse { HttpStatusCode = HttpStatusCode.OK });
+
+        var missingBucketClient = new S3Client(missingBucketMock.Object, NullLogger.Instance, maxRetryCount: 1);
+        var fallbackResponses = missingBucketClient.PutObjectsInS3BucketSync("missing",
+            [
+                new KeyValuePair<string, byte[]>("k", Encoding.UTF8.GetBytes("v"))
+            ]).ToList();
+
+        Assert.That(fallbackResponses, Has.Count.EqualTo(1));
+        missingBucketMock.Verify(mock => mock.PutBucketAsync("missing", default), Times.Once);
     }
 
     [Test]
@@ -446,6 +484,67 @@ public class ProtocolAdvancedBehaviorTests
     }
 
     [Test]
+    public void MongoDbProtocol_Connect_And_SendChunk_WhenInsertFails_Throws()
+    {
+        var protocol = new MongoDbProtocol(new MongoDbCollectionSenderConfig
+        {
+            ConnectionString = "mongodb://localhost:27017",
+            DatabaseName = "db",
+            CollectionName = "c"
+        }, Globals.Logger);
+
+        Assert.DoesNotThrow(() => protocol.Connect());
+        Assert.DoesNotThrow(() => protocol.Disconnect());
+
+        var collectionMock = new Mock<IMongoCollection<BsonDocument>>();
+        collectionMock.Setup(collection => collection.InsertMany(It.IsAny<IEnumerable<BsonDocument>>(), null, default))
+            .Throws(new InvalidOperationException("insert failed"));
+        SetPrivateField(protocol, "_mongoCollection", collectionMock.Object);
+
+        Assert.Throws<InvalidOperationException>(() => protocol.SendChunk([
+            new Data<object> { Body = new { Id = 1 } }
+        ]).ToList());
+    }
+
+    [Test]
+    public void SocketProtocol_Sender_Connects_Sends_And_Disconnects()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var acceptTask = listener.AcceptTcpClientAsync();
+
+        var protocol = new SocketProtocol(new SocketSenderConfig
+        {
+            Host = "127.0.0.1",
+            Port = port,
+            AddressFamily = AddressFamily.InterNetwork,
+            SocketType = SocketType.Stream,
+            ProtocolType = ProtocolType.Tcp,
+            NagleAlgorithm = false
+        }, Globals.Logger);
+
+        protocol.Connect();
+        var sent = protocol.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("ping") });
+
+        using var serverClient = acceptTask.GetAwaiter().GetResult();
+        using var stream = serverClient.GetStream();
+        var buffer = new byte[4];
+        _ = stream.Read(buffer, 0, buffer.Length);
+
+        protocol.Disconnect();
+        protocol.Dispose();
+        listener.Stop();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.GetSerializationType(), Is.Null);
+            Assert.That(sent.Body, Is.TypeOf<byte[]>());
+            Assert.That(Encoding.UTF8.GetString(buffer), Is.EqualTo("ping"));
+        });
+    }
+
+    [Test]
     public void SqlDerivedProtocols_BuildExpectedQueries()
     {
         var now = DateTime.UtcNow;
@@ -489,20 +588,49 @@ public class ProtocolAdvancedBehaviorTests
         });
         trino.ConfigureState("created_at", now, true, "id > 1");
 
+        var postgresNoWhere = new PostgreSqlProtocolWrapper(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl",
+            InsertionTimeField = "created_at",
+            IsInsertionTimeFieldTimeZoneTz = false
+        });
+        postgresNoWhere.ConfigureState("created_at", now, true, null);
+
+        var mssqlNoFilter = new MsSqlProtocolWrapper(new MsSqlReaderConfig
+        {
+            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
+            TableName = "tbl",
+            InsertionTimeField = "created_at"
+        });
+        mssqlNoFilter.ConfigureState("created_at", now, false, null);
+
+        var oracleNoFilter = new OracleSqlProtocolWrapper(new OracleReaderConfig
+        {
+            ConnectionString = "Data Source=localhost;User Id=u;Password=p;",
+            TableName = "tbl",
+            InsertionTimeField = "created_at"
+        });
+        oracleNoFilter.ConfigureState("created_at", now, false, null);
+
         Assert.Multiple(() =>
         {
             Assert.That(postgres.AscQuery(), Does.Contain("order by \"created_at\" asc"));
             Assert.That(postgres.PlainQuery(), Does.Contain("where"));
             Assert.That(postgres.LatestQuery(), Does.Contain("desc LIMIT 1"));
             Assert.That(postgres.Format(now), Does.Contain("TO_TIMESTAMP"));
+            Assert.That(postgresNoWhere.PlainQuery(), Does.Not.Contain(" and "));
+            Assert.That(postgresNoWhere.AscQuery(), Does.Contain("\"created_at\""));
 
             Assert.That(mssql.AscQuery(), Does.Contain("order by created_at asc"));
             Assert.That(mssql.LatestQuery(), Does.Contain("top 1"));
             Assert.That(mssql.Format(now), Does.Contain(now.ToString("yyyy-MM-dd")));
+            Assert.That(mssqlNoFilter.PlainQuery(), Does.Not.Contain("where"));
 
             Assert.That(oracle.AscQuery(), Does.Contain("order by created_at asc"));
             Assert.That(oracle.LatestQuery(), Does.Contain("ROWNUM <= 1"));
             Assert.That(oracle.Format(now), Does.Contain("TO_DATE"));
+            Assert.That(oracleNoFilter.PlainQuery(), Does.Not.Contain("where"));
 
             Assert.That(trino.AscQuery(), Does.Contain("select * from sch.tbl"));
             Assert.That(trino.LatestQuery(), Does.Contain("limit 1"));
