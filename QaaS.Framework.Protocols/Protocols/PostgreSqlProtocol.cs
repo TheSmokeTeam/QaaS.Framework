@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Text;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
@@ -7,6 +8,7 @@ using QaaS.Framework.SDK.Session.DataObjects;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
+[ExcludeFromCodeCoverage]
 public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
 {
     private readonly bool _isInsertionTimeFieldTimeZoneTz;

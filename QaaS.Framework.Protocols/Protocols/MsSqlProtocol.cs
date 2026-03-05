@@ -1,10 +1,12 @@
-﻿using System.Data;
+using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
+[ExcludeFromCodeCoverage]
 public class MsSqlProtocol : BaseSqlProtocol<SqlConnection>
 {
     public MsSqlProtocol(MsSqlReaderConfig configurations, ILogger logger,
@@ -61,3 +63,4 @@ public class MsSqlProtocol : BaseSqlProtocol<SqlConnection>
             : $"where {WhereStatement}";
     }
 }
+

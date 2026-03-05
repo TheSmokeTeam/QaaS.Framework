@@ -38,8 +38,6 @@ jobs:
       - name: Test solution
         run: dotnet test ${{ env.PROJECT_PATH }} --configuration ${{ env.CONFIGURATION }} --no-restore --no-build --maxcpucount
 
-      # --- DEPLOYMENT STEPS (Run only on tags) ---
-
       - name: Get Version
         if: startsWith(github.ref, 'refs/tags/')
         id: version
