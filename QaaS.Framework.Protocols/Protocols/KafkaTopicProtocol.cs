@@ -26,7 +26,7 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
     private readonly byte[]? _defaultKafkaKey;
     private readonly int? _partition;
 
-    
+
     public KafkaTopicProtocol(KafkaTopicReaderConfig configuration, ILogger logger)
     {
         _logger = logger;
@@ -103,7 +103,10 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
             {
                 Kafka = new Kafka
                 {
-                    MessageKey = consumedResult.Message.Key
+                    MessageKey = consumedResult.Message.Key,
+                    Headers = consumedResult.Message.Headers?.ToDictionary<IHeader, string, object?>(
+                        header => header.Key,
+                        header => Encoding.UTF8.GetString(header.GetValueBytes()))
                 }
             },
             Timestamp = consumedResult.Message.Timestamp.UtcDateTime
