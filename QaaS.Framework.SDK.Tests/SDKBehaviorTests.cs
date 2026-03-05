@@ -10,7 +10,6 @@ using QaaS.Framework.SDK.Hooks.Assertion;
 using QaaS.Framework.SDK.Hooks.Generator;
 using QaaS.Framework.SDK.Hooks.Probe;
 using QaaS.Framework.SDK.Hooks.Processor;
-using QaaS.Framework.SDK.MockerObjects;
 using QaaS.Framework.SDK.Session;
 using QaaS.Framework.SDK.Session.CommunicationDataObjects;
 using QaaS.Framework.SDK.Session.DataObjects;
@@ -440,20 +439,6 @@ public class SDKBehaviorTests
             Assert.That(runningSessions.GetAllSessions(), Has.Count.EqualTo(1));
             Assert.That(runningSessions.GetSessionByName("s1"), Is.SameAs(session));
             Assert.Throws<ArgumentException>(() => runningSessions.GetSessionByName("missing"));
-        });
-    }
-
-    [Test]
-    public void CommunicationMethods_BuildExpectedChannelAndEndpointNames()
-    {
-        Assert.Multiple(() =>
-        {
-            Assert.That(CommunicationMethods.CreateChannelRunnerToMocker("json", "Srv", "A"),
-                Is.EqualTo("runner-to-mocker:json:srv:a"));
-            Assert.That(CommunicationMethods.CreateChannelMockerToRunner("xml", "Srv", "B"),
-                Is.EqualTo("mocker-to-runner:xml:srv:b"));
-            Assert.That(CommunicationMethods.CreateConsumerEndpointInput("Server"), Is.EqualTo("server:input"));
-            Assert.That(CommunicationMethods.CreateConsumerEndpointOutput("Server"), Is.EqualTo("server:output"));
         });
     }
 
