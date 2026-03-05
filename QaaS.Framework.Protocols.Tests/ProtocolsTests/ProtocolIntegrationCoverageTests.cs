@@ -1,5 +1,8 @@
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
+using System.Net;
+using System.Net.Sockets;
 using Confluent.Kafka;
 using Google.Protobuf;
 using Grpc.Core;
@@ -7,6 +10,7 @@ using Moq;
 using QaaS.Framework.Protocols.ConfigurationObjects.Elastic;
 using QaaS.Framework.Protocols.ConfigurationObjects.Grpc;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
+using QaaS.Framework.Protocols.ConfigurationObjects.Prometheus;
 using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
 using QaaS.Framework.Protocols.Protocols;
@@ -23,6 +27,12 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 [TestFixture]
 public class ProtocolIntegrationCoverageTests
 {
+    private sealed class ExposedPrometheusProtocol(PrometheusFetcherConfig fetcherConfig)
+        : PrometheusProtocol(fetcherConfig, Globals.Logger)
+    {
+        public string InvokeHttpGetResultBodyAsString(string queryRequestUri) => base.HttpGetResultBodyAsString(queryRequestUri);
+    }
+
     [Test]
     public void KafkaTopicProtocol_Send_Read_And_Lifecycle_AreCovered()
     {
@@ -123,6 +133,75 @@ public class ProtocolIntegrationCoverageTests
         consumerMock.Verify(mock => mock.Commit(consumed), Times.Once);
         consumerMock.Verify(mock => mock.Unsubscribe(), Times.Once);
         consumerMock.Verify(mock => mock.Dispose(), Times.Once);
+    }
+
+    [Test]
+    public void KafkaTopicProtocol_Send_UsesDefaultTopicAndNullHeaders_WhenNoMetadataHeaders()
+    {
+        var sender = new KafkaTopicProtocol(new KafkaTopicSenderConfig
+        {
+            HostNames = ["localhost:9092"],
+            Username = "user",
+            Password = "pass",
+            TopicName = "topic-default",
+            Partition = 0,
+            MessageSendMaxRetries = 1,
+            MessageSendRetriesIntervalMs = 0,
+            DefaultKafkaKey = "fallback-key",
+            Headers = null
+        }, Globals.Logger);
+
+        var producerMock = new Mock<IProducer<byte[]?, byte[]?>>();
+        TopicPartition? sentPartition = null;
+        Message<byte[]?, byte[]?>? sentMessage = null;
+        producerMock
+            .Setup(mock => mock.Produce(It.IsAny<TopicPartition>(), It.IsAny<Message<byte[]?, byte[]?>>(),
+                It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()))
+            .Callback<TopicPartition, Message<byte[]?, byte[]?>, Action<DeliveryReport<byte[]?, byte[]?>>?>(
+                (topicPartition, message, _) =>
+                {
+                    sentPartition = topicPartition;
+                    sentMessage = message;
+                });
+        SetPrivateField(sender, "_producer", producerMock.Object);
+
+        sender.Connect(); // sender has no consumer, should be no-op branch
+        var sent = sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sent.Body, Is.TypeOf<byte[]>());
+            Assert.That(sentPartition, Is.Not.Null);
+            Assert.That(sentPartition!.Topic, Is.EqualTo("topic-default"));
+            Assert.That(sentMessage, Is.Not.Null);
+            Assert.That(sentMessage!.Headers, Is.Null);
+            Assert.That(Encoding.UTF8.GetString(sentMessage.Key!), Is.EqualTo("fallback-key"));
+        });
+    }
+
+    [Test]
+    public void KafkaTopicProtocol_Send_WhenRetriesExhausted_ThrowsKafkaException()
+    {
+        var sender = new KafkaTopicProtocol(new KafkaTopicSenderConfig
+        {
+            HostNames = ["localhost:9092"],
+            Username = "user",
+            Password = "pass",
+            TopicName = "topic-default",
+            Partition = 0,
+            MessageSendMaxRetries = 2,
+            MessageSendRetriesIntervalMs = 0
+        }, Globals.Logger);
+
+        var producerMock = new Mock<IProducer<byte[]?, byte[]?>>();
+        producerMock
+            .Setup(mock => mock.Produce(It.IsAny<TopicPartition>(), It.IsAny<Message<byte[]?, byte[]?>>(),
+                It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()))
+            .Throws(new KafkaException(new Error(ErrorCode.Local_MsgTimedOut)));
+        SetPrivateField(sender, "_producer", producerMock.Object);
+
+        Assert.Throws<KafkaException>(() =>
+            sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null }));
     }
 
     [Test]
@@ -303,6 +382,56 @@ public class ProtocolIntegrationCoverageTests
     }
 
     [Test]
+    public void PrometheusProtocol_HttpGetResultBodyAsString_CoversSuccessAndFailure()
+    {
+        var port = GetFreeTcpPort();
+        using var listener = new HttpListener();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+
+        var serverTask = Task.Run(async () =>
+        {
+            var okContext = await listener.GetContextAsync();
+            Assert.That(okContext.Request.Headers["apikey"], Is.EqualTo("k"));
+            okContext.Response.StatusCode = 200;
+            await okContext.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"ok\":true}"));
+            okContext.Response.Close();
+
+            var badContext = await listener.GetContextAsync();
+            badContext.Response.StatusCode = 500;
+            await badContext.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"error\":true}"));
+            badContext.Response.Close();
+        });
+
+        var protocol = new ExposedPrometheusProtocol(new PrometheusFetcherConfig
+        {
+            Url = $"http://127.0.0.1:{port}",
+            Expression = "up",
+            ApiKey = "k",
+            TimeoutMs = 1
+        });
+
+        var okBody = protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/ok");
+        Assert.That(okBody, Does.Contain("ok"));
+        Assert.Throws<HttpRequestException>(() =>
+            protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/bad"));
+
+        serverTask.GetAwaiter().GetResult();
+    }
+
+    [Test]
+    public void PrometheusProtocol_Collect_WhenBodyIsInvalidJson_Throws()
+    {
+        var protocol = new StubPrometheusProtocol(new PrometheusFetcherConfig
+        {
+            Url = "http://prometheus.local",
+            Expression = "up"
+        }, "{bad-json");
+
+        Assert.Throws<JsonException>(() => protocol.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList());
+    }
+
+    [Test]
     public void ElasticProtocol_Constructors_And_EmptySendChunk_AreCovered()
     {
         var sender = new ElasticProtocol(new ElasticSenderConfig
@@ -350,6 +479,21 @@ public class ProtocolIntegrationCoverageTests
     {
         var fieldInfo = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         fieldInfo!.SetValue(instance, value);
+    }
+
+    private sealed class StubPrometheusProtocol(PrometheusFetcherConfig fetcherConfig, string body)
+        : PrometheusProtocol(fetcherConfig, Globals.Logger)
+    {
+        protected override string HttpGetResultBodyAsString(string queryRequestUri) => body;
+    }
+
+    private static int GetFreeTcpPort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
     }
 }
 
