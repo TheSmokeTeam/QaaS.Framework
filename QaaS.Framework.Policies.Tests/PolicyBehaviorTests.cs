@@ -22,6 +22,20 @@ public class PolicyBehaviorTests
         }
     }
 
+    private sealed class OrderedPolicy(uint index, IList<uint> executionOrder) : Policy
+    {
+        protected override uint Index { get; set; } = index;
+
+        protected override void SetupThis()
+        {
+        }
+
+        protected override void RunThis()
+        {
+            executionOrder.Add(Index);
+        }
+    }
+
     [Test]
     public void CountPolicy_RunChain_StopsAfterConfiguredCount()
     {
@@ -55,6 +69,24 @@ public class PolicyBehaviorTests
         var result = policy.RunChain();
 
         Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public void Policy_Add_ReordersChainByIndex_AndRunsInOrder()
+    {
+        var executionOrder = new List<uint>();
+
+        Policy chain = new OrderedPolicy(2, executionOrder);
+        chain = chain.Add(new OrderedPolicy(1, executionOrder));
+
+        chain.SetupChain();
+        var result = chain.RunChain();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.True);
+            Assert.That(executionOrder, Is.EqualTo(new uint[] { 1, 2 }));
+        });
     }
 
     [Test]
@@ -125,6 +157,18 @@ public class PolicyBehaviorTests
             ]
         });
         Assert.That(builder.Build(), Is.TypeOf<AdvancedLoadBalancePolicy>());
+    }
+
+    [Test]
+    public void AdvancedLoadBalancePolicy_WithoutStageExitConditions_ThrowsInvalidOperationException()
+    {
+        var policy = new AdvancedLoadBalancePolicy(
+        [
+            new StageConfig { Rate = 1, TimeIntervalMs = 1000 }
+        ]);
+        policy.SetupChain();
+
+        Assert.Throws<InvalidOperationException>(() => policy.RunChain());
     }
 
     [Test]

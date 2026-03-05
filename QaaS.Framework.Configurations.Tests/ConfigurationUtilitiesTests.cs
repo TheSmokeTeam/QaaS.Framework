@@ -197,6 +197,36 @@ public class ConfigurationUtilitiesTests
     }
 
     [Test]
+    public void PlaceholderParser_ObjectPlaceholderUsedAsSubstring_Throws()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["obj:child:id"] = "42",
+                ["target"] = "prefix-${obj}-suffix"
+            })
+            .Build();
+
+        Assert.Throws<InvalidOperationException>(
+            () => new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders());
+    }
+
+    [Test]
+    public void PlaceholderParser_MissingPlaceholderWithoutDefault_RemainsUnchanged()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["target"] = "${missing:path}"
+            })
+            .Build();
+
+        var parsed = new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders();
+
+        Assert.That(parsed["target"], Is.EqualTo("${missing:path}"));
+    }
+
+    [Test]
     public void CollapseShiftLeftArrowsInConfiguration_CollapsesChildren()
     {
         var configuration = new ConfigurationBuilder()
