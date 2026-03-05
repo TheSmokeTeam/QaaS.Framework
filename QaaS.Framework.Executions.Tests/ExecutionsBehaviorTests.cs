@@ -190,6 +190,43 @@ public class ExecutionsBehaviorTests
     }
 
     [Test]
+    public void AddQaaSElasticSink_WithOnlyOneCredential_LogsCredentialWarning()
+    {
+        var warnings = new List<string>();
+        var config = new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Console();
+
+        _ = config.AddQaaSElasticSink("http://localhost:9200", username: "user", password: null,
+            warningLogger: warnings.Add);
+
+        Assert.That(warnings.Any(warning => warning.Contains("Only one Elasticsearch credential was provided")),
+            Is.True);
+    }
+
+    [Test]
+    public void AddQaaSElasticSink_WithNoCredentials_LogsNoAuthWarning()
+    {
+        var warnings = new List<string>();
+        var config = new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Console();
+
+        _ = config.AddQaaSElasticSink("http://localhost:9200", username: null, password: null,
+            warningLogger: warnings.Add);
+
+        Assert.That(warnings.Any(warning => warning.Contains("without basic authentication")), Is.True);
+    }
+
+    [Test]
+    public void AddQaaSElasticSink_WithFullCredentials_DoesNotLogCredentialWarnings()
+    {
+        var warnings = new List<string>();
+        var config = new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Console();
+
+        _ = config.AddQaaSElasticSink("http://localhost:9200", username: "user", password: "pass",
+            warningLogger: warnings.Add);
+
+        Assert.That(warnings, Is.Empty);
+    }
+
+    [Test]
     public void BaseExecutionBuilder_Build_UsesBuildDataSources()
     {
         var builder = new TestExecutionBuilder();
