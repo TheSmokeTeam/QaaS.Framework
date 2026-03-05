@@ -1,4 +1,6 @@
 using CommandLine;
+using System.ComponentModel.DataAnnotations;
+using QaaS.Framework.Configurations.CustomExceptions;
 using QaaS.Framework.Executions.CommandLineBuilders;
 using QaaS.Framework.Executions.Loaders;
 using QaaS.Framework.Executions.Options;
@@ -23,7 +25,19 @@ public class ExecutionsBehaviorTests
     {
     }
 
+    private sealed record InvalidLoaderOptions : LoggerOptions
+    {
+        [Required]
+        public string? RequiredField { get; init; }
+    }
+
     private sealed class TestLoader(TestLoaderOptions options) : BaseLoader<TestLoaderOptions, TestRunner>(options)
+    {
+        public override TestRunner GetLoadedRunner() => new();
+    }
+
+    private sealed class InvalidOptionsLoader(InvalidLoaderOptions options)
+        : BaseLoader<InvalidLoaderOptions, TestRunner>(options)
     {
         public override TestRunner GetLoadedRunner() => new();
     }
@@ -112,6 +126,12 @@ public class ExecutionsBehaviorTests
     }
 
     [Test]
+    public void BaseLoader_InvalidOptions_ThrowsInvalidConfigurationsException()
+    {
+        Assert.Throws<InvalidConfigurationsException>(() => _ = new InvalidOptionsLoader(new InvalidLoaderOptions()));
+    }
+
+    [Test]
     public void ParserBuilder_ParsesEnumCaseInsensitively()
     {
         var parser = ParserBuilder.BuildParser();
@@ -121,6 +141,16 @@ public class ExecutionsBehaviorTests
         Assert.That(result.Tag, Is.EqualTo(ParserResultType.Parsed));
         var value = ((Parsed<ParseOptions>)result).Value;
         Assert.That(value.Mode, Is.EqualTo(LogEventLevel.Warning));
+    }
+
+    [Test]
+    public void ParserBuilder_UnknownVerb_ReturnsNotParsed()
+    {
+        var parser = ParserBuilder.BuildParser();
+
+        var result = parser.ParseArguments<RunVerb, StopVerb>(["unknown"]);
+
+        Assert.That(result.Tag, Is.EqualTo(ParserResultType.NotParsed));
     }
 
     [Test]

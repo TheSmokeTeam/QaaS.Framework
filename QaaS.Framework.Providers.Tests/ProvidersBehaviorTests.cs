@@ -27,6 +27,25 @@ public class ProvidersBehaviorTests
     {
     }
 
+    private sealed class ValidationHook : IHook
+    {
+        public Context Context { get; set; } = null!;
+
+        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
+            => [new ValidationResult("invalid configuration")];
+    }
+
+    private sealed class StaticHookProvider(IHook hook) : IHookProvider<IHook>
+    {
+        public IHook GetSupportedInstanceByName(string instanceName) => hook;
+    }
+
+    private sealed class ThrowingHookProvider : IHookProvider<IHook>
+    {
+        public IHook GetSupportedInstanceByName(string instanceName)
+            => throw new ArgumentException("missing hook");
+    }
+
     private static Context CreateContext() => new()
     {
         Logger = NullLogger.Instance,
@@ -96,5 +115,52 @@ public class ProvidersBehaviorTests
         Assert.That(hookData.Name, Is.EqualTo("my-hook"));
         Assert.That(hookData.Type, Is.EqualTo("test"));
         Assert.That(hookData.Configuration["k"], Is.EqualTo("v"));
+    }
+
+    [Test]
+    public void HooksFromProvidersLoader_LoadAndValidate_PrefixesValidationErrors()
+    {
+        var context = CreateContext();
+        var loader = new HooksFromProvidersLoader<IHook>(context, new StaticHookProvider(new ValidationHook()));
+        var validationResults = new List<ValidationResult>();
+
+        var loaded = loader.LoadAndValidate(
+            [
+                new HookData<IHook>
+                {
+                    Name = "hook-a",
+                    Type = nameof(ValidationHook),
+                    Configuration = new ConfigurationBuilder().Build()
+                }
+            ],
+            validationResults);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(loaded, Has.Count.EqualTo(1));
+            Assert.That(validationResults, Has.Count.EqualTo(1));
+            Assert.That(validationResults[0].ErrorMessage, Does.Contain("In Hook of IHook named hook-a"));
+            Assert.That(validationResults[0].ErrorMessage, Does.Contain(nameof(ValidationHook)));
+            Assert.That(validationResults[0].ErrorMessage, Does.Contain("invalid configuration"));
+        });
+    }
+
+    [Test]
+    public void HooksFromProvidersLoader_WhenProviderFails_ThrowsArgumentException()
+    {
+        var context = CreateContext();
+        var loader = new HooksFromProvidersLoader<IHook>(context, new ThrowingHookProvider());
+        var validationResults = new List<ValidationResult>();
+
+        Assert.Throws<ArgumentException>(() => loader.LoadAndValidate(
+            [
+                new HookData<IHook>
+                {
+                    Name = "hook-a",
+                    Type = nameof(TestHook),
+                    Configuration = new ConfigurationBuilder().Build()
+                }
+            ],
+            validationResults));
     }
 }

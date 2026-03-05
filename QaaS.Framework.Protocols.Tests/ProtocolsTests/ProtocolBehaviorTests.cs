@@ -121,6 +121,25 @@ public class ProtocolBehaviorTests
     }
 
     [Test]
+    public void RunS3OperationWithRetryMechanism_WithZeroRetryLimit_ThrowsImmediately()
+    {
+        var attempts = 0;
+
+        Assert.Throws<AmazonS3Exception>(() =>
+            S3Extentions.RunS3OperationWithRetryMechanism<int>(
+                () =>
+                {
+                    attempts++;
+                    throw new AmazonS3Exception("limited") { ErrorCode = "TooManyRequests" };
+                },
+                "limit",
+                maxRetryCount: 0,
+                logger: NullLogger.Instance));
+
+        Assert.That(attempts, Is.EqualTo(1));
+    }
+
+    [Test]
     public void PrometheusProtocol_Collect_ParsesMatrixResult()
     {
         var config = new PrometheusFetcherConfig
@@ -293,6 +312,18 @@ public class ProtocolBehaviorTests
         var exception = Assert.Throws<TargetInvocationException>(() =>
             getClaimsMethod.Invoke(null, ["not: [yaml"]));
         Assert.That(exception!.InnerException, Is.TypeOf<InvalidConfigurationsException>());
+    }
+
+    [Test]
+    public void HttpExtensions_GetJwtAlgorithmFromJwtEnum_InvalidValue_Throws()
+    {
+        var getAlgorithmMethod = typeof(HttpProtocol).Assembly
+            .GetType("QaaS.Framework.Protocols.Extentions.HttpExtentions")!
+            .GetMethod("GetJwtAlgorithmFromJwtEnum", BindingFlags.Static | BindingFlags.NonPublic)!;
+
+        var exception = Assert.Throws<TargetInvocationException>(() =>
+            getAlgorithmMethod.Invoke(null, [(JwtAlgorithms)999]));
+        Assert.That(exception!.InnerException, Is.TypeOf<ArgumentOutOfRangeException>());
     }
 
     [Test]
