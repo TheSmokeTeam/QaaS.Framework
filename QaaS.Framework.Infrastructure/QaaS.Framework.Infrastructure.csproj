@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -9,8 +9,9 @@
         <Description>Shared infrastructure utilities for QaaS components.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    </PropertyGroup>
+        
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+</PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\QaaS.Framework.SDK\QaaS.Framework.SDK.csproj" />
@@ -20,4 +21,8 @@
       <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
     </ItemGroup>
 
+
+    <ItemGroup>
+      <None Include="../README.md" Pack="true" PackagePath="/" />
+    </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -9,8 +9,9 @@
         <Description>Execution orchestration for QaaS test workflows.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    </PropertyGroup>
+        
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+</PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\QaaS.Framework.Policies\QaaS.Framework.Policies.csproj" />
@@ -27,4 +28,8 @@
       <PackageReference Include="Serilog.Sinks.Elasticsearch" Version="10.0.0" />
     </ItemGroup>
 
+
+    <ItemGroup>
+      <None Include="../README.md" Pack="true" PackagePath="/" />
+    </ItemGroup>
 </Project>

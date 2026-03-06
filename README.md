@@ -1,6 +1,6 @@
-# Qa As A Service.Framework
+# QaaS.Framework
 
-Composable .NET packages for building, running, and validating Qa As A Service test workflows.
+Composable .NET packages for building, running, and validating QaaS test workflows.
 
 [![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF)](./.github/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-qaas--docs-blue)](https://thesmoketeam.github.io/qaas-docs/)
@@ -12,7 +12,7 @@ Composable .NET packages for building, running, and validating Qa As A Service t
 - [Functionalities](#functionalities)
 - [Protocol Support](#protocol-support)
 - [Quick Start](#quick-start)
-- [Build, Test, Coverage](#build-test-coverage)
+- [Build and Test](#build-and-test)
 - [Documentation](#documentation)
 
 ## Overview
@@ -21,16 +21,16 @@ This repository contains one solution: [`QaaS.Framework.sln`](./QaaS.Framework.s
 The solution is split into focused NuGet packages (SDK, protocols, policies, configuration, providers, serialization, infrastructure, and execution orchestration) so you can consume only what you need.
 
 ## Packages
-| Package | Latest Version | Total Downloads | Line Coverage | Branch Coverage |
-|---|---|---|---|---|
-| [QaaS.Framework.Configurations](https://www.nuget.org/packages/QaaS.Framework.Configurations/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Configurations?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Configurations/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Configurations?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Configurations/) | [![Line](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Configurations.line.json)](./QaaS.Framework.Configurations.Tests/) | [![Branch](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Configurations.branch.json)](./QaaS.Framework.Configurations.Tests/) |
-| [QaaS.Framework.Executions](https://www.nuget.org/packages/QaaS.Framework.Executions/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Executions?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Executions/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Executions?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Executions/) | [![Line](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Executions.line.json)](./QaaS.Framework.Executions.Tests/) | [![Branch](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Executions.branch.json)](./QaaS.Framework.Executions.Tests/) |
-| [QaaS.Framework.Infrastructure](https://www.nuget.org/packages/QaaS.Framework.Infrastructure/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Infrastructure?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Infrastructure/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Infrastructure?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Infrastructure/) | [![Line](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Infrastructure.line.json)](./QaaS.Framework.Protocols.Tests/) | [![Branch](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Infrastructure.branch.json)](./QaaS.Framework.Protocols.Tests/) |
-| [QaaS.Framework.Policies](https://www.nuget.org/packages/QaaS.Framework.Policies/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Policies?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Policies/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Policies?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Policies/) | [![Line](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Policies.line.json)](./QaaS.Framework.Policies.Tests/) | [![Branch](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Policies.branch.json)](./QaaS.Framework.Policies.Tests/) |
-| [QaaS.Framework.Protocols](https://www.nuget.org/packages/QaaS.Framework.Protocols/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Protocols?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Protocols/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Protocols?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Protocols/) | [![Line](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Protocols.line.json)](./QaaS.Framework.Protocols.Tests/) | [![Branch](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Protocols.branch.json)](./QaaS.Framework.Protocols.Tests/) |
-| [QaaS.Framework.Providers](https://www.nuget.org/packages/QaaS.Framework.Providers/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Providers?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Providers/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Providers?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Providers/) | [![Line](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Providers.line.json)](./QaaS.Framework.Providers.Tests/) | [![Branch](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Providers.branch.json)](./QaaS.Framework.Providers.Tests/) |
-| [QaaS.Framework.SDK](https://www.nuget.org/packages/QaaS.Framework.SDK/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.SDK?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.SDK/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.SDK?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.SDK/) | [![Line](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.SDK.line.json)](./QaaS.Framework.SDK.Tests/) | [![Branch](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.SDK.branch.json)](./QaaS.Framework.SDK.Tests/) |
-| [QaaS.Framework.Serialization](https://www.nuget.org/packages/QaaS.Framework.Serialization/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Serialization?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Serialization/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Serialization?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Serialization/) | [![Line](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Serialization.line.json)](./QaaS.Framework.Serialization.Tests/) | [![Branch](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/TheSmokeTeam/QaaS.Framework/master/coverage/badges/QaaS.Framework.Serialization.branch.json)](./QaaS.Framework.Serialization.Tests/) |
+| Package | Latest Version | Total Downloads |
+|---|---|---|
+| [QaaS.Framework.Configurations](https://www.nuget.org/packages/QaaS.Framework.Configurations/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Configurations?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Configurations/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Configurations?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Configurations/) |
+| [QaaS.Framework.Executions](https://www.nuget.org/packages/QaaS.Framework.Executions/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Executions?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Executions/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Executions?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Executions/) |
+| [QaaS.Framework.Infrastructure](https://www.nuget.org/packages/QaaS.Framework.Infrastructure/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Infrastructure?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Infrastructure/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Infrastructure?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Infrastructure/) |
+| [QaaS.Framework.Policies](https://www.nuget.org/packages/QaaS.Framework.Policies/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Policies?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Policies/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Policies?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Policies/) |
+| [QaaS.Framework.Protocols](https://www.nuget.org/packages/QaaS.Framework.Protocols/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Protocols?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Protocols/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Protocols?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Protocols/) |
+| [QaaS.Framework.Providers](https://www.nuget.org/packages/QaaS.Framework.Providers/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Providers?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Providers/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Providers?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Providers/) |
+| [QaaS.Framework.SDK](https://www.nuget.org/packages/QaaS.Framework.SDK/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.SDK?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.SDK/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.SDK?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.SDK/) |
+| [QaaS.Framework.Serialization](https://www.nuget.org/packages/QaaS.Framework.Serialization/) | [![NuGet](https://img.shields.io/nuget/v/QaaS.Framework.Serialization?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Serialization/) | [![Downloads](https://img.shields.io/nuget/dt/QaaS.Framework.Serialization?logo=nuget)](https://www.nuget.org/packages/QaaS.Framework.Serialization/) |
 
 ## Functionalities
 ### [QaaS.Framework.Configurations](./QaaS.Framework.Configurations/)
@@ -103,14 +103,12 @@ dotnet add package QaaS.Framework.Protocols --version 1.1.0
 dotnet restore
 ```
 
-## Build, Test, Coverage
+## Build and Test
 ```bash
 dotnet restore QaaS.Framework.sln
 dotnet build QaaS.Framework.sln -c Release --no-restore
 dotnet test QaaS.Framework.sln -c Release --no-build
 ```
-
-Coverage badges are refreshed from CI on `master` after successful test runs.
 
 ## Documentation
 - Official docs: [thesmoketeam.github.io/qaas-docs](https://thesmoketeam.github.io/qaas-docs/)

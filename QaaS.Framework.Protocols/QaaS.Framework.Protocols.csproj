@@ -9,8 +9,9 @@
         <Description>Protocol integrations for QaaS communication layers.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    </PropertyGroup>
+        
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+</PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\QaaS.Framework.Infrastructure\QaaS.Framework.Infrastructure.csproj" />
@@ -37,4 +38,8 @@
       <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.100" />
     </ItemGroup>
 
+
+    <ItemGroup>
+      <None Include="../README.md" Pack="true" PackagePath="/" />
+    </ItemGroup>
 </Project>
