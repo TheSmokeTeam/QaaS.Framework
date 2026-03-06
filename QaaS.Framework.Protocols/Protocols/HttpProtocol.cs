@@ -103,11 +103,16 @@ public class HttpProtocol : ITransactor, IDisposable
         _disposed = true;
     }
 
+    /// <summary>
+    /// Sends the request with retry semantics and captures a null response on final transport failure
+    /// so callers can handle "no response" as data instead of an unhandled null dereference.
+    /// </summary>
     private KeyValuePair<DateTime, DetailedData<byte[]>?> InvokeHttpRequest(Data<byte[]> data, string requestUri)
     {
         var requestUtcTime = DateTime.UtcNow;
         for (var attempt = 1; attempt <= _transactorConfiguration.Retries; attempt++)
         {
+            // HttpRequestMessage is single-use, so each retry must create a fresh request instance.
             using var requestData = CreateRequest(data, requestUri);
             try
             {
@@ -189,6 +194,9 @@ public class HttpProtocol : ITransactor, IDisposable
         return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
     }
 
+    /// <summary>
+    /// Builds a fresh request from the current payload and metadata-derived headers for each attempt.
+    /// </summary>
     private HttpRequestMessage CreateRequest(Data<byte[]> data, string requestUri)
     {
         var requestData = new HttpRequestMessage(GetHttpMethod(), data.MetaData?.Http?.Uri?.AbsoluteUri ?? requestUri)

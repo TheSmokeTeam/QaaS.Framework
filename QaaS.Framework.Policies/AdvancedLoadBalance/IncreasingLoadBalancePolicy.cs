@@ -21,12 +21,16 @@ public class IncreasingLoadBalancePolicy : LoadBalancePolicy
     protected override void SetupThis()
     {
         base.SetupThis();
+        // The ramp timer measures the elapsed time across runs, so start it once and only
+        // restart it when a rate increase actually happens.
         if (!_increaseTimer.IsRunning)
             _increaseTimer.Restart();
     }
 
     protected override void RunThis()
     {
+        // Only increase the rate after the configured interval has elapsed; otherwise the
+        // previous implementation could ramp immediately on every execution.
         if (MessagesPerSecond < _maxMsgPerSec && _increaseTimer.Elapsed.TotalMilliseconds >= _rateIncreaseIntervalMs)
         {
             MessagesPerSecond = Math.Min(MessagesPerSecond + _rateIncreaseMessagesPerSecond, _maxMsgPerSec);

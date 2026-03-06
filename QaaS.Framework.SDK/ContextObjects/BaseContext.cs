@@ -7,6 +7,8 @@ namespace QaaS.Framework.SDK.ContextObjects;
 public abstract class BaseContext<TExecutionData> where TExecutionData : class, IExecutionData, new()
 {
     private IConfiguration _rootConfiguration = null!;
+    // GlobalDict is shared mutable state across execution components, so nested reads/writes
+    // must be serialized to avoid races while creating or traversing intermediate dictionaries.
     private readonly Lock _globalDictLock = new();
 
     /// <summary>

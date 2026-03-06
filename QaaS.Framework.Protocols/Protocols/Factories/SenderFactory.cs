@@ -63,6 +63,10 @@ public static class SenderFactory
            : throw new InvalidOperationException($"Protocol type {type.GetType().Name} does not support singular sending");
     }
 
+    /// <summary>
+    /// Sender implementations that apply body filtering need an explicit filter instance so callers
+    /// fail fast with a useful exception instead of a later null dereference.
+    /// </summary>
     private static DataFilter RequireDataFilter<TConfig>(DataFilter? dataFilter) =>
         dataFilter ?? throw new ArgumentNullException(nameof(dataFilter),
             $"{typeof(TConfig).Name} requires a non-null {nameof(DataFilter)}.");
