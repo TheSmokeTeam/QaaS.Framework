@@ -1,32 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <PackageId>QaaS.Framework.Serialization</PackageId>
-        <Authors>SmokeTeam</Authors>
-        <Description>Serialization helpers and format adapters for QaaS.</Description>
-        <RepositoryType>git</RepositoryType>
-        <IncludeSymbols>true</IncludeSymbols>
-        
-        <PackageReadmeFile>README.md</PackageReadmeFile>
-<EnableUnsafeBinaryFormatterSerialization>true</EnableUnsafeBinaryFormatterSerialization>
-    </PropertyGroup>
-    
-    <ItemGroup>
-        <PackageReference Include="Google.Protobuf" Version="3.34.0" />
-        <PackageReference Include="MessagePack" Version="3.1.4" />
-        <PackageReference Include="System.Runtime.Serialization.Formatters" Version="10.0.3" />
-        <PackageReference Include="YamlDotNet" Version="16.3.0" />
-    </ItemGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>QaaS.Framework.Serialization</PackageId>
+    <Authors>SmokeTeam</Authors>
+    <Description>Serialization helpers and format adapters for QaaS.</Description>
+    <RepositoryType>git</RepositoryType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <EnableUnsafeBinaryFormatterSerialization>true</EnableUnsafeBinaryFormatterSerialization>
+  </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.34.0" />
+    <PackageReference Include="MessagePack" Version="3.1.4" />
+    <PackageReference Include="System.Runtime.Serialization.Formatters" Version="10.0.3" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\QaaS.Framework.Configurations\QaaS.Framework.Configurations.csproj" />
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\QaaS.Framework.Configurations\QaaS.Framework.Configurations.csproj" />
+  </ItemGroup>
 
-    <ItemGroup>
-      <None Include="../README.md" Pack="true" PackagePath="/" />
-    </ItemGroup>
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
 </Project>
