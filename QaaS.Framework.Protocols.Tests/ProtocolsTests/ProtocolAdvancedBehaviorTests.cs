@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
+using System.Xml.Linq;
 using Amazon.S3;
 using Amazon.S3.Model;
 using IBM.WMQ;
@@ -24,12 +25,25 @@ using QaaS.Framework.SDK.Session.DataObjects;
 using QaaS.Framework.SDK.Session.MetaDataObjects;
 using StackExchange.Redis;
 using Trino.Data.ADO.Server;
+using StringValue = Google.Protobuf.WellKnownTypes.StringValue;
 
 namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 
 [TestFixture]
 public class ProtocolAdvancedBehaviorTests
 {
+    private sealed class SerializableS3Payload
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    private sealed record S3DeserializationScenario(
+        string Key,
+        byte[] Payload,
+        Func<byte[]?, object?> Deserialize,
+        Action<object?> AssertResult);
+
     private sealed class FakeS3Client : IS3Client
     {
         public required IAmazonS3 Client { get; init; }
@@ -148,6 +162,7 @@ public class ProtocolAdvancedBehaviorTests
     [Test]
     public void S3Client_ListsAndReadsObjects()
     {
+        var rawMetadataBytes = new byte[] { 0, 255, 1, 128 };
         var s3Mock = new Mock<IAmazonS3>();
         s3Mock.Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
             .ReturnsAsync(new ListObjectsV2Response
@@ -167,20 +182,22 @@ public class ProtocolAdvancedBehaviorTests
         s3Mock.Setup(client => client.GetObjectAsync("bucket", "meta", null, default))
             .ReturnsAsync(new GetObjectResponse
             {
-                ResponseStream = new MemoryStream(Encoding.UTF8.GetBytes("abc"))
+                ResponseStream = new MemoryStream(rawMetadataBytes)
             });
 
         var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
 
         var nonEmpty = client.ListAllObjectsInS3Bucket("bucket", skipEmptyObjects: true).Result.ToList();
         var withEmpty = client.ListAllObjectsInS3Bucket("bucket", skipEmptyObjects: false).Result.ToList();
+        var allObjects = client.GetAllObjectsInS3BucketUnOrdered("bucket", skipEmptyObjects: false).ToList();
         var fromMetadata = client.GetObjectFromObjectMetadata(new S3Object { Key = "meta" }, "bucket");
 
         Assert.Multiple(() =>
         {
             Assert.That(nonEmpty.Select(obj => obj.Key), Is.EqualTo(["full"]));
             Assert.That(withEmpty, Has.Count.EqualTo(2));
-            Assert.That(Encoding.UTF8.GetString(fromMetadata.Value!), Is.EqualTo("abc"));
+            Assert.That(allObjects.Single(pair => pair.Key.Key == "full").Value, Is.EqualTo(new byte[] { 1, 2, 3, 4 }));
+            Assert.That(fromMetadata.Value, Is.EqualTo(rawMetadataBytes));
         });
     }
 
@@ -313,8 +330,156 @@ public class ProtocolAdvancedBehaviorTests
             amazonClientMock.Verify(client => client.PutObjectAsync(
                 It.Is<PutObjectRequest>(request => request.BucketName == "bucket" && request.Key == "pref-k1"),
                 default), Times.Once);
-            amazonClientMock.Verify(client => client.Dispose(), Times.Once);
             Assert.That(fakeClient.Disposed, Is.True);
+        });
+    }
+
+    [Test]
+    public void S3Protocol_ReadChunk_PreservesBytesForMultipleDeserializers()
+    {
+        var now = DateTime.UtcNow;
+        var jsonPayload = new SerializableS3Payload { Name = "json", Count = 1 };
+        var yamlPayload = new SerializableS3Payload { Name = "yaml", Count = 2 };
+        var binaryPayload = new SerializableS3Payload { Name = "binary", Count = 3 };
+        var messagePackPayload = "message-pack";
+        var xmlPayload = XDocument.Parse("<root><value>42</value></root>");
+        var protobufPayload = new StringValue { Value = "protobuf" };
+
+        var scenarios = new[]
+        {
+            new S3DeserializationScenario(
+                "json",
+                new QaaS.Framework.Serialization.Serializers.Json().Serialize(jsonPayload)!,
+                bytes => new QaaS.Framework.Serialization.Deserializers.Json().Deserialize(bytes, typeof(SerializableS3Payload)),
+                result =>
+                {
+                    var payload = result as SerializableS3Payload;
+                    Assert.That(payload, Is.Not.Null);
+                    Assert.That(payload!.Name, Is.EqualTo("json"));
+                    Assert.That(payload.Count, Is.EqualTo(1));
+                }),
+            new S3DeserializationScenario(
+                "yaml",
+                new QaaS.Framework.Serialization.Serializers.Yaml().Serialize(yamlPayload)!,
+                bytes => new QaaS.Framework.Serialization.Deserializers.Yaml().Deserialize(bytes, typeof(SerializableS3Payload)),
+                result =>
+                {
+                    var payload = result as SerializableS3Payload;
+                    Assert.That(payload, Is.Not.Null);
+                    Assert.That(payload!.Name, Is.EqualTo("yaml"));
+                    Assert.That(payload.Count, Is.EqualTo(2));
+                }),
+            new S3DeserializationScenario(
+                "binary",
+                new QaaS.Framework.Serialization.Serializers.Binary().Serialize(binaryPayload)!,
+                bytes => new QaaS.Framework.Serialization.Deserializers.Binary().Deserialize(bytes),
+                result =>
+                {
+                    var payload = result as SerializableS3Payload;
+                    Assert.That(payload, Is.Not.Null);
+                    Assert.That(payload!.Name, Is.EqualTo("binary"));
+                    Assert.That(payload.Count, Is.EqualTo(3));
+                }),
+            new S3DeserializationScenario(
+                "message-pack",
+                new QaaS.Framework.Serialization.Serializers.MessagePack().Serialize(messagePackPayload)!,
+                bytes => new QaaS.Framework.Serialization.Deserializers.MessagePack().Deserialize(bytes, typeof(string)),
+                result => Assert.That(result, Is.EqualTo(messagePackPayload))),
+            new S3DeserializationScenario(
+                "xml",
+                new QaaS.Framework.Serialization.Serializers.Xml().Serialize(xmlPayload)!,
+                bytes => new QaaS.Framework.Serialization.Deserializers.Xml().Deserialize(bytes),
+                result =>
+                {
+                    var payload = result as XDocument;
+                    Assert.That(payload, Is.Not.Null);
+                    Assert.That(payload!.Root!.Element("value")!.Value, Is.EqualTo("42"));
+                }),
+            new S3DeserializationScenario(
+                "protobuf",
+                new QaaS.Framework.Serialization.Serializers.ProtobufMessage().Serialize(protobufPayload)!,
+                bytes => new QaaS.Framework.Serialization.Deserializers.ProtobufMessage().Deserialize(bytes, typeof(StringValue)),
+                result =>
+                {
+                    var payload = result as StringValue;
+                    Assert.That(payload, Is.Not.Null);
+                    Assert.That(payload!.Value, Is.EqualTo("protobuf"));
+                })
+        };
+
+        var s3Objects = scenarios.Select((scenario, index) => new S3Object
+        {
+            Key = scenario.Key,
+            LastModified = now.AddMilliseconds(index),
+            Size = scenario.Payload.Length
+        }).ToArray();
+
+        var fakeClient = new FakeS3Client
+        {
+            Client = new Mock<IAmazonS3>().Object,
+            GetAllObjects = (_, _, _, _) => s3Objects.Zip(scenarios,
+                (s3Object, scenario) => new KeyValuePair<S3Object, byte[]?>(s3Object, scenario.Payload))
+        };
+
+        var protocol = new S3Protocol(new S3BucketReaderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1",
+            AccessKey = "ak",
+            SecretKey = "sk",
+            ReadFromRunStartTime = false
+        }, new DataFilter { Body = true }, Globals.Logger);
+        SetPrivateField(protocol, "_s3Client", fakeClient);
+
+        var consumed = protocol.ReadChunk(TimeSpan.Zero).ToList();
+
+        Assert.That(consumed, Has.Count.EqualTo(scenarios.Length));
+
+        foreach (var scenario in scenarios)
+        {
+            var rawBytes = consumed.Single(item => item.MetaData?.Storage?.Key == scenario.Key).Body as byte[];
+            Assert.That(rawBytes, Is.EqualTo(scenario.Payload), $"S3 should preserve raw bytes for {scenario.Key}");
+            scenario.AssertResult(scenario.Deserialize(rawBytes));
+        }
+    }
+
+    [Test]
+    public void S3Protocol_ReadChunk_ReturnsNullBodyForEmptyObjects_WhenSkipEmptyObjectsDisabled()
+    {
+        var now = DateTime.UtcNow;
+        var emptyObject = new S3Object { Key = "empty", LastModified = now, Size = 0 };
+        var fakeClient = new FakeS3Client
+        {
+            Client = new Mock<IAmazonS3>().Object,
+            GetAllObjects = (_, _, _, skipEmptyObjects) =>
+            {
+                Assert.That(skipEmptyObjects, Is.False);
+                return
+                [
+                    new KeyValuePair<S3Object, byte[]?>(emptyObject, null)
+                ];
+            }
+        };
+
+        var protocol = new S3Protocol(new S3BucketReaderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1",
+            AccessKey = "ak",
+            SecretKey = "sk",
+            SkipEmptyObjects = false,
+            ReadFromRunStartTime = false
+        }, new DataFilter { Body = true }, Globals.Logger);
+        SetPrivateField(protocol, "_s3Client", fakeClient);
+
+        var consumed = protocol.ReadChunk(TimeSpan.Zero).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(consumed.MetaData?.Storage?.Key, Is.EqualTo("empty"));
+            Assert.That(consumed.Body, Is.Null);
+            Assert.That(new QaaS.Framework.Serialization.Deserializers.Json().Deserialize(consumed.Body as byte[],
+                typeof(SerializableS3Payload)), Is.Null);
         });
     }
 

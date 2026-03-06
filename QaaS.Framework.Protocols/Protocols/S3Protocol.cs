@@ -53,7 +53,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
         if (!_dataFilter.Body)
         {
             s3ConsumedData = _s3Client!.ListAllObjectsInS3Bucket(
-                    _readerConfig!.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter).Result
+                    _readerConfig!.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter).GetAwaiter().GetResult()
                 .Where(IsS3ObjectRelevant)
                 .OrderBy(s3Object => s3Object.LastModified)
                 .Select(s3Object => new DetailedData<object>
@@ -123,7 +123,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
     private long? GetNumberOfMilliSecondsPassedSinceLastS3ObjectModification()
     {
         var allS3ObjectsInBucket = _s3Client!.ListAllObjectsInS3Bucket(
-            _readerConfig!.StorageBucket!, _readerConfig.Prefix).Result.Where(IsS3ObjectRelevant).ToArray();
+            _readerConfig!.StorageBucket!, _readerConfig.Prefix).GetAwaiter().GetResult().Where(IsS3ObjectRelevant).ToArray();
         if (!allS3ObjectsInBucket.Any()) return null;
 
         var latestModificationTime = allS3ObjectsInBucket.Max(s3Object => s3Object.LastModified);
@@ -201,7 +201,6 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
 
     public void Dispose()
     {
-        _s3Client?.Client.Dispose();
         _s3Client?.Dispose();
     }
 }
