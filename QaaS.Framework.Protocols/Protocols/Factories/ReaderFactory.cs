@@ -50,6 +50,10 @@ public static class ReaderFactory
         };
     }
 
+    /// <summary>
+    /// Reader implementations that filter bodies/metadata need an explicit filter instance so callers
+    /// fail fast with a useful exception instead of a later null dereference.
+    /// </summary>
     private static DataFilter RequireDataFilter<TConfig>(DataFilter? dataFilter) =>
         dataFilter ?? throw new ArgumentNullException(nameof(dataFilter),
             $"{typeof(TConfig).Name} requires a non-null {nameof(DataFilter)}.");

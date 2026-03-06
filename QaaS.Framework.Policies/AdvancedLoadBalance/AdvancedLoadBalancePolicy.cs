@@ -21,6 +21,7 @@ public class AdvancedLoadBalancePolicy : LoadBalancePolicy
     protected override void SetupThis()
     {
         _currStage = 0;
+        // Stage zero owns the initial rate, so apply it before the first run starts.
         ApplyStage(_currStage);
         ResetStage();
         base.SetupThis();
@@ -56,6 +57,8 @@ public class AdvancedLoadBalancePolicy : LoadBalancePolicy
         _amountPassed++;
         if (IsEndOfStage())
         {
+            // The final stage is terminal: once reached, keep applying its rate rather than
+            // incrementing past the configured stages array.
             if (_currStage < _stages.Length - 1)
                 _currStage++;
 
@@ -66,6 +69,9 @@ public class AdvancedLoadBalancePolicy : LoadBalancePolicy
         base.RunThis();
     }
 
+    /// <summary>
+    /// Applies the effective rate of the current stage to the base load-balance timer.
+    /// </summary>
     private void ApplyStage(int stageIndex)
     {
         MessagesPerSecond = _stages[stageIndex].MessagesPerSecond;

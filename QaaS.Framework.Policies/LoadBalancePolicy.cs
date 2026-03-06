@@ -27,9 +27,14 @@ public class LoadBalancePolicy : Policy
         WaitForNextExecutionSlot();
 
         AdjustRate();
+        // Restart only the interval timer for the next iteration so derived policies can
+        // keep their own stage/ramp state instead of being reinitialized on every run.
         _intervalTimer.Restart();
     }
 
+    /// <summary>
+    /// Waits until the current send window opens without pinning a CPU core in a pure busy loop.
+    /// </summary>
     private void WaitForNextExecutionSlot()
     {
         while (true)
