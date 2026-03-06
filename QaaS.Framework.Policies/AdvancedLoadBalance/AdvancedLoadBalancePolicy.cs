@@ -21,6 +21,7 @@ public class AdvancedLoadBalancePolicy : LoadBalancePolicy
     protected override void SetupThis()
     {
         _currStage = 0;
+        ApplyStage(_currStage);
         ResetStage();
         base.SetupThis();
     }
@@ -33,16 +34,21 @@ public class AdvancedLoadBalancePolicy : LoadBalancePolicy
 
     private bool IsEndOfStage()
     {
-        if (_stages[_currStage].AmountToNextStage != null &&
-            _stages[_currStage].AmountToNextStage <= _amountPassed)
+        var stage = _stages[_currStage];
+        var hasAmountLimit = stage.AmountToNextStage != null;
+        var hasTimeLimit = stage.TimeToNextStage != null;
+
+        if (!hasAmountLimit && !hasTimeLimit)
+            throw new InvalidOperationException(
+                "Exception: You must set 'Amount To Next Stage' or 'Time To Next Stage' in the AdvancedLoadBalance stages.");
+
+        if (hasAmountLimit && stage.AmountToNextStage <= _amountPassed)
             return true;
 
-        if (_stages[_currStage].TimeToNextStage != null &&
-            _stages[_currStage].TimeToNextStage <= _timePassed.Elapsed.TotalMilliseconds)
+        if (hasTimeLimit && stage.TimeToNextStage <= _timePassed.Elapsed.TotalMilliseconds)
             return true;
 
-        throw new InvalidOperationException(
-            "Exception: You must set 'Amount To Next Stage' or 'Time To Next Stage' in the AdvancedLoadBalance stages.");
+        return false;
     }
 
     protected override void RunThis()
@@ -50,11 +56,19 @@ public class AdvancedLoadBalancePolicy : LoadBalancePolicy
         _amountPassed++;
         if (IsEndOfStage())
         {
-            _currStage++;
+            if (_currStage < _stages.Length - 1)
+                _currStage++;
+
+            ApplyStage(_currStage);
             ResetStage();
-            MessageIntervalMilliseconds = 1000 / (double)_stages[_currStage].MessagesPerSecond;
         }
 
         base.RunThis();
+    }
+
+    private void ApplyStage(int stageIndex)
+    {
+        MessagesPerSecond = _stages[stageIndex].MessagesPerSecond;
+        MessageIntervalMilliseconds = 1000 / MessagesPerSecond;
     }
 }

@@ -36,6 +36,22 @@ public class PolicyBehaviorTests
         }
     }
 
+    private sealed class SetupTrackingPolicy(uint index) : Policy
+    {
+        public bool SetupCalled { get; private set; }
+
+        protected override uint Index { get; set; } = index;
+
+        protected override void SetupThis()
+        {
+            SetupCalled = true;
+        }
+
+        protected override void RunThis()
+        {
+        }
+    }
+
     [Test]
     public void CountPolicy_RunChain_StopsAfterConfiguredCount()
     {
@@ -86,6 +102,24 @@ public class PolicyBehaviorTests
         {
             Assert.That(result, Is.True);
             Assert.That(executionOrder, Is.EqualTo(new uint[] { 1, 2 }));
+        });
+    }
+
+    [Test]
+    public void Policy_SetupChain_InitializesAllPoliciesInLongerChain()
+    {
+        var first = new SetupTrackingPolicy(1);
+        var second = new SetupTrackingPolicy(2);
+        var third = new SetupTrackingPolicy(3);
+
+        var chain = first.Add(second).Add(third);
+        chain.SetupChain();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.SetupCalled, Is.True);
+            Assert.That(second.SetupCalled, Is.True);
+            Assert.That(third.SetupCalled, Is.True);
         });
     }
 
@@ -169,6 +203,60 @@ public class PolicyBehaviorTests
         policy.SetupChain();
 
         Assert.Throws<InvalidOperationException>(() => policy.RunChain());
+    }
+
+    [Test]
+    public void AdvancedLoadBalancePolicy_AdvancesStages_AndDoesNotOverflowOnFinalStage()
+    {
+        var policy = new AdvancedLoadBalancePolicy(
+        [
+            new StageConfig { Rate = 1000, TimeIntervalMs = 1000, Amount = 2 },
+            new StageConfig { Rate = 1000, TimeIntervalMs = 1000, Amount = 1 }
+        ]);
+        var currentStageField = typeof(AdvancedLoadBalancePolicy)
+            .GetField("_currStage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        policy.SetupChain();
+
+        Assert.That(policy.RunChain(), Is.True);
+        Assert.That(currentStageField.GetValue(policy), Is.EqualTo(0));
+
+        Assert.That(policy.RunChain(), Is.True);
+        Assert.That(currentStageField.GetValue(policy), Is.EqualTo(1));
+
+        Assert.DoesNotThrow(() => policy.RunChain());
+        Assert.That(currentStageField.GetValue(policy), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void IncreasingLoadBalancePolicy_RaisesRateOnlyAfterConfiguredInterval()
+    {
+        var policy = new IncreasingLoadBalancePolicy(
+            rate: 1000,
+            intervalMs: 1000,
+            maxRate: 1002,
+            rateIncreaseMessagesPerSecond: 1,
+            rateIncreaseIntervalMs: 25);
+        var messagesPerSecondField = typeof(LoadBalancePolicy)
+            .GetField("MessagesPerSecond", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        policy.SetupChain();
+        policy.RunChain();
+        var beforeInterval = (double)messagesPerSecondField.GetValue(policy)!;
+
+        Thread.Sleep(40);
+        policy.RunChain();
+        var afterInterval = (double)messagesPerSecondField.GetValue(policy)!;
+
+        policy.RunChain();
+        var immediateFollowUp = (double)messagesPerSecondField.GetValue(policy)!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(beforeInterval, Is.EqualTo(1000d));
+            Assert.That(afterInterval, Is.EqualTo(1001d));
+            Assert.That(immediateFollowUp, Is.EqualTo(1001d));
+        });
     }
 
     [Test]

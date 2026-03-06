@@ -15,7 +15,8 @@ public abstract class Policy
     
     public Policy Add(Policy policy)
     {
-        if (Next == null && Index <= policy.Index)
+        var next = Next;
+        if (next == null && Index <= policy.Index)
         {
             Next = policy;
             return this;
@@ -27,14 +28,15 @@ public abstract class Policy
             return policy;
         }
 
-        Next = Add(policy);
+        ArgumentNullException.ThrowIfNull(next);
+        Next = next.Add(policy);
         return this;
     }
     
     public void SetupChain()
     {
         SetupThis();
-        Next?.SetupThis();
+        Next?.SetupChain();
     }
 
     protected abstract void SetupThis();

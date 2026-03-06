@@ -24,12 +24,28 @@ public class LoadBalancePolicy : Policy
 
     protected override void RunThis()
     {
-        while (_intervalTimer.ElapsedMilliseconds < MessageIntervalMilliseconds)
-        {
-        }
+        WaitForNextExecutionSlot();
 
         AdjustRate();
-        SetupThis();
+        _intervalTimer.Restart();
+    }
+
+    private void WaitForNextExecutionSlot()
+    {
+        while (true)
+        {
+            var remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
+            if (remainingMilliseconds <= 0)
+                return;
+
+            if (remainingMilliseconds > 1)
+            {
+                Thread.Sleep((int)Math.Floor(remainingMilliseconds));
+                continue;
+            }
+
+            Thread.SpinWait(20);
+        }
     }
 
     /// <summary>
