@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   DOTNET_NOLOGO: true
@@ -40,8 +40,109 @@ jobs:
       - name: Build project
         run: dotnet build ${{ env.PROJECT_PATH }} --no-restore --configuration ${{ env.CONFIGURATION }}
 
+      - name: Install dotnet-coverage tool
+        shell: pwsh
+        run: |
+          dotnet tool install --global dotnet-coverage
+          echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Test solution
         run: dotnet test ${{ env.PROJECT_PATH }} --configuration ${{ env.CONFIGURATION }} --no-restore --no-build --maxcpucount
+
+      - name: Coverage (dotnet-coverage)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $resultsRoot = Join-Path $env:GITHUB_WORKSPACE ".coverage-results"
+          $badgesRoot = Join-Path $env:GITHUB_WORKSPACE "coverage\badges"
+          if (Test-Path $resultsRoot) { Remove-Item -Recurse -Force $resultsRoot }
+          New-Item -ItemType Directory -Path $resultsRoot | Out-Null
+          New-Item -ItemType Directory -Path $badgesRoot -Force | Out-Null
+
+          function Get-CoverageColor([double]$value) {
+              if ($value -ge 85) { return "brightgreen" }
+              if ($value -ge 75) { return "green" }
+              if ($value -ge 60) { return "yellowgreen" }
+              if ($value -ge 40) { return "yellow" }
+              if ($value -ge 20) { return "orange" }
+              return "red"
+          }
+
+          $testProjects = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter "*.Tests.csproj" | Sort-Object FullName
+          $coverageByPackage = @{}
+
+          foreach ($proj in $testProjects) {
+              $testName = [IO.Path]::GetFileNameWithoutExtension($proj.Name)
+              $covFile = Join-Path $resultsRoot "$testName.cobertura.xml"
+
+              dotnet-coverage collect "dotnet test `"$($proj.FullName)`" --configuration $env:CONFIGURATION --no-restore --no-build --maxcpucount" `
+                  -f cobertura -o $covFile
+
+              [xml]$xml = Get-Content $covFile
+              foreach ($pkg in $xml.coverage.packages.package) {
+                  $pkgName = [string]$pkg.name
+                  $line = [math]::Round(([double]$pkg.'line-rate') * 100, 2)
+                  $branch = [math]::Round(([double]$pkg.'branch-rate') * 100, 2)
+
+                  if (-not $coverageByPackage.ContainsKey($pkgName) -or $line -gt $coverageByPackage[$pkgName].Line) {
+                      $coverageByPackage[$pkgName] = [PSCustomObject]@{
+                          Package = $pkgName
+                          Line = $line
+                          Branch = $branch
+                      }
+                  }
+              }
+          }
+
+          $packageProjects = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter "QaaS.Framework.*.csproj" |
+            Where-Object { $_.FullName -notlike "*.Tests*" } | Sort-Object FullName
+
+          $summaryRows = @()
+          foreach ($project in $packageProjects) {
+              $packageName = [IO.Path]::GetFileNameWithoutExtension($project.Name)
+              $line = 0.0
+              $branch = 0.0
+              if ($coverageByPackage.ContainsKey($packageName)) {
+                  $line = [double]$coverageByPackage[$packageName].Line
+                  $branch = [double]$coverageByPackage[$packageName].Branch
+              }
+
+              $lineObj = @{
+                schemaVersion = 1
+                label = "line"
+                message = ("{0}%" -f $line.ToString("0.00"))
+                color = (Get-CoverageColor $line)
+              }
+              $branchObj = @{
+                schemaVersion = 1
+                label = "branch"
+                message = ("{0}%" -f $branch.ToString("0.00"))
+                color = (Get-CoverageColor $branch)
+              }
+              $lineObj | ConvertTo-Json -Compress | Set-Content (Join-Path $badgesRoot "$packageName.line.json") -NoNewline
+              $branchObj | ConvertTo-Json -Compress | Set-Content (Join-Path $badgesRoot "$packageName.branch.json") -NoNewline
+
+              $summaryRows += "| $packageName | $($line.ToString("0.00"))% | $($branch.ToString("0.00"))% |"
+          }
+
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## Coverage Summary"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "| Package | Line | Branch |"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "|---|---:|---:|"
+          foreach ($row in $summaryRows) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $row }
+
+      - name: Commit and push coverage badge JSON
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.actor != 'github-actions[bot]'
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coverage/badges/*.json
+          if (git diff --cached --quiet) {
+            Write-Host "No badge changes detected."
+            exit 0
+          }
+          git commit -m "ci: update coverage badges [skip ci]"
+          git push
 
       - name: Get Version
         if: startsWith(github.ref, 'refs/tags/')
