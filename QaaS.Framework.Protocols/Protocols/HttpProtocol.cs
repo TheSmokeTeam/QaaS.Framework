@@ -79,8 +79,12 @@ public class HttpProtocol : ITransactor, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         var requestUri = $"{_httpClient.BaseAddress}{_transactorConfiguration.Route}";
-        _logger.LogDebug("Started sending http requests to: {RequestUri}",
-            requestUri);
+        _logger.LogDebug(
+            "Starting HTTP {HttpMethod} request to {RequestUri}. Configured retries: {RetryCount}. Payload bytes: {PayloadLength}.",
+            Method,
+            requestUri,
+            _transactorConfiguration.Retries,
+            dataToSend.CastObjectData<byte[]>().Body?.Length ?? 0);
         var result = InvokeHttpRequest(dataToSend.CastObjectData<byte[]>(), requestUri);
         return new Tuple<DetailedData<object>, DetailedData<object>?>(dataToSend.CloneDetailed(result.Key),
             result.Value?.CastToObjectDetailedData());
@@ -109,6 +113,11 @@ public class HttpProtocol : ITransactor, IDisposable
             {
                 using var responseData = _httpClient.Send(requestData);
                 var responseUtcTime = DateTime.UtcNow;
+                _logger.LogInformation(
+                    "HTTP {HttpMethod} request to {RequestUri} completed with status {StatusCode}.",
+                    Method,
+                    requestData.RequestUri,
+                    (int)responseData.StatusCode);
 
                 return new KeyValuePair<DateTime, DetailedData<byte[]>?>(
                     requestUtcTime,
@@ -135,37 +144,48 @@ public class HttpProtocol : ITransactor, IDisposable
             }
             catch (TaskCanceledException transactException) when (attempt < _transactorConfiguration.Retries)
             {
-                _logger.LogWarning(
-                    "Timeout exceeded when performing an {TransactionType} - {HttpMethod} call, retrying" +
-                    " {Retries}/{ConfiguredRetries} times. {Exception}",
-                    typeof(HttpProtocol), Method, attempt, _transactorConfiguration.Retries, transactException);
+                _logger.LogWarning(transactException,
+                    "HTTP {HttpMethod} request to {RequestUri} timed out on attempt {Attempt}/{TotalAttempts}. Retrying after {RetryDelayMs} ms.",
+                    Method,
+                    requestData.RequestUri,
+                    attempt,
+                    _transactorConfiguration.Retries,
+                    _transactorConfiguration.MessageSendRetriesIntervalMs);
             }
             catch (HttpRequestException transactException) when (attempt < _transactorConfiguration.Retries)
             {
-                _logger.LogWarning(
-                    "Received exception when performing an {TransactionType} - {HttpMethod} call - {Exception}, retrying" +
-                    " {Retries}/{ConfiguredRetries} times", typeof(HttpProtocol), Method, transactException, attempt,
-                    _transactorConfiguration.Retries);
+                _logger.LogWarning(transactException,
+                    "HTTP {HttpMethod} request to {RequestUri} failed on attempt {Attempt}/{TotalAttempts}. Retrying after {RetryDelayMs} ms.",
+                    Method,
+                    requestData.RequestUri,
+                    attempt,
+                    _transactorConfiguration.Retries,
+                    _transactorConfiguration.MessageSendRetriesIntervalMs);
             }
             catch (TaskCanceledException transactException)
             {
-                _logger.LogWarning(
-                    "Timeout exceeded when performing an {TransactionType} - {HttpMethod} call. {Exception}",
-                    typeof(HttpProtocol), Method, transactException);
+                _logger.LogWarning(transactException,
+                    "HTTP {HttpMethod} request to {RequestUri} timed out on the final attempt.",
+                    Method,
+                    requestData.RequestUri);
                 return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
             }
             catch (HttpRequestException transactException)
             {
-                _logger.LogWarning(
-                    "Received exception when performing an {TransactionType} - {HttpMethod} call - {Exception}",
-                    typeof(HttpProtocol), Method, transactException);
+                _logger.LogWarning(transactException,
+                    "HTTP {HttpMethod} request to {RequestUri} failed on the final attempt.",
+                    Method,
+                    requestData.RequestUri);
                 return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
             }
 
             Thread.Sleep(TimeSpan.FromMilliseconds(_transactorConfiguration.MessageSendRetriesIntervalMs));
         }
 
-        _logger.LogDebug("Retries exceeded when performing an http request, no response saved");
+        _logger.LogWarning(
+            "HTTP {HttpMethod} request to {RequestUri} exhausted all retries without capturing a response.",
+            Method,
+            requestUri);
         return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
     }
 

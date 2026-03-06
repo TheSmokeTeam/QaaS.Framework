@@ -37,6 +37,12 @@ public class S3Client : IS3Client
     public async Task<IEnumerable<DeleteObjectsResponse>> EmptyS3Bucket(string bucketName,
         string prefix = "", string delimiter = "")
     {
+        _logger?.LogInformation(
+            "Starting S3 bucket cleanup for {BucketName}. Prefix: {Prefix}. Delimiter: {Delimiter}.",
+            bucketName,
+            prefix,
+            delimiter);
+
         // Request for getting objects to delete
         var listObjectsV2Request = new ListObjectsV2Request
         {
@@ -66,6 +72,10 @@ public class S3Client : IS3Client
                         Objects = keysOfAllS3BucketContents
                     };
 
+                    _logger?.LogDebug(
+                        "Deleting {ObjectCount} objects from S3 bucket {BucketName}.",
+                        keysOfAllS3BucketContents.Count,
+                        bucketName);
                     deletionResponse.Add(await Client.DeleteObjectsAsync(s3BucketAllObjectDeletionRequest));
 
                     // Continue from where it stopped listing objects
@@ -74,6 +84,10 @@ public class S3Client : IS3Client
                    $" prefix {prefix}", logger: _logger, maxRetryCount: _maxRetryCount);
         } while (listObjectsV2Response.IsTruncated.Value);
 
+        _logger?.LogInformation(
+            "Finished S3 bucket cleanup for {BucketName}. Delete requests issued: {DeleteRequestCount}.",
+            bucketName,
+            deletionResponse.Count);
         return deletionResponse;
     }
 
@@ -81,6 +95,13 @@ public class S3Client : IS3Client
     public virtual async Task<IEnumerable<S3Object>> ListAllObjectsInS3Bucket(string bucketName,
         string prefix = "", string delimiter = "", bool skipEmptyObjects = true)
     {
+        _logger?.LogDebug(
+            "Listing S3 objects from {BucketName}. Prefix: {Prefix}. Delimiter: {Delimiter}. SkipEmptyObjects: {SkipEmptyObjects}.",
+            bucketName,
+            prefix,
+            delimiter,
+            skipEmptyObjects);
+
         var listOfObjects = new List<S3Object>();
         var request = new ListObjectsV2Request
         {
@@ -96,6 +117,11 @@ public class S3Client : IS3Client
                 {
                     response = await Client.ListObjectsV2Async(request);
                     listOfObjects.AddRange(response.S3Objects);
+                    _logger?.LogDebug(
+                        "Listed {BatchObjectCount} S3 objects from {BucketName}. Continuation token present: {HasContinuationToken}.",
+                        response.S3Objects.Count,
+                        bucketName,
+                        !string.IsNullOrEmpty(response.NextContinuationToken));
 
                     // Continue from where it stopped listing objects
                     request.ContinuationToken = response.NextContinuationToken;
@@ -103,15 +129,28 @@ public class S3Client : IS3Client
                 logger: _logger, maxRetryCount: _maxRetryCount);
         } while (response.IsTruncated.Value);
 
-        return skipEmptyObjects
+        var filteredObjects = skipEmptyObjects
             ? listOfObjects.Where(obj => obj.Size > 0).ToList()
             : listOfObjects;
+
+        _logger?.LogInformation(
+            "Finished listing S3 objects from {BucketName}. Returned {ReturnedObjectCount} objects from {TotalObjectCount} candidates.",
+            bucketName,
+            filteredObjects.Count,
+            listOfObjects.Count);
+        return filteredObjects;
     }
 
     /// <inheritdoc />
     public KeyValuePair<S3Object, byte[]?> GetObjectFromObjectMetadata(
         S3Object s3ObjectMetadata, string bucketName)
     {
+        _logger?.LogDebug(
+            "Reading S3 object {ObjectKey} from bucket {BucketName}. Expected size: {ObjectSize}.",
+            s3ObjectMetadata.Key,
+            bucketName,
+            s3ObjectMetadata.Size);
+
         var retrievedObject = new KeyValuePair<S3Object, byte[]?>();
         S3Extentions.RunS3OperationWithRetryMechanism(() =>
             {
@@ -122,6 +161,12 @@ public class S3Client : IS3Client
             }, $"Retrieved s3 object {s3ObjectMetadata.Key} in bucket {bucketName}",
             logger: _logger, maxRetryCount: _maxRetryCount);
 
+        _logger?.LogDebug(
+            "Finished reading S3 object {ObjectKey} from bucket {BucketName}. Payload available: {HasPayload}. Payload bytes: {PayloadLength}.",
+            s3ObjectMetadata.Key,
+            bucketName,
+            retrievedObject.Value != null,
+            retrievedObject.Value?.Length ?? 0);
         return retrievedObject;
     }
 
@@ -131,8 +176,11 @@ public class S3Client : IS3Client
     {
         var s3Objects = ListAllObjectsInS3Bucket(
             bucketName, prefix, delimiter, skipEmptyObjects).GetAwaiter().GetResult().ToList();
-        _logger?.LogDebug("Found {NumberOfS3Objects} objects in the bucket {S3Bucket} with prefix" +
-                          " {S3Prefix}", s3Objects.Count, bucketName, prefix);
+        _logger?.LogDebug(
+            "Preparing to load S3 object bodies from {BucketName}. Prefix: {Prefix}. Candidate objects: {ObjectCount}.",
+            bucketName,
+            prefix,
+            s3Objects.Count);
 
         var s3ObjectsStreamPairs = new ConcurrentBag<KeyValuePair<S3Object, byte[]?>>();
         Parallel.ForEach(s3Objects,
@@ -146,7 +194,9 @@ public class S3Client : IS3Client
                             return;
 
                         // Don't ignore empty files/folders
-                        _logger?.LogDebug("Added empty s3Object {S3ObjectKey} with null stream", s3Object.Key);
+                        _logger?.LogDebug(
+                            "Keeping empty S3 object {ObjectKey} with a null body because SkipEmptyObjects is disabled.",
+                            s3Object.Key);
                         s3ObjectsStreamPairs.Add(new KeyValuePair<S3Object, byte[]?>(s3Object, null));
                         return;
 
@@ -160,12 +210,13 @@ public class S3Client : IS3Client
                         break;
                 }
             });
-        _logger?.LogInformation("Retrieving streams from s3, {s3ObjectsCount} objects" +
-                                " found at given `bucket:path` - `{S3Bucket}:{S3Prefix}` with delimiter {delimiter}. Actual number of " +
-                                "objects retrieved after filtering {FilteredObjects}" +
-                                " objects was {S3ObjectsStreamPairsCount}",
-            s3Objects.Count, bucketName, prefix, delimiter, skipEmptyObjects ? "empty/defected" : "defected",
-            s3ObjectsStreamPairs.Count);
+        _logger?.LogInformation(
+            "Finished loading S3 object bodies from {BucketName}. Loaded {LoadedObjectCount} objects from {CandidateObjectCount} candidates. Prefix: {Prefix}. Delimiter: {Delimiter}.",
+            bucketName,
+            s3ObjectsStreamPairs.Count,
+            s3Objects.Count,
+            prefix,
+            delimiter);
 
         return s3ObjectsStreamPairs;
     }
@@ -181,6 +232,7 @@ public class S3Client : IS3Client
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
+            _logger?.LogInformation("S3 bucket {BucketName} was missing. Creating it before upload.", bucketName);
             Client.PutBucketAsync(bucketName).GetAwaiter().GetResult();
         }
 
@@ -205,10 +257,13 @@ public class S3Client : IS3Client
                     return response;
                 }, $"uploading the object {pair.Key} to bucket {bucketName}", _maxRetryCount, _logger);
             storedItemsCounter++;
+            _logger?.LogDebug("Stored S3 object {ObjectKey} in bucket {BucketName}.", pair.Key, bucketName);
         }
 
-        _logger?.LogInformation("Stored {NumberOfStoredItems} items in s3 bucket {BucketName}",
-            storedItemsCounter, bucketName);
+        _logger?.LogInformation(
+            "Finished storing {StoredItemCount} S3 objects in bucket {BucketName}.",
+            storedItemsCounter,
+            bucketName);
     }
 
     /// <inheritdoc />
@@ -221,20 +276,24 @@ public class S3Client : IS3Client
     {
         if (objectStream == null)
         {
-            _logger?.LogError("Could not read object stream of object {S3ObjectKey}, stream was null",
+            _logger?.LogError("Could not read S3 object {S3ObjectKey} because the response stream was null.",
                 objectKey);
             return null;
         }
 
         if (!objectStream.CanRead)
         {
-            _logger?.LogError("Could not read object stream of object {S3ObjectKey}, skipped loading that object",
+            _logger?.LogError("Could not read S3 object {S3ObjectKey} because the response stream was not readable.",
                 objectKey);
             return null;
         }
 
         using var memoryStream = new MemoryStream();
         objectStream.CopyTo(memoryStream);
+        _logger?.LogDebug(
+            "Copied {ByteCount} bytes from S3 object {S3ObjectKey} into memory.",
+            memoryStream.Length,
+            objectKey);
         return memoryStream.ToArray();
     }
 }
