@@ -33,6 +33,8 @@ public static class S3Extentions
             catch (AmazonS3Exception ex) when (ex.ErrorCode == "TooManyRequests" &&
                                                (!maxRetryCount.HasValue || retryCount < maxRetryCount.Value))
             {
+                // Retry only the throttling case; all other S3 failures should bubble immediately so
+                // callers do not mask authentication, missing bucket, or transport problems as retries.
                 retryCount++;
                 logger?.LogWarning(ex,
                     "S3 returned TooManyRequests while executing {OperationDescription}. Retry {RetryAttempt}{RetryLimit}.",

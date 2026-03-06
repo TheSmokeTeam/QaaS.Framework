@@ -62,6 +62,8 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
         // If body is filtered dont query it in the first place
         if (!_dataFilter.Body)
         {
+            // When the caller filters out the body, avoid downloading object contents at all and
+            // return only ordering/timestamp metadata.
             s3ConsumedData = _s3Client!.ListAllObjectsInS3Bucket(
                     _readerConfig!.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter).GetAwaiter().GetResult()
                 .Where(IsS3ObjectRelevant)
@@ -81,6 +83,8 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
         }
         else
         {
+            // Preserve the raw bytes from S3 so downstream serializers/deserializers operate on the
+            // exact payload that was stored in the bucket.
             s3ConsumedData = _s3Client!.GetAllObjectsInS3BucketUnOrdered(
                     _readerConfig.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter,
                     _readerConfig.SkipEmptyObjects)
@@ -105,6 +109,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
+        // Resolve the key once so the upload path and the completion log refer to the same object name.
         var objectKey = _senderConfig!.Prefix + (dataToSend.MetaData?.Storage?.Key ?? Generator.GenerateObjectName());
         _logger.LogDebug(
             "Uploading S3 object {ObjectKey} to bucket {BucketName}. Payload bytes: {PayloadLength}.",

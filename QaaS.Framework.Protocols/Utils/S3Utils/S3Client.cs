@@ -202,6 +202,8 @@ public class S3Client : IS3Client
 
                     // Not an empty file/folder
                     default:
+                        // Reuse the single-object path so byte preservation, retry behavior, and logging
+                        // stay identical between one-off reads and bulk reads.
                         var retrievedObject = GetObjectFromObjectMetadata(s3Object, bucketName);
                         if (retrievedObject.Value == null)
                             return;
@@ -272,6 +274,10 @@ public class S3Client : IS3Client
         Client.Dispose();
     }
 
+    /// <summary>
+    /// Copies the raw response stream into memory without decoding it first so binary payloads remain
+    /// safe for downstream deserializers.
+    /// </summary>
     private byte[]? ReadObjectStreamToByteArray(Stream? objectStream, string? objectKey)
     {
         if (objectStream == null)
