@@ -1,34 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <PackageId>QaaS.Framework.Executions</PackageId>
-        <Authors>SmokeTeam</Authors>
-        <Description>Execution orchestration for QaaS test workflows.</Description>
-        <RepositoryType>git</RepositoryType>
-        <IncludeSymbols>true</IncludeSymbols>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
-    </PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>QaaS.Framework.Executions</PackageId>
+    <Authors>SmokeTeam</Authors>
+    <Description>Execution orchestration for QaaS test workflows.</Description>
+    <RepositoryType>git</RepositoryType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\QaaS.Framework.Policies\QaaS.Framework.Policies.csproj" />
-      <ProjectReference Include="..\QaaS.Framework.Protocols\QaaS.Framework.Protocols.csproj" />
-      <ProjectReference Include="..\QaaS.Framework.Providers\QaaS.Framework.Providers.csproj" />
-      <ProjectReference Include="..\QaaS.Framework.SDK\QaaS.Framework.SDK.csproj" />
-      <ProjectReference Include="..\QaaS.Framework.Policies\QaaS.Framework.Policies.csproj" />
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\QaaS.Framework.Policies\QaaS.Framework.Policies.csproj" />
+    <ProjectReference Include="..\QaaS.Framework.Protocols\QaaS.Framework.Protocols.csproj" />
+    <ProjectReference Include="..\QaaS.Framework.Providers\QaaS.Framework.Providers.csproj" />
+    <ProjectReference Include="..\QaaS.Framework.SDK\QaaS.Framework.SDK.csproj" />
+    <ProjectReference Include="..\QaaS.Framework.Policies\QaaS.Framework.Policies.csproj" />
+  </ItemGroup>
 
-    <ItemGroup>
-      <PackageReference Include="CommandLineParser" Version="2.9.1" />
-      <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
-      <PackageReference Include="morelinq" Version="4.4.0" />
-      <PackageReference Include="Serilog.Sinks.Elasticsearch" Version="10.0.0" />
-    </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
+    <PackageReference Include="morelinq" Version="4.4.0" />
+    <PackageReference Include="Serilog.Sinks.Elasticsearch" Version="10.0.0" />
+  </ItemGroup>
 
-
-    <ItemGroup>
-      <None Include="../README.md" Pack="true" PackagePath="/" />
-    </ItemGroup>
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
 </Project>
