@@ -205,7 +205,6 @@ public class ProtocolIntegrationCoverageTests
         Assert.Throws<KafkaException>(() =>
             sender.Send(new Data<object> { Body = "payload"u8.ToArray(), MetaData = null }));
     }
-
     [TestCase("test-key:test-value", 1, "test-key", "test-value")]
     [TestCase("trace:old,trace:new", 1, "trace", "new")]
     [TestCase("auth:secret,id:1,id:2", 2, "id", "2")]
@@ -220,7 +219,6 @@ public class ProtocolIntegrationCoverageTests
             TopicName = "topic-default",
             GroupId = "group"
         };
-
         var reader = new KafkaTopicProtocol(readerConfig, Globals.Logger);
         var consumerMock = new Mock<IConsumer<byte[]?, byte[]?>>();
         var kafkaHeaders = new Confluent.Kafka.Headers();
@@ -238,16 +236,14 @@ public class ProtocolIntegrationCoverageTests
                 Value = "value"u8.ToArray(),
                 Headers = kafkaHeaders
             }
+            }
         };
 
-        consumerMock
-            .SetupSequence(mock => mock.Consume(It.IsAny<TimeSpan>()))
-            .Returns(consumed);
-
+        consumerMock.Setup(m => m.Consume(It.IsAny<TimeSpan>())).Returns(consumed);
         SetPrivateField(reader, "_consumer", consumerMock.Object);
 
         reader.Connect();
-        var detailedData = reader.Read(TimeSpan.FromMilliseconds(1));
+        var detailedData = reader.Read(TimeSpan.Zero);
         reader.Disconnect();
         reader.Dispose();
 
@@ -258,7 +254,7 @@ public class ProtocolIntegrationCoverageTests
             Assert.That(detailedData?.MetaData?.Kafka?.Headers?.Count, Is.EqualTo(expectedCount));
             Assert.That(detailedData?.MetaData?.Kafka?.Headers?[keyToVerify], Is.EqualTo(expectedValue));
         });
-
+        
         consumerMock.Verify(mock => mock.Subscribe("topic-default"), Times.Once);
         consumerMock.Verify(mock => mock.Commit(consumed), Times.Once);
         consumerMock.Verify(mock => mock.Unsubscribe(), Times.Once);
