@@ -104,9 +104,12 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
                 Kafka = new Kafka
                 {
                     MessageKey = consumedResult.Message.Key,
-                    Headers = consumedResult.Message.Headers?.ToDictionary<IHeader, string, object?>(
-                        header => header.Key,
-                        header => Encoding.UTF8.GetString(header.GetValueBytes()))
+                    Headers = consumedResult.Message.Headers?
+                        .GroupBy(header => header.Key)
+                        .ToDictionary(
+                            group => group.Key,
+                            object? (group) => Encoding.UTF8.GetString(group.Last().GetValueBytes())
+                        )
                 }
             },
             Timestamp = consumedResult.Message.Timestamp.UtcDateTime

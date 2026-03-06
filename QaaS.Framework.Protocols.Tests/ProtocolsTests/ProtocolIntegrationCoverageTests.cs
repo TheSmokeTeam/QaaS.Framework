@@ -204,9 +204,12 @@ public class ProtocolIntegrationCoverageTests
         Assert.Throws<KafkaException>(() =>
             sender.Send(new Data<object> { Body = "payload"u8.ToArray(), MetaData = null }));
     }
-
+    
     [Test]
-    public void KafkaTopicProtocol_Read_With_Headers()
+    [TestCase("k1:v1,k2:v2", 2, "k1", "v1")] 
+    [TestCase("trace:old,trace:new", 1, "trace", "new")] 
+    [TestCase("auth:secret,id:1,id:2", 2, "id", "2")]
+    public void KafkaTopicProtocol_Read_HeaderScenarios(string headerInput, int expectedCount, string keyToVerify, string expectedValue)
     {
         var readerConfig = new KafkaTopicReaderConfig
         {
@@ -216,39 +219,41 @@ public class ProtocolIntegrationCoverageTests
             TopicName = "topic-default",
             GroupId = "group"
         };
-
         var reader = new KafkaTopicProtocol(readerConfig, Globals.Logger);
         var consumerMock = new Mock<IConsumer<byte[]?, byte[]?>>();
+
+        var kafkaHeaders = new Confluent.Kafka.Headers();
+        foreach (var pair in headerInput.Split(','))
+        {
+            var parts = pair.Split(':');
+            kafkaHeaders.Add(parts[0], Encoding.UTF8.GetBytes(parts[1]));
+        }
+
         var consumed = new ConsumeResult<byte[]?, byte[]?>
         {
             Message = new Message<byte[]?, byte[]?>
             {
                 Key = "key"u8.ToArray(),
                 Value = "value"u8.ToArray(),
-                Headers = new Confluent.Kafka.Headers { { "test-key", "test-value"u8.ToArray() } }
-            }
+                Headers = kafkaHeaders
+            },
+            Topic = "t"
         };
 
-        consumerMock
-            .SetupSequence(mock => mock.Consume(It.IsAny<TimeSpan>()))
-            .Returns(consumed);
-
+        consumerMock.Setup(m => m.Consume(It.IsAny<TimeSpan>())).Returns(consumed);
         SetPrivateField(reader, "_consumer", consumerMock.Object);
 
         reader.Connect();
-        var detailedData = reader.Read(TimeSpan.FromMilliseconds(1));
+        var detailedData = reader.Read(TimeSpan.Zero);
         reader.Disconnect();
         reader.Dispose();
 
         Assert.Multiple(() =>
         {
-            Assert.That(detailedData, Is.Not.Null);
-            Assert.That(detailedData?.Body, Is.EqualTo("value"u8.ToArray()));
-            Assert.That(detailedData?.MetaData?.Kafka?.Headers, Is.Not.Null, "Headers dictionary should not be null");
-            Assert.That(detailedData?.MetaData?.Kafka?.Headers?.ContainsKey("test-key"), Is.True);
-            Assert.That(detailedData?.MetaData?.Kafka?.Headers?["test-key"], Is.EqualTo("test-value"));
+            Assert.That(detailedData?.MetaData?.Kafka?.Headers?.Count, Is.EqualTo(expectedCount), $"Expected {expectedCount} unique keys in dictionary.");
+            Assert.That(detailedData?.MetaData?.Kafka?.Headers?[keyToVerify], Is.EqualTo(expectedValue));
         });
-
+        
         consumerMock.Verify(mock => mock.Subscribe("topic-default"), Times.Once);
         consumerMock.Verify(mock => mock.Commit(consumed), Times.Once);
         consumerMock.Verify(mock => mock.Unsubscribe(), Times.Once);
