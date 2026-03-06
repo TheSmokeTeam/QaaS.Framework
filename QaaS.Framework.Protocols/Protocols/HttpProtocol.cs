@@ -10,11 +10,12 @@ using QaaS.Framework.Serialization;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
-public class HttpProtocol : ITransactor
+public class HttpProtocol : ITransactor, IDisposable
 {
     private readonly ILogger _logger;
     private readonly HttpClient _httpClient;
-    private HttpTransactorConfig _transactorConfiguration;
+    private readonly HttpTransactorConfig _transactorConfiguration;
+    private bool _disposed;
     public HttpMethods Method;
 
     public HttpProtocol(HttpTransactorConfig configuration, ILogger logger, TimeSpan timeout)
@@ -75,83 +76,109 @@ public class HttpProtocol : ITransactor
 
     public Tuple<DetailedData<object>, DetailedData<object>?> Transact(Data<object> dataToSend)
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
         var requestUri = $"{_httpClient.BaseAddress}{_transactorConfiguration.Route}";
         _logger.LogDebug("Started sending http requests to: {RequestUri}",
             requestUri);
         var result = InvokeHttpRequest(dataToSend.CastObjectData<byte[]>(), requestUri);
-        return new Tuple<DetailedData<object>, DetailedData<object>>(dataToSend.CloneDetailed(result.Key),
-            result.Value!.CastToObjectDetailedData())!;
+        return new Tuple<DetailedData<object>, DetailedData<object>?>(dataToSend.CloneDetailed(result.Key),
+            result.Value?.CastToObjectDetailedData());
     }
 
     public SerializationType? GetInputCommunicationSerializationType() => null;
 
     public SerializationType? GetOutputCommunicationSerializationType() => null;
 
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _httpClient.Dispose();
+        _disposed = true;
+    }
+
     private KeyValuePair<DateTime, DetailedData<byte[]>?> InvokeHttpRequest(Data<byte[]> data, string requestUri)
     {
-        var requestData = new HttpRequestMessage(GetHttpMethod(), data.MetaData?.Http?.Uri?.AbsoluteUri ?? requestUri);
-        requestData.Content = new ByteArrayContent(data.Body ?? []);
-        requestData = AddHeadersToRequest(requestData,
-            data.MetaData?.Http?.Headers ?? _transactorConfiguration.Headers,
-            data.MetaData?.Http?.RequestHeaders ?? _transactorConfiguration.RequestHeaders);
-
-        HttpResponseMessage? responseData = null;
         var requestUtcTime = DateTime.UtcNow;
-        int retries = 1;
-        do
+        for (var attempt = 1; attempt <= _transactorConfiguration.Retries; attempt++)
         {
+            using var requestData = CreateRequest(data, requestUri);
             try
             {
-                responseData = _httpClient.SendAsync(requestData).Result;
-                break;
+                using var responseData = _httpClient.Send(requestData);
+                var responseUtcTime = DateTime.UtcNow;
+
+                return new KeyValuePair<DateTime, DetailedData<byte[]>?>(
+                    requestUtcTime,
+                    new DetailedData<byte[]>
+                    {
+                        Body = responseData.Content.ReadAsByteArrayAsync().ConfigureAwait(false).GetAwaiter().GetResult(),
+                        MetaData = new MetaData
+                        {
+                            Http = new Http
+                            {
+                                StatusCode = (int?)responseData.StatusCode,
+                                ReasonPhrase = responseData.ReasonPhrase,
+                                Version = responseData.Version.ToString(),
+                                Headers = responseData.Content.Headers.ToDictionary(header =>
+                                    header.Key, header => string.Join(",", header.Value)),
+                                ResponseHeaders = responseData.Headers.ToDictionary(header =>
+                                    header.Key, header => string.Join(",", header.Value)),
+                                TrailingHeaders = responseData.TrailingHeaders.ToDictionary(header =>
+                                    header.Key, header => string.Join(",", header.Value))
+                            }
+                        },
+                        Timestamp = responseUtcTime
+                    });
             }
-            catch (AggregateException)
+            catch (TaskCanceledException transactException) when (attempt < _transactorConfiguration.Retries)
             {
                 _logger.LogWarning(
                     "Timeout exceeded when performing an {TransactionType} - {HttpMethod} call, retrying" +
-                    " {Retries}/{ConfiguredRetries} times", typeof(HttpProtocol), Method, retries,
+                    " {Retries}/{ConfiguredRetries} times. {Exception}",
+                    typeof(HttpProtocol), Method, attempt, _transactorConfiguration.Retries, transactException);
+            }
+            catch (HttpRequestException transactException) when (attempt < _transactorConfiguration.Retries)
+            {
+                _logger.LogWarning(
+                    "Received exception when performing an {TransactionType} - {HttpMethod} call - {Exception}, retrying" +
+                    " {Retries}/{ConfiguredRetries} times", typeof(HttpProtocol), Method, transactException, attempt,
                     _transactorConfiguration.Retries);
+            }
+            catch (TaskCanceledException transactException)
+            {
+                _logger.LogWarning(
+                    "Timeout exceeded when performing an {TransactionType} - {HttpMethod} call. {Exception}",
+                    typeof(HttpProtocol), Method, transactException);
+                return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
             }
             catch (HttpRequestException transactException)
             {
                 _logger.LogWarning(
-                    "Received exception when performing an {TransactionType} - {HttpMethod} call - {Exception}, retrying" +
-                    " {Retries}/{ConfiguredRetries} times", typeof(HttpProtocol), Method, transactException, retries,
-                    _transactorConfiguration.Retries);
-                Thread.Sleep(TimeSpan.FromMilliseconds(_transactorConfiguration.MessageSendRetriesIntervalMs));
+                    "Received exception when performing an {TransactionType} - {HttpMethod} call - {Exception}",
+                    typeof(HttpProtocol), Method, transactException);
+                return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
             }
-        } while (retries++ < _transactorConfiguration.Retries);
 
-        if (responseData == null)
-        {
-            _logger.LogDebug("Retries exceeded when performing an http request, no response saved");
-            return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
+            Thread.Sleep(TimeSpan.FromMilliseconds(_transactorConfiguration.MessageSendRetriesIntervalMs));
         }
 
-        var responseUtcTime = DateTime.UtcNow;
+        _logger.LogDebug("Retries exceeded when performing an http request, no response saved");
+        return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
+    }
 
-        return new KeyValuePair<DateTime, DetailedData<byte[]>?>(
-            requestUtcTime,
-            new()
-            {
-                Body = responseData.Content.ReadAsByteArrayAsync().Result,
-                MetaData = new MetaData
-                {
-                    Http = new Http
-                    {
-                        StatusCode = (int?)responseData.StatusCode,
-                        ReasonPhrase = responseData.ReasonPhrase,
-                        Version = responseData.Version.ToString(),
-                        Headers = responseData.Content.Headers.ToDictionary(header =>
-                            header.Key, header => string.Join(",", header.Value)),
-                        ResponseHeaders = responseData.Headers.ToDictionary(header =>
-                            header.Key, header => string.Join(",", header.Value)),
-                        TrailingHeaders = responseData.TrailingHeaders.ToDictionary(header =>
-                            header.Key, header => string.Join(",", header.Value))
-                    }
-                },
-                Timestamp = responseUtcTime
-            });
+    private HttpRequestMessage CreateRequest(Data<byte[]> data, string requestUri)
+    {
+        var requestData = new HttpRequestMessage(GetHttpMethod(), data.MetaData?.Http?.Uri?.AbsoluteUri ?? requestUri)
+        {
+            Content = new ByteArrayContent(data.Body ?? [])
+        };
+
+        return AddHeadersToRequest(requestData,
+            data.MetaData?.Http?.Headers ?? _transactorConfiguration.Headers,
+            data.MetaData?.Http?.RequestHeaders ?? _transactorConfiguration.RequestHeaders);
     }
 
     /// <summary>

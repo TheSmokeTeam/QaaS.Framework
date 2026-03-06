@@ -204,7 +204,7 @@ public class ProtocolBehaviorTests
             context.Response.Close();
         });
 
-        var protocol = new HttpProtocol(new HttpTransactorConfig
+        using var protocol = new HttpProtocol(new HttpTransactorConfig
         {
             Method = HttpMethods.Post,
             BaseAddress = "http://127.0.0.1",
@@ -241,10 +241,10 @@ public class ProtocolBehaviorTests
     }
 
     [Test]
-    public void HttpProtocol_Transact_WhenNoResponse_Throws()
+    public void HttpProtocol_Transact_WhenNoResponse_ReturnsNullOutput()
     {
         var closedPort = GetFreeTcpPort();
-        var protocol = new HttpProtocol(new HttpTransactorConfig
+        using var protocol = new HttpProtocol(new HttpTransactorConfig
         {
             Method = HttpMethods.Get,
             BaseAddress = "http://127.0.0.1",
@@ -253,7 +253,28 @@ public class ProtocolBehaviorTests
             Retries = 1
         }, Globals.Logger, TimeSpan.FromMilliseconds(200));
 
-        Assert.Throws<NullReferenceException>(() =>
+        var result = protocol.Transact(new Data<object> { Body = Array.Empty<byte>() });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Item1.Body, Is.TypeOf<byte[]>());
+            Assert.That(result.Item2, Is.Null);
+        });
+    }
+
+    [Test]
+    public void HttpProtocol_Dispose_PreventsFurtherUse()
+    {
+        using var protocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Get,
+            BaseAddress = "http://127.0.0.1",
+            Port = 80
+        }, Globals.Logger, TimeSpan.FromSeconds(1));
+
+        protocol.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() =>
             protocol.Transact(new Data<object> { Body = Array.Empty<byte>() }));
     }
 
@@ -430,6 +451,30 @@ public class ProtocolBehaviorTests
                 TransactorFactory.CreateTransactor(new UnsupportedTransactorConfig(), logger, TimeSpan.FromSeconds(1)));
             Assert.Throws<InvalidOperationException>(() =>
                 FetcherFactory.CreateFetcher(new UnsupportedFetcherConfig(), logger));
+            Assert.Throws<ArgumentNullException>(() =>
+                ReaderFactory.CreateReader(new ElasticReaderConfig
+                {
+                    Url = "http://localhost:9200",
+                    Username = "u",
+                    Password = "p",
+                    IndexPattern = "logs-*"
+                }, logger, null));
+            Assert.Throws<ArgumentNullException>(() =>
+                SenderFactory.CreateSender(false, new ElasticSenderConfig
+                {
+                    Url = "http://localhost:9200",
+                    Username = "u",
+                    Password = "p",
+                    IndexName = "idx"
+                }, logger, null));
+            Assert.Throws<InvalidOperationException>(() =>
+                SenderFactory.CreateSender(true, new S3BucketSenderConfig
+                {
+                    StorageBucket = "bucket",
+                    ServiceURL = "http://localhost:9000",
+                    AccessKey = "ak",
+                    SecretKey = "sk"
+                }, logger, new DataFilter()));
         });
     }
 
