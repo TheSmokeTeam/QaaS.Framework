@@ -38,7 +38,7 @@ public static class SenderFactory
            MsSqlSenderConfig config => new MsSqlProtocol(config, logger),
            OracleSenderConfig config => new OracleSqlProtocol(config, logger),
            MongoDbCollectionSenderConfig config => new MongoDbProtocol(config, logger),
-           ElasticSenderConfig config => new ElasticProtocol(config, dataFilter!, logger),
+           ElasticSenderConfig config => new ElasticProtocol(config, RequireDataFilter<ElasticSenderConfig>(dataFilter), logger),
            
            // Chunkable senders
            RabbitMqSenderConfig config => new RabbitMqProtocol(config, logger),
@@ -53,6 +53,17 @@ public static class SenderFactory
            _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
        };
 
-       return isChunkable ? (null, (IChunkSender)connectable) : ((ISender)connectable, null);
+       if (isChunkable)
+           return connectable is IChunkSender chunkSender
+               ? (null, chunkSender)
+               : throw new InvalidOperationException($"Protocol type {type.GetType().Name} does not support chunk sending");
+
+       return connectable is ISender sender
+           ? (sender, null)
+           : throw new InvalidOperationException($"Protocol type {type.GetType().Name} does not support singular sending");
     }
+
+    private static DataFilter RequireDataFilter<TConfig>(DataFilter? dataFilter) =>
+        dataFilter ?? throw new ArgumentNullException(nameof(dataFilter),
+            $"{typeof(TConfig).Name} requires a non-null {nameof(DataFilter)}.");
 }

@@ -43,10 +43,14 @@ public static class ReaderFactory
             OracleReaderConfig config => (null, new OracleSqlProtocol(config, logger)),
             MsSqlReaderConfig config => (null, new MsSqlProtocol(config, logger)),
             TrinoReaderConfig config => (null, new TrinoSqlProtocol(config, logger)),
-            ElasticReaderConfig config => (null, new ElasticProtocol(config, dataFilter!, logger)),
-            S3BucketReaderConfig config => (null, new S3Protocol(config, dataFilter!, logger)),
+            ElasticReaderConfig config => (null, new ElasticProtocol(config, RequireDataFilter<ElasticReaderConfig>(dataFilter), logger)),
+            S3BucketReaderConfig config => (null, new S3Protocol(config, RequireDataFilter<S3BucketReaderConfig>(dataFilter), logger)),
             
             _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
         };
     }
+
+    private static DataFilter RequireDataFilter<TConfig>(DataFilter? dataFilter) =>
+        dataFilter ?? throw new ArgumentNullException(nameof(dataFilter),
+            $"{typeof(TConfig).Name} requires a non-null {nameof(DataFilter)}.");
 }
