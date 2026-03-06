@@ -465,6 +465,30 @@ public class SDKBehaviorTests
     }
 
     [Test]
+    public void Context_GlobalDictionary_SupportsConcurrentWritesAndReads()
+    {
+        var context = new Context
+        {
+            Logger = NullLogger.Instance,
+            RootConfiguration = new ConfigurationBuilder().Build(),
+            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+        };
+
+        Parallel.For(0, 64, index =>
+        {
+            context.InsertValueIntoGlobalDictionary(["root", $"node-{index}", "leaf"], index);
+        });
+
+        var values = Enumerable.Range(0, 64)
+            .Select(index => context.GetValueFromGlobalDictionary(["root", $"node-{index}", "leaf"]))
+            .Cast<int>()
+            .OrderBy(value => value)
+            .ToArray();
+
+        Assert.That(values, Is.EqualTo(Enumerable.Range(0, 64).ToArray()));
+    }
+
+    [Test]
     public void ContextBuilder_BuildInternal_UsesOverwritesAndMetadata()
     {
         var baseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
