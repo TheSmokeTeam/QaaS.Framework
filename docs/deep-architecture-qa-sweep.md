@@ -81,6 +81,8 @@ This review covers the core execution and data flow across the QaaS framework pa
 - `HttpProtocol` now implements `IDisposable` and disposes its `HttpClient`.
 - `HttpProtocol` now creates a fresh request per attempt, catches transport timeouts and request failures directly, and returns a `null` output instead of throwing through a forced null dereference.
 - Reader and sender factories now enforce required `DataFilter` inputs explicitly for Elastic and S3 reader paths and return clear errors when a caller requests an unsupported sender mode.
+- The S3 client now copies raw response streams directly into byte arrays instead of decoding them as UTF-8 text first, which preserves binary payloads for downstream deserializers.
+- The S3 reader path now uses the same raw-byte retrieval logic consistently for single-object and multi-object reads, and no longer double-disposes the underlying client.
 
 ### SDK
 
@@ -96,6 +98,9 @@ This review covers the core execution and data flow across the QaaS framework pa
   - HTTP no-response behavior
   - HTTP disposal behavior
   - factory argument and mode validation
+  - binary byte preservation in low-level S3 object reads
+  - raw-byte preservation through the S3 protocol for JSON, YAML, Binary, MessagePack, XML, and Protobuf payloads
+  - empty-object/null-body handling when `SkipEmptyObjects` is disabled
 - SDK regression test for:
   - concurrent global dictionary writes and reads
 
