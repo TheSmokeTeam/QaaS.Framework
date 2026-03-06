@@ -115,10 +115,8 @@ public class S3Client : IS3Client
         var retrievedObject = new KeyValuePair<S3Object, byte[]?>();
         S3Extentions.RunS3OperationWithRetryMechanism(() =>
             {
-                using var response = Client.GetObjectAsync(bucketName, s3ObjectMetadata.Key, null);
-                using var responseStream = response.Result.ResponseStream;
-                using var streamReader = new StreamReader(responseStream);
-                var retrievedObjectFromS3 = System.Text.Encoding.UTF8.GetBytes(streamReader.ReadToEnd());
+                using var response = Client.GetObjectAsync(bucketName, s3ObjectMetadata.Key, null).GetAwaiter().GetResult();
+                var retrievedObjectFromS3 = ReadObjectStreamToByteArray(response.ResponseStream, s3ObjectMetadata.Key);
                 retrievedObject = new KeyValuePair<S3Object, byte[]?>(s3ObjectMetadata, retrievedObjectFromS3);
                 return retrievedObjectFromS3;
             }, $"Retrieved s3 object {s3ObjectMetadata.Key} in bucket {bucketName}",
@@ -132,7 +130,7 @@ public class S3Client : IS3Client
         string bucketName, string prefix = "", string delimiter = "", bool skipEmptyObjects = true)
     {
         var s3Objects = ListAllObjectsInS3Bucket(
-            bucketName, prefix, delimiter, skipEmptyObjects).Result.ToList();
+            bucketName, prefix, delimiter, skipEmptyObjects).GetAwaiter().GetResult().ToList();
         _logger?.LogDebug("Found {NumberOfS3Objects} objects in the bucket {S3Bucket} with prefix" +
                           " {S3Prefix}", s3Objects.Count, bucketName, prefix);
 
@@ -154,42 +152,11 @@ public class S3Client : IS3Client
 
                     // Not an empty file/folder
                     default:
-                        S3Extentions.RunS3OperationWithRetryMechanism(() =>
-                            {
-                                var objectStream = Client.GetObjectStreamAsync(
-                                    bucketName, s3Object.Key,
-                                    null).Result;
+                        var retrievedObject = GetObjectFromObjectMetadata(s3Object, bucketName);
+                        if (retrievedObject.Value == null)
+                            return;
 
-                                // Move from objectStream to memory stream so the socket and all s3 related resources can be disposed
-                                MemoryStream memoryStream;
-                                // try-catch meant to catch a case when the stream has no length - in that case the 
-                                // stream capacity will be dynamic
-                                try
-                                {
-                                    memoryStream = new MemoryStream((int)objectStream.Length);
-                                }
-                                catch (Exception)
-                                {
-                                    memoryStream = new MemoryStream();
-                                }
-
-                                if (!objectStream.CanRead)
-                                {
-                                    _logger?.LogError("Could not read object stream of object {S3ObjectKey}," +
-                                                      " Skipped loading that object",
-                                        s3Object.Key);
-                                    return null;
-                                }
-
-                                objectStream.CopyTo(memoryStream);
-                                objectStream.Dispose();
-
-                                s3ObjectsStreamPairs.Add(new KeyValuePair<S3Object, byte[]?>(s3Object,
-                                    memoryStream.ToArray()));
-                                memoryStream.Dispose();
-                                return memoryStream;
-                            }, $"Retrieve stream of s3 object {s3Object.Key} in bucket {bucketName}",
-                            logger: _logger, maxRetryCount: _maxRetryCount);
+                        s3ObjectsStreamPairs.Add(retrievedObject);
                         break;
                 }
             });
@@ -214,7 +181,7 @@ public class S3Client : IS3Client
         }
         catch (AmazonS3Exception ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            Client.PutBucketAsync(bucketName).Wait();
+            Client.PutBucketAsync(bucketName).GetAwaiter().GetResult();
         }
 
         var storedItemsCounter = 0;
@@ -230,7 +197,7 @@ public class S3Client : IS3Client
                         Key = pair.Key,
                         InputStream = memoryStream,
                         StorageClass = S3StorageClass.StandardInfrequentAccess
-                    }).Result;
+                    }).GetAwaiter().GetResult();
                     if (response.HttpStatusCode != HttpStatusCode.OK)
                         throw new HttpRequestException(
                             $"Got {response.HttpStatusCode} http status code response when " +
@@ -248,6 +215,27 @@ public class S3Client : IS3Client
     public void Dispose()
     {
         Client.Dispose();
+    }
+
+    private byte[]? ReadObjectStreamToByteArray(Stream? objectStream, string? objectKey)
+    {
+        if (objectStream == null)
+        {
+            _logger?.LogError("Could not read object stream of object {S3ObjectKey}, stream was null",
+                objectKey);
+            return null;
+        }
+
+        if (!objectStream.CanRead)
+        {
+            _logger?.LogError("Could not read object stream of object {S3ObjectKey}, skipped loading that object",
+                objectKey);
+            return null;
+        }
+
+        using var memoryStream = new MemoryStream();
+        objectStream.CopyTo(memoryStream);
+        return memoryStream.ToArray();
     }
 }
 
