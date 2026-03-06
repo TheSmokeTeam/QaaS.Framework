@@ -30,17 +30,23 @@ public static class S3Extentions
             {
                 return s3OperationWithParameters.Invoke();
             }
+            catch (AmazonS3Exception ex) when (ex.ErrorCode == "TooManyRequests" &&
+                                               (!maxRetryCount.HasValue || retryCount < maxRetryCount.Value))
+            {
+                retryCount++;
+                logger?.LogWarning(ex,
+                    "S3 returned TooManyRequests while executing {OperationDescription}. Retry {RetryAttempt}{RetryLimit}.",
+                    operationDescription,
+                    retryCount,
+                    maxRetryCount.HasValue ? $"/{maxRetryCount.Value}" : "/unbounded");
+            }
             catch (AmazonS3Exception ex)
             {
-                // If error is not the too many requests error or the retry count has reached its limit, throw exception
-                if (ex.ErrorCode != "TooManyRequests" ||
-                    (maxRetryCount.HasValue && retryCount++ >= maxRetryCount.Value))
-                {
-                    throw;
-                }
-
-                logger?.LogDebug("Encountered `TooManyRequests` exception when performing the operation:" +
-                                 " {OperationDescription} on s3, retrying...", operationDescription);
+                logger?.LogError(ex,
+                    "S3 operation {OperationDescription} failed after {RetryCount} retries.",
+                    operationDescription,
+                    retryCount);
+                throw;
             }
         }
     }
