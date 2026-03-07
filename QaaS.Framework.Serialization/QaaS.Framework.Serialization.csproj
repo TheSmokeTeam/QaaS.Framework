@@ -9,7 +9,7 @@
         <Description>Serialization helpers and format adapters for QaaS.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
         <EnableUnsafeBinaryFormatterSerialization>true</EnableUnsafeBinaryFormatterSerialization>
     </PropertyGroup>
     
@@ -23,5 +23,9 @@
 
     <ItemGroup>
         <ProjectReference Include="..\QaaS.Framework.Configurations\QaaS.Framework.Configurations.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Include="../README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 </Project>
