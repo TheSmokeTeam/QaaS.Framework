@@ -9,9 +9,8 @@
         <Description>Policy definitions and evaluation for QaaS.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        
         <PackageReadmeFile>README.md</PackageReadmeFile>
-</PropertyGroup>
+    </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\QaaS.Framework.Configurations\QaaS.Framework.Configurations.csproj" />

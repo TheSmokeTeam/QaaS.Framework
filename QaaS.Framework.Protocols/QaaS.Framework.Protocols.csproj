@@ -9,9 +9,8 @@
         <Description>Protocol integrations for QaaS communication layers.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        
         <PackageReadmeFile>README.md</PackageReadmeFile>
-</PropertyGroup>
+    </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\QaaS.Framework.Infrastructure\QaaS.Framework.Infrastructure.csproj" />

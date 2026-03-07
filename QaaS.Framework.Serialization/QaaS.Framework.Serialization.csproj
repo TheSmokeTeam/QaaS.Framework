@@ -9,9 +9,8 @@
         <Description>Serialization helpers and format adapters for QaaS.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        
         <PackageReadmeFile>README.md</PackageReadmeFile>
-<EnableUnsafeBinaryFormatterSerialization>true</EnableUnsafeBinaryFormatterSerialization>
+        <EnableUnsafeBinaryFormatterSerialization>true</EnableUnsafeBinaryFormatterSerialization>
     </PropertyGroup>
     
     <ItemGroup>

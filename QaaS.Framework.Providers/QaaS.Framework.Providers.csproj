@@ -9,9 +9,8 @@
         <Description>Provider abstractions and implementations for QaaS.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        
         <PackageReadmeFile>README.md</PackageReadmeFile>
-</PropertyGroup>
+    </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\QaaS.Framework.SDK\QaaS.Framework.SDK.csproj" />

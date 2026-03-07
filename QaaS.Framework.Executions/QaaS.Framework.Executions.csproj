@@ -9,9 +9,8 @@
         <Description>Execution orchestration for QaaS test workflows.</Description>
         <RepositoryType>git</RepositoryType>
         <IncludeSymbols>true</IncludeSymbols>
-        
         <PackageReadmeFile>README.md</PackageReadmeFile>
-</PropertyGroup>
+    </PropertyGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\QaaS.Framework.Policies\QaaS.Framework.Policies.csproj" />
