@@ -127,6 +127,16 @@ public class SerializationBehaviorTests
     }
 
     [Test]
+    public void YamlDeserializer_WithEmptyPayloadAndStringType_ReturnsEmptyString()
+    {
+        var deserializer = new Deserializers.Yaml();
+
+        var result = deserializer.Deserialize([], typeof(string));
+
+        Assert.That(result, Is.EqualTo(string.Empty));
+    }
+
+    [Test]
     public void ProtobufSerializer_AndDeserializer_RoundTripStringValue()
     {
         var serializer = new Serializers.ProtobufMessage();
