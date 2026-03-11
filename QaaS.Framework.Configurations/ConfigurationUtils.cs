@@ -170,6 +170,17 @@ public static class ConfigurationUtils
         return (T?)BindToObject(typeof(T), source.GetDictionaryFromConfiguration(), binderOptions, logger) ?? new T();
     }
 
+    /// <summary>
+    /// Converts <see cref="IConfiguration"/> to an object of the given runtime type.
+    /// </summary>
+    public static object BindToObject(this IConfiguration source, Type objectType, BinderOptions binderOptions,
+        ILogger? logger = null)
+    {
+        return BindToObject(objectType, source.GetDictionaryFromConfiguration(), binderOptions, logger) ??
+               objectType.CreateInstance() ??
+               throw new ArgumentException($"Failed to create object from type {objectType.Name}");
+    }
+
     private static object? BindToObject(Type objectType, Dictionary<string, object?> sourceDictionary,
         BinderOptions binderOptions, ILogger? logger = null, string parentPath = "")
     {

@@ -18,7 +18,7 @@ public abstract class BaseProbe<TConfiguration> : IProbe where TConfiguration : 
     /// The relevant configuration for this probe's scope loaded and validated
     /// into a configuration object
     /// </summary>
-    public TConfiguration Configuration { get; set; } = default!;
+    public TConfiguration Configuration { get; internal set; } = default!;
     
     /// <summary>
     /// The options of the binder that binds the IConfiguration to the <see cref="Configuration"/>

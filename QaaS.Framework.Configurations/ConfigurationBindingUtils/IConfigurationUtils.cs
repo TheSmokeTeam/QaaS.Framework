@@ -9,15 +9,12 @@ namespace QaaS.Framework.Configurations.ConfigurationBindingUtils;
 public static class IConfigurationUtils
 {
     /// <summary>
-    /// Updates <see cref="IConfiguration"/> configuration with configuration c# object, by converting
-    /// it to an <see cref="IDictionary{TKey,TValue}"/> inMemoryCollection of string paths to string values.
+    /// Merges a partial configuration object into the existing <see cref="IConfiguration"/>.
+    /// Existing values are preserved when the incoming object leaves a field at its type default.
     /// </summary>
     /// <returns>The updated configuration</returns>
     public static IConfiguration BindConfigurationObjectToIConfiguration(this IConfiguration configuration,
-        object? configurationObject) => new ConfigurationBuilder()
-        .AddConfiguration(configuration)
-        .AddInMemoryCollection(ConfigurationUtils.GetInMemoryCollectionFromObject(configurationObject))
-        .Build();
+        object? configurationObject) => configuration.MergeConfigurationObjectIntoIConfiguration(configurationObject);
 
     /// <summary>
     /// Returns Dictionary representation of given IConfiguration
