@@ -46,6 +46,14 @@ public class ConfigurationUtilitiesTests
         public string? Name { get; set; }
     }
 
+    private sealed class ComputedSettings
+    {
+        public string? Value { get; set; }
+        public string? UpdatedName { get; set; }
+
+        public string NormalizedValue => Value!.Trim();
+    }
+
     private sealed class InvalidChild
     {
         [Required]
@@ -462,6 +470,30 @@ public class ConfigurationUtilitiesTests
             Assert.That(mergedConfiguration.Enabled, Is.False);
             Assert.That(mergedConfiguration.Retries, Is.Zero);
             Assert.That(mergedConfiguration.Child.Name, Is.EqualTo("updated-child"));
+        });
+    }
+
+    [Test]
+    public void IConfigurationUtils_BindConfigurationObjectToIConfiguration_IgnoresReadOnlyComputedProperties()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Value"] = "kept",
+                ["UpdatedName"] = "original"
+            })
+            .Build();
+
+        var rebound = configuration.BindConfigurationObjectToIConfiguration(new ComputedSettings
+        {
+            UpdatedName = "updated"
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(rebound["Value"], Is.EqualTo("kept"));
+            Assert.That(rebound["UpdatedName"], Is.EqualTo("updated"));
+            Assert.That(rebound["NormalizedValue"], Is.Null);
         });
     }
 }

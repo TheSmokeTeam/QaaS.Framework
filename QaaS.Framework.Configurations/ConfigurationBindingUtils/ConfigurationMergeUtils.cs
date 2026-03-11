@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Configuration;
 
 namespace QaaS.Framework.Configurations.ConfigurationBindingUtils;
@@ -82,15 +83,22 @@ public static class ConfigurationMergeUtils
         }
         foreach (var propertyInfo in configurationObject.GetType().GetProperties())
         {
-            if (!propertyInfo.CanRead)
+            if (!propertyInfo.CanRead || propertyInfo.GetIndexParameters().Length != 0 ||
+                !IsPatchableProperty(propertyInfo))
             {
                 continue;
             }
 
-            var propertyValue = propertyInfo.GetValue(configurationObject);
+            if (!TryGetPropertyValue(propertyInfo, configurationObject, out var propertyValue))
+            {
+                continue;
+            }
+
             var defaultPropertyValue = defaultConfiguration == null
                 ? propertyInfo.PropertyType.GetDefaultValue()
-                : propertyInfo.GetValue(defaultConfiguration);
+                : TryGetPropertyValue(propertyInfo, defaultConfiguration, out var value)
+                    ? value
+                    : propertyInfo.PropertyType.GetDefaultValue();
             if (ShouldSkipPatchValue(propertyInfo.PropertyType, propertyValue, defaultPropertyValue))
             {
                 continue;
@@ -258,6 +266,35 @@ public static class ConfigurationMergeUtils
     private static Dictionary<string, object?> CloneDictionary(IDictionary<string, object?> sourceDictionary)
     {
         return sourceDictionary.ToDictionary(pair => pair.Key, pair => CloneValue(pair.Value));
+    }
+
+    private static bool TryGetPropertyValue(System.Reflection.PropertyInfo propertyInfo, object instance,
+        out object? value)
+    {
+        try
+        {
+            value = propertyInfo.GetValue(instance);
+            return true;
+        }
+        catch
+        {
+            value = null;
+            return false;
+        }
+    }
+
+    private static bool IsPatchableProperty(System.Reflection.PropertyInfo propertyInfo)
+    {
+        return propertyInfo.CanWrite ||
+               HasAutoPropertyBackingField(propertyInfo) ||
+               propertyInfo.DeclaringType?.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false) == true;
+    }
+
+    private static bool HasAutoPropertyBackingField(System.Reflection.PropertyInfo propertyInfo)
+    {
+        var bindingFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        return propertyInfo.DeclaringType?.GetField($"<{propertyInfo.Name}>k__BackingField", bindingFlags) != null ||
+               propertyInfo.DeclaringType?.GetField($"<{propertyInfo.Name}>i__Field", bindingFlags) != null;
     }
 
     private static bool AreEquivalentValues(object? leftValue, object? rightValue)
