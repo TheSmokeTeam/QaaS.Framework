@@ -8,11 +8,20 @@ using QaaS.Framework.SDK.Session.DataObjects;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
+/// <summary>
+/// Implements PostgreSQL-backed SQL protocol operations for both readers and senders.
+/// </summary>
 [ExcludeFromCodeCoverage]
 public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
 {
     private readonly bool _isInsertionTimeFieldTimeZoneTz;
 
+    /// <summary>
+    /// Initializes a PostgreSQL protocol configured for read operations.
+    /// </summary>
+    /// <param name="configurations">The PostgreSQL reader configuration.</param>
+    /// <param name="logger">The logger used for protocol diagnostics.</param>
+    /// <param name="dbConnection">An optional open connection to reuse instead of creating one from the configuration.</param>
     public PostgreSqlProtocol(PostgreSqlReaderConfig configurations, ILogger logger,
         NpgsqlConnection? dbConnection = null) : base(configurations, logger,
         dbConnection ?? new NpgsqlConnection(configurations.ConnectionString))
@@ -20,6 +29,12 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
         _isInsertionTimeFieldTimeZoneTz = configurations.IsInsertionTimeFieldTimeZoneTz;
     }
 
+    /// <summary>
+    /// Initializes a PostgreSQL protocol configured for send operations.
+    /// </summary>
+    /// <param name="configurations">The PostgreSQL sender configuration.</param>
+    /// <param name="logger">The logger used for protocol diagnostics.</param>
+    /// <param name="dbConnection">An optional open connection to reuse instead of creating one from the configuration.</param>
     public PostgreSqlProtocol(PostgreSqlSenderConfig configurations, ILogger logger,
         NpgsqlConnection? dbConnection = null) : base(configurations,
         logger, dbConnection ?? new NpgsqlConnection(configurations.ConnectionString))
@@ -62,6 +77,7 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
         writer.Close();
     }
 
+    /// <inheritdoc />
     public override void Connect()
     {
         base.Connect();
@@ -78,13 +94,11 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
     protected override string GetTableQueryWithoutRegardToInsertionTimeField() =>
         $"select * from {TableName} {BuildWhereStatement()}";
 
-    private string GetOneRowFromTableQueryWithoutRegardToInsertionTimeField() =>
-        $"select * from {TableName} {BuildWhereStatement()} LIMIT 1";
-
     /// <inheritdoc />
     protected override string GetLatestTableRowQuery() =>
         $"select * from {TableName} {BuildWhereStatement()} order by \"{InsertionTimeField}\" desc LIMIT 1";
 
+    /// <inheritdoc />
     protected override string GetTimeFieldSqlFormat(DateTime time) =>
         $"TO_TIMESTAMP('{time:dd-MM-yyyy HH:mm:ss}', 'DD/MM/YYYY hh24:mi:ss')";
 
@@ -103,6 +117,7 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
         ? $"\"{InsertionTimeField}\" AT TIME ZONE 'UTC'"
         : $"\"{InsertionTimeField}\"";
 
+    /// <inheritdoc />
     public DetailedData<object> Send(Data<object> dataToSend)
     {
         RowInsertIntoTable(GetDataTableFromRawDataChunk([dataToSend]));
