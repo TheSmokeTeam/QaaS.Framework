@@ -192,6 +192,41 @@ public class DataSourceBuilderTests
         Assert.That(builtDataSource.DataSourceList, Has.Count.EqualTo(2));
         Assert.That(builtDataSource.DataSourceList.All(dataSourceFiltered => dataSources.Contains(dataSourceFiltered)));
     }
+
+    [Test]
+    public void ConfigurationCrud_ReadUpdateAndDelete_WorkAsExpected()
+    {
+        var builder = new DataSourceBuilder()
+            .Configure(new
+            {
+                Existing = "value",
+                Nested = new
+                {
+                    Before = "keep"
+                }
+            });
+
+        var initialConfiguration = builder.ReadConfiguration();
+        builder.UpdateConfiguration(new
+        {
+            Nested = new
+            {
+                Added = "new"
+            }
+        });
+        var updatedConfiguration = builder.ReadConfiguration();
+        builder.DeleteConfiguration();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(initialConfiguration["Existing"], Is.EqualTo("value"));
+            Assert.That(initialConfiguration["Nested:Before"], Is.EqualTo("keep"));
+            Assert.That(updatedConfiguration["Existing"], Is.EqualTo("value"));
+            Assert.That(updatedConfiguration["Nested:Before"], Is.EqualTo("keep"));
+            Assert.That(updatedConfiguration["Nested:Added"], Is.EqualTo("new"));
+            Assert.That(builder.ReadConfiguration().GetChildren(), Is.Empty);
+        });
+    }
 }
 
 public class TestGenerator : BaseGenerator<object>
