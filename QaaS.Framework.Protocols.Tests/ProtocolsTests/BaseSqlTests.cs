@@ -58,6 +58,52 @@ internal class MockSqlProtocol : BaseSqlProtocol<IDbConnection>
     }
 }
 
+internal sealed class SequencedMockSqlProtocol : MockSqlProtocol
+{
+    private readonly Queue<long?> _elapsedMillisecondsByPoll;
+
+    public SequencedMockSqlProtocol(SqlReaderConfig configurations, ILogger logger,
+        IEnumerable<long?> elapsedMillisecondsByPoll, IDbConnection? dbConnection = null)
+        : base(configurations, logger, dbConnection)
+    {
+        _elapsedMillisecondsByPoll = new Queue<long?>(elapsedMillisecondsByPoll);
+    }
+
+    protected override long? GetNumberOfMilliSecondsPassedSinceLastTableChange()
+    {
+        return _elapsedMillisecondsByPoll.Count > 0
+            ? _elapsedMillisecondsByPoll.Dequeue()
+            : 0;
+    }
+}
+
+internal sealed class CollectingLogger : ILogger
+{
+    public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull
+    {
+        return NullScope.Instance;
+    }
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        Entries.Add((logLevel, formatter(state, exception)));
+    }
+
+    private sealed class NullScope : IDisposable
+    {
+        public static NullScope Instance { get; } = new();
+
+        public void Dispose()
+        {
+        }
+    }
+}
+
 [TestFixture]
 public class BaseSqlTests
 {
@@ -201,6 +247,33 @@ public class BaseSqlTests
         Assert.That(result, Has.Count.EqualTo(1));
         Assert.That(result[0].Body, Is.TypeOf<JsonObject>());
         Assert.That(result[0].Timestamp, Is.Not.Null);
+    }
+
+    [Test]
+    public void ReadChunk_WhenPollingForTimeout_LogsSingleSummaryDebugMessage()
+    {
+        var logger = new CollectingLogger();
+        _dbConnectionMock!.SetupGet(connection => connection.State).Returns(ConnectionState.Open);
+        var protocol = new SequencedMockSqlProtocol(
+            new SqlReaderConfig
+            {
+                TableName = "tbl",
+                ConnectionString = "Host=localhost",
+                InsertionTimeField = "created_at"
+            },
+            logger,
+            [0, 0, 5],
+            _dbConnectionMock.Object);
+
+        _ = protocol.ReadChunk(TimeSpan.FromMilliseconds(5)).ToList();
+
+        var debugMessages = logger.Entries
+            .Where(entry => entry.Level == LogLevel.Debug)
+            .Select(entry => entry.Message)
+            .ToList();
+
+        Assert.That(debugMessages, Has.Count.EqualTo(1));
+        Assert.That(debugMessages[0], Does.Contain("Read timeout reached for table tbl"));
     }
 
     [Test]

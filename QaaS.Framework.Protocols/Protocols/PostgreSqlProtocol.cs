@@ -54,12 +54,11 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
                 firstColumn = false;
             }
 
-            var rowString = rowBuilder.ToString();
-            Logger.LogDebug("Inserting row {RowString} to postgresql table {TableName}", rowString, TableName);
-            writer.WriteLine(rowString);
+            writer.WriteLine(rowBuilder.ToString());
         }
 
         writer.Close();
+        Logger.LogDebug("Inserted {RowCount} rows into postgresql table {TableName}", chunkData.Rows.Count, TableName);
     }
 
     public override void Connect()
