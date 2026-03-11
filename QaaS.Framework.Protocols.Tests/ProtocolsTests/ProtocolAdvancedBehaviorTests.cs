@@ -149,6 +149,7 @@ public class ProtocolAdvancedBehaviorTests
     public void S3Client_ListsAndReadsObjects()
     {
         var s3Mock = new Mock<IAmazonS3>();
+        var metadataBytes = new byte[] { 0x00, 0xFF, 0x7F, 0x80 };
         s3Mock.Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
             .ReturnsAsync(new ListObjectsV2Response
             {
@@ -167,7 +168,7 @@ public class ProtocolAdvancedBehaviorTests
         s3Mock.Setup(client => client.GetObjectAsync("bucket", "meta", null, default))
             .ReturnsAsync(new GetObjectResponse
             {
-                ResponseStream = new MemoryStream(Encoding.UTF8.GetBytes("abc"))
+                ResponseStream = new MemoryStream(metadataBytes)
             });
 
         var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
@@ -180,7 +181,7 @@ public class ProtocolAdvancedBehaviorTests
         {
             Assert.That(nonEmpty.Select(obj => obj.Key), Is.EqualTo(["full"]));
             Assert.That(withEmpty, Has.Count.EqualTo(2));
-            Assert.That(Encoding.UTF8.GetString(fromMetadata.Value!), Is.EqualTo("abc"));
+            Assert.That(fromMetadata.Value, Is.EqualTo(metadataBytes));
         });
     }
 
