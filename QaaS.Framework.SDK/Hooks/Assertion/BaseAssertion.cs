@@ -40,7 +40,7 @@ public abstract class BaseAssertion<TConfiguration>: IAssertion where TConfigura
     /// The relevant configuration for this assertion's scope loaded and validated
     /// into a configuration object
     /// </summary>
-    public TConfiguration Configuration { get; internal set; } = default!;
+    public TConfiguration Configuration { get; set; } = default!;
     
     /// <summary>
     /// The options of the binder that binds the IConfiguration to the <see cref="Configuration"/>

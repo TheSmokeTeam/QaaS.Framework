@@ -24,7 +24,7 @@ public abstract class BaseGenerator<TConfiguration>: IGenerator where TConfigura
     /// The relevant configuration for this generator's scope loaded and validated
     /// into a configuration object
     /// </summary>
-    public TConfiguration Configuration { get; internal set; } = default!;
+    public TConfiguration Configuration { get; set; } = default!;
 
     /// <summary>
     /// The options of the binder that binds the IConfiguration to the <see cref="Configuration"/>
