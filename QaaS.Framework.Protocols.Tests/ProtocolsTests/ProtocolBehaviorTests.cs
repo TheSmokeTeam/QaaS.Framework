@@ -572,6 +572,12 @@ public class ProtocolBehaviorTests
             AccessKey = "ak",
             SecretKey = "sk"
         }, logger, dataFilter);
+        var (redisReader, redisChunkReader) = ReaderFactory.CreateReader(new RedisReaderConfig
+        {
+            HostNames = ["localhost:6379"],
+            Key = "queue",
+            RedisDataType = RedisDataType.ListLeftPush
+        }, logger, dataFilter);
 
         var transactor = TransactorFactory.CreateTransactor(new GrpcTransactorConfig
         {
@@ -617,6 +623,7 @@ public class ProtocolBehaviorTests
             Assert.That(trinoReader, Is.Null);
             Assert.That(elasticReader, Is.Null);
             Assert.That(s3Reader, Is.Null);
+            Assert.That(redisReader, Is.Not.Null);
             Assert.That(rabbitChunkReader, Is.Null);
             Assert.That(kafkaChunkReader, Is.Null);
             Assert.That(socketChunkReader, Is.Null);
@@ -627,6 +634,7 @@ public class ProtocolBehaviorTests
             Assert.That(trinoChunkReader, Is.Not.Null);
             Assert.That(elasticChunkReader, Is.Not.Null);
             Assert.That(s3ChunkReader, Is.Not.Null);
+            Assert.That(redisChunkReader, Is.Null);
 
             Assert.That(transactor, Is.TypeOf<GrpcProtocol>());
         });
