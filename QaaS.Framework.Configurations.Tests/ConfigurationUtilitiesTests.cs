@@ -585,7 +585,7 @@ public class ConfigurationUtilitiesTests
         Assert.Multiple(() =>
         {
             Assert.That(mergedConfiguration, Is.Not.Null);
-            Assert.That(mergedConfiguration!.Value, Is.Null);
+            Assert.That(mergedConfiguration!.Value, Is.EqualTo(string.Empty));
             Assert.That(mergedConfiguration.UpdatedName, Is.EqualTo("updated"));
         });
     }
