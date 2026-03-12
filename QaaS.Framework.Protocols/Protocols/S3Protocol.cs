@@ -45,15 +45,27 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
 
     public IEnumerable<DetailedData<object>> ReadChunk(TimeSpan timeout)
     {
-        if (_readerConfig!.ReadFromRunStartTime) _readStartTimeUtc = GetCurrentDateTimeUtc();
+        if (_readerConfig!.ReadFromRunStartTime)
+            _readStartTimeUtc = GetCurrentDateTimeUtc();
+
+        _logger.LogInformation(
+            "Starting S3 read from bucket {BucketName}. Prefix: {Prefix}. Delimiter: {Delimiter}. IncludeBody: {IncludeBody}. SkipEmptyObjects: {SkipEmptyObjects}. ReadFromRunStartTime: {ReadFromRunStartTime}.",
+            _readerConfig!.StorageBucket,
+            _readerConfig.Prefix,
+            _readerConfig.Delimiter,
+            _dataFilter.Body,
+            _readerConfig.SkipEmptyObjects,
+            _readerConfig.ReadFromRunStartTime);
         WaitUntilConsumptionTimeoutIsReached(timeout);
         IEnumerable<DetailedData<object>> s3ConsumedData;
 
         // If body is filtered dont query it in the first place
         if (!_dataFilter.Body)
         {
+            // When the caller filters out the body, avoid downloading object contents at all and
+            // return only ordering/timestamp metadata.
             s3ConsumedData = _s3Client!.ListAllObjectsInS3Bucket(
-                    _readerConfig!.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter).Result
+                    _readerConfig!.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter).GetAwaiter().GetResult()
                 .Where(IsS3ObjectRelevant)
                 .OrderBy(s3Object => s3Object.LastModified)
                 .Select(s3Object => new DetailedData<object>
@@ -71,6 +83,8 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
         }
         else
         {
+            // Preserve the raw bytes from S3 so downstream serializers/deserializers operate on the
+            // exact payload that was stored in the bucket.
             s3ConsumedData = _s3Client!.GetAllObjectsInS3BucketUnOrdered(
                     _readerConfig.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter,
                     _readerConfig.SkipEmptyObjects)
@@ -95,6 +109,13 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
+        // Resolve the key once so the upload path and the completion log refer to the same object name.
+        var objectKey = _senderConfig!.Prefix + (dataToSend.MetaData?.Storage?.Key ?? Generator.GenerateObjectName());
+        _logger.LogDebug(
+            "Uploading S3 object {ObjectKey} to bucket {BucketName}. Payload bytes: {PayloadLength}.",
+            objectKey,
+            _senderConfig.StorageBucket,
+            dataToSend.CastObjectData<byte[]>().Body?.Length ?? 0);
         S3Extentions.RunS3OperationWithRetryMechanism(() =>
         {
             using var memoryStream =
@@ -103,11 +124,13 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
                 new PutObjectRequest
                 {
                     BucketName = _senderConfig!.StorageBucket,
-                    Key = _senderConfig!.Prefix + (dataToSend.MetaData?.Storage?.Key ?? Generator.GenerateObjectName()),
+                    Key = objectKey,
                     InputStream = memoryStream,
                     StorageClass = _senderConfig!.S3StorageClass.GetS3StorageClassFromEnum()
-                }).Result;
+                }).GetAwaiter().GetResult();
         }, "uploading the object to s3", maxRetryCount: _senderConfig!.Retries, logger: _logger);
+        _logger.LogInformation("Finished uploading S3 object {ObjectKey} to bucket {BucketName}.",
+            objectKey, _senderConfig.StorageBucket);
         return dataToSend.CloneDetailed();
     }
 
@@ -123,7 +146,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
     private long? GetNumberOfMilliSecondsPassedSinceLastS3ObjectModification()
     {
         var allS3ObjectsInBucket = _s3Client!.ListAllObjectsInS3Bucket(
-            _readerConfig!.StorageBucket!, _readerConfig.Prefix).Result.Where(IsS3ObjectRelevant).ToArray();
+            _readerConfig!.StorageBucket!, _readerConfig.Prefix).GetAwaiter().GetResult().Where(IsS3ObjectRelevant).ToArray();
         if (!allS3ObjectsInBucket.Any()) return null;
 
         var latestModificationTime = allS3ObjectsInBucket.Max(s3Object => s3Object.LastModified);
@@ -133,9 +156,8 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
                 MidpointRounding.ToZero);
 
         // DateTimeKind not specified -> cannot convert to UTC and determine how many milliseconds passed
-        _logger.LogCritical("Latest modification time of s3 bucket {S3Bucket} is of `unspecified` date time" +
-                            " kind so its impossible to know the timezone and determine how much time passed since the last " +
-                            "s3 object modification, timing out automatically",
+        _logger.LogCritical(
+            "Latest modification time in S3 bucket {S3Bucket} had DateTimeKind.Unspecified. The reader cannot determine inactivity duration and will treat the timeout as elapsed.",
             _readerConfig.StorageBucket!);
         return null;
     }
@@ -154,18 +176,18 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
             milliSecondsSinceLastS3ObjectModified = GetNumberOfMilliSecondsPassedSinceLastS3ObjectModification();
             if (milliSecondsSinceLastS3ObjectModified == null)
             {
-                _logger.LogWarning("Encountered an issue when getting the number of milliseconds passed " +
-                                   "since the last s3 object was modified in the s3 bucket {BucketName}" +
-                                   ", setting amount of time passed since last s3 bucket change to the timeout",
-                    _readerConfig!.StorageBucket);
+                _logger.LogWarning(
+                    "Could not determine S3 inactivity duration for bucket {BucketName}. Treating timeout {TimeoutMs} ms as elapsed.",
+                    _readerConfig!.StorageBucket,
+                    timeoutMs);
                 milliSecondsSinceLastS3ObjectModified = timeoutMs;
             }
 
-            _logger.LogDebug("Since Last S3 Object Modification done in s3 bucket " +
-                             "{BucketName} " +
-                             "{MilliSecondsSinceLastS3ObjectModified} milliseconds have passed," +
-                             " timeout is {TimeoutMilliSeconds} milliseconds",
-                _readerConfig!.StorageBucket, milliSecondsSinceLastS3ObjectModified, timeout);
+            _logger.LogDebug(
+                "S3 inactivity window for bucket {BucketName}: elapsed {ElapsedMilliseconds} ms, target {TimeoutMilliseconds} ms.",
+                _readerConfig!.StorageBucket,
+                milliSecondsSinceLastS3ObjectModified,
+                timeoutMs);
         } while (milliSecondsSinceLastS3ObjectModified < timeoutMs);
     }
 
@@ -174,6 +196,8 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
     {
         if (_senderConfig != null)
         {
+            _logger.LogInformation("Connecting S3 sender for bucket {BucketName} at {ServiceUrl}.",
+                _senderConfig.StorageBucket, _senderConfig.ServiceURL);
             var s3Client = new AmazonS3Client(_senderConfig.AccessKey, _senderConfig.SecretKey,
                 new AmazonS3Config
                 {
@@ -185,6 +209,8 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
 
         if (_readerConfig != null)
         {
+            _logger.LogInformation("Connecting S3 reader for bucket {BucketName} at {ServiceUrl}.",
+                _readerConfig.StorageBucket, _readerConfig.ServiceURL);
             _s3Client = new S3Client(new AmazonS3Client(
                 _readerConfig.AccessKey, _readerConfig.SecretKey,
                 new AmazonS3Config
@@ -201,7 +227,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
 
     public void Dispose()
     {
-        _s3Client?.Client.Dispose();
+        _logger.LogDebug("Disposing S3 protocol resources.");
         _s3Client?.Dispose();
     }
 }

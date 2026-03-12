@@ -24,12 +24,33 @@ public class LoadBalancePolicy : Policy
 
     protected override void RunThis()
     {
-        while (_intervalTimer.ElapsedMilliseconds < MessageIntervalMilliseconds)
-        {
-        }
+        WaitForNextExecutionSlot();
 
         AdjustRate();
-        SetupThis();
+        // Restart only the interval timer for the next iteration so derived policies can
+        // keep their own stage/ramp state instead of being reinitialized on every run.
+        _intervalTimer.Restart();
+    }
+
+    /// <summary>
+    /// Waits until the current send window opens without pinning a CPU core in a pure busy loop.
+    /// </summary>
+    private void WaitForNextExecutionSlot()
+    {
+        var remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
+        while (remainingMilliseconds > 0)
+        {
+            if (remainingMilliseconds > 1)
+            {
+                Thread.Sleep((int)Math.Floor(remainingMilliseconds));
+            }
+            else
+            {
+                Thread.SpinWait(20);
+            }
+
+            remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
+        }
     }
 
     /// <summary>

@@ -204,7 +204,7 @@ public class ProtocolBehaviorTests
             context.Response.Close();
         });
 
-        var protocol = new HttpProtocol(new HttpTransactorConfig
+        using var protocol = new HttpProtocol(new HttpTransactorConfig
         {
             Method = HttpMethods.Post,
             BaseAddress = "http://127.0.0.1",
@@ -241,10 +241,46 @@ public class ProtocolBehaviorTests
     }
 
     [Test]
-    public void HttpProtocol_Transact_WhenNoResponse_Throws()
+    public void HttpProtocol_Transact_WithZeroRetries_StillPerformsInitialAttempt()
+    {
+        var port = GetFreeTcpPort();
+        using var listener = new HttpListener();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+        var serverTask = Task.Run(async () =>
+        {
+            var context = await listener.GetContextAsync();
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
+            await context.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("pong"));
+            context.Response.Close();
+        });
+
+        using var protocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Post,
+            BaseAddress = "http://127.0.0.1",
+            Port = port,
+            Route = "/",
+            Retries = 0
+        }, Globals.Logger, TimeSpan.FromSeconds(5));
+
+        var result = protocol.Transact(new Data<object> { Body = Encoding.UTF8.GetBytes("ping") });
+
+        serverTask.GetAwaiter().GetResult();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Item1.Body, Is.TypeOf<byte[]>());
+            Assert.That(result.Item2, Is.Not.Null);
+            Assert.That(Encoding.UTF8.GetString((byte[])result.Item2!.Body!), Is.EqualTo("pong"));
+        });
+    }
+
+    [Test]
+    public void HttpProtocol_Transact_WhenNoResponse_ReturnsNullOutput()
     {
         var closedPort = GetFreeTcpPort();
-        var protocol = new HttpProtocol(new HttpTransactorConfig
+        using var protocol = new HttpProtocol(new HttpTransactorConfig
         {
             Method = HttpMethods.Get,
             BaseAddress = "http://127.0.0.1",
@@ -253,7 +289,28 @@ public class ProtocolBehaviorTests
             Retries = 1
         }, Globals.Logger, TimeSpan.FromMilliseconds(200));
 
-        Assert.Throws<NullReferenceException>(() =>
+        var result = protocol.Transact(new Data<object> { Body = Array.Empty<byte>() });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Item1.Body, Is.TypeOf<byte[]>());
+            Assert.That(result.Item2, Is.Null);
+        });
+    }
+
+    [Test]
+    public void HttpProtocol_Dispose_PreventsFurtherUse()
+    {
+        using var protocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Get,
+            BaseAddress = "http://127.0.0.1",
+            Port = 80
+        }, Globals.Logger, TimeSpan.FromSeconds(1));
+
+        protocol.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() =>
             protocol.Transact(new Data<object> { Body = Array.Empty<byte>() }));
     }
 
@@ -410,6 +467,31 @@ public class ProtocolBehaviorTests
             Url = "http://prometheus.local",
             Expression = "up"
         }, logger);
+        var (elasticReaderWithDefaultFilter, elasticChunkReaderWithDefaultFilter) = ReaderFactory.CreateReader(
+            new ElasticReaderConfig
+            {
+                Url = "http://localhost:9200",
+                Username = "u",
+                Password = "p",
+                IndexPattern = "logs-*"
+            }, logger, null);
+        var (elasticSenderWithDefaultFilter, elasticChunkSenderWithDefaultFilter) = SenderFactory.CreateSender(
+            true,
+            new ElasticSenderConfig
+            {
+                Url = "http://localhost:9200",
+                Username = "u",
+                Password = "p",
+                IndexName = "idx"
+            }, logger, null);
+        var (s3ReaderWithDefaultFilter, s3ChunkReaderWithDefaultFilter) = ReaderFactory.CreateReader(
+            new S3BucketReaderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://localhost:9000",
+                AccessKey = "ak",
+                SecretKey = "sk"
+            }, logger, null);
 
         Assert.Multiple(() =>
         {
@@ -430,6 +512,20 @@ public class ProtocolBehaviorTests
                 TransactorFactory.CreateTransactor(new UnsupportedTransactorConfig(), logger, TimeSpan.FromSeconds(1)));
             Assert.Throws<InvalidOperationException>(() =>
                 FetcherFactory.CreateFetcher(new UnsupportedFetcherConfig(), logger));
+            Assert.That(elasticReaderWithDefaultFilter, Is.Null);
+            Assert.That(elasticChunkReaderWithDefaultFilter, Is.Not.Null);
+            Assert.That(elasticSenderWithDefaultFilter, Is.Null);
+            Assert.That(elasticChunkSenderWithDefaultFilter, Is.Not.Null);
+            Assert.That(s3ReaderWithDefaultFilter, Is.Null);
+            Assert.That(s3ChunkReaderWithDefaultFilter, Is.Not.Null);
+            Assert.Throws<InvalidOperationException>(() =>
+                SenderFactory.CreateSender(true, new S3BucketSenderConfig
+                {
+                    StorageBucket = "bucket",
+                    ServiceURL = "http://localhost:9000",
+                    AccessKey = "ak",
+                    SecretKey = "sk"
+                }, logger, new DataFilter()));
         });
     }
 

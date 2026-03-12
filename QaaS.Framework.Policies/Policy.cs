@@ -13,9 +13,13 @@ public abstract class Policy
     // </summary>
     protected abstract uint Index { get; set; }
     
+    /// <summary>
+    /// Inserts a policy into the chain while preserving ascending <see cref="Index"/> order.
+    /// </summary>
     public Policy Add(Policy policy)
     {
-        if (Next == null && Index <= policy.Index)
+        var next = Next;
+        if (next == null && Index <= policy.Index)
         {
             Next = policy;
             return this;
@@ -27,14 +31,20 @@ public abstract class Policy
             return policy;
         }
 
-        Next = Add(policy);
+        // Recurse through the remaining chain instead of re-adding against the current node,
+        // otherwise chains longer than two items can loop back into this instance indefinitely.
+        ArgumentNullException.ThrowIfNull(next);
+        Next = next.Add(policy);
         return this;
     }
     
+    /// <summary>
+    /// Initializes the current policy and every remaining policy in the chain.
+    /// </summary>
     public void SetupChain()
     {
         SetupThis();
-        Next?.SetupThis();
+        Next?.SetupChain();
     }
 
     protected abstract void SetupThis();

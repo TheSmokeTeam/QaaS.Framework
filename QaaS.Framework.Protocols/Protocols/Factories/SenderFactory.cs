@@ -25,12 +25,15 @@ public static class SenderFactory
     /// <param name="isChunkable">Determines rather the sender should be singular or chunkable</param>
     /// <param name="type">The sender configuration that determines the type of sender to create</param>
     /// <param name="logger">Logger instance for logging operations and errors</param>
-    /// <param name="dataFilter">Optional data filter to apply to the sender's data processing</param>
+    /// <param name="dataFilter">Optional data filter to apply to the sender's data processing.
+    /// When omitted, senders keep the full body, timestamp, and metadata.</param>
     /// <returns>A tuple containing an ISender (nullable) and an IChunkSender (nullable) configured according to the provided configuration.
     /// The first item will be non-null for singular senders, the second for chunkable senders.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the provided configuration type is not supported or recognized</exception>
     public static (ISender?, IChunkSender?) CreateSender(bool isChunkable, ISenderConfig type, ILogger logger, DataFilter? dataFilter)
     {
+       var effectiveDataFilter = dataFilter ?? new DataFilter();
+
        IConnectable connectable = type switch
        {
            // Singular senders
@@ -38,7 +41,7 @@ public static class SenderFactory
            MsSqlSenderConfig config => new MsSqlProtocol(config, logger),
            OracleSenderConfig config => new OracleSqlProtocol(config, logger),
            MongoDbCollectionSenderConfig config => new MongoDbProtocol(config, logger),
-           ElasticSenderConfig config => new ElasticProtocol(config, dataFilter!, logger),
+           ElasticSenderConfig config => new ElasticProtocol(config, effectiveDataFilter, logger),
            
            // Chunkable senders
            RabbitMqSenderConfig config => new RabbitMqProtocol(config, logger),
@@ -53,6 +56,13 @@ public static class SenderFactory
            _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
        };
 
-       return isChunkable ? (null, (IChunkSender)connectable) : ((ISender)connectable, null);
+       if (isChunkable)
+           return connectable is IChunkSender chunkSender
+               ? (null, chunkSender)
+               : throw new InvalidOperationException($"Protocol type {type.GetType().Name} does not support chunk sending");
+
+       return connectable is ISender sender
+           ? (sender, null)
+           : throw new InvalidOperationException($"Protocol type {type.GetType().Name} does not support singular sending");
     }
 }
