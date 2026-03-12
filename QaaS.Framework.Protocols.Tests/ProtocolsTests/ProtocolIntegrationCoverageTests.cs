@@ -30,7 +30,8 @@ public class ProtocolIntegrationCoverageTests
     private sealed class ExposedPrometheusProtocol(PrometheusFetcherConfig fetcherConfig)
         : PrometheusProtocol(fetcherConfig, Globals.Logger)
     {
-        public string InvokeHttpGetResultBodyAsString(string queryRequestUri) => base.HttpGetResultBodyAsString(queryRequestUri);
+        public string InvokeHttpGetResultBodyAsString(string queryRequestUri) =>
+            HttpGetResultBodyAsString(queryRequestUri);
     }
 
     [Test]
@@ -67,7 +68,7 @@ public class ProtocolIntegrationCoverageTests
 
         var sent = sender.Send(new Data<object>
         {
-            Body = Encoding.UTF8.GetBytes("payload"),
+            Body = "payload"u8.ToArray(),
             MetaData = new MetaData
             {
                 Kafka = new Kafka
@@ -102,9 +103,9 @@ public class ProtocolIntegrationCoverageTests
         {
             Message = new Message<byte[]?, byte[]?>
             {
-                Key = Encoding.UTF8.GetBytes("key"),
-                Value = Encoding.UTF8.GetBytes("value"),
-                Timestamp = new Confluent.Kafka.Timestamp(DateTime.UtcNow)
+                Key = "key"u8.ToArray(),
+                Value = "value"u8.ToArray(),
+                Timestamp = new Timestamp(DateTime.UtcNow)
             },
             TopicPartitionOffset = new TopicPartitionOffset("topic-default", new Partition(0), new Offset(1))
         };
@@ -157,16 +158,16 @@ public class ProtocolIntegrationCoverageTests
         producerMock
             .Setup(mock => mock.Produce(It.IsAny<TopicPartition>(), It.IsAny<Message<byte[]?, byte[]?>>(),
                 It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()))
-            .Callback<TopicPartition, Message<byte[]?, byte[]?>, Action<DeliveryReport<byte[]?, byte[]?>>?>(
-                (topicPartition, message, _) =>
-                {
-                    sentPartition = topicPartition;
-                    sentMessage = message;
-                });
+            .Callback<TopicPartition, Message<byte[]?, byte[]?>, Action<DeliveryReport<byte[]?, byte[]?>>?>((
+                topicPartition, message, _) =>
+            {
+                sentPartition = topicPartition;
+                sentMessage = message;
+            });
         SetPrivateField(sender, "_producer", producerMock.Object);
 
         sender.Connect(); // sender has no consumer, should be no-op branch
-        var sent = sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+        var sent = sender.Send(new Data<object> { Body = "payload"u8.ToArray(), MetaData = null });
 
         Assert.Multiple(() =>
         {
@@ -201,7 +202,62 @@ public class ProtocolIntegrationCoverageTests
         SetPrivateField(sender, "_producer", producerMock.Object);
 
         Assert.Throws<KafkaException>(() =>
-            sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null }));
+            sender.Send(new Data<object> { Body = "payload"u8.ToArray(), MetaData = null }));
+    }
+    
+    [Test]
+    [TestCase("k1:v1,k2:v2", 2, "k1", "v1")] 
+    [TestCase("trace:old,trace:new", 1, "trace", "new")] 
+    [TestCase("auth:secret,id:1,id:2", 2, "id", "2")]
+    public void KafkaTopicProtocol_Read_HeaderScenarios(string headerInput, int expectedCount, string keyToVerify, string expectedValue)
+    {
+        var readerConfig = new KafkaTopicReaderConfig
+        {
+            HostNames = ["localhost:9092"],
+            Username = "user",
+            Password = "pass",
+            TopicName = "topic-default",
+            GroupId = "group"
+        };
+        var reader = new KafkaTopicProtocol(readerConfig, Globals.Logger);
+        var consumerMock = new Mock<IConsumer<byte[]?, byte[]?>>();
+
+        var kafkaHeaders = new Confluent.Kafka.Headers();
+        foreach (var pair in headerInput.Split(','))
+        {
+            var parts = pair.Split(':');
+            kafkaHeaders.Add(parts[0], Encoding.UTF8.GetBytes(parts[1]));
+        }
+
+        var consumed = new ConsumeResult<byte[]?, byte[]?>
+        {
+            Message = new Message<byte[]?, byte[]?>
+            {
+                Key = "key"u8.ToArray(),
+                Value = "value"u8.ToArray(),
+                Headers = kafkaHeaders
+            },
+            Topic = "t"
+        };
+
+        consumerMock.Setup(m => m.Consume(It.IsAny<TimeSpan>())).Returns(consumed);
+        SetPrivateField(reader, "_consumer", consumerMock.Object);
+
+        reader.Connect();
+        var detailedData = reader.Read(TimeSpan.Zero);
+        reader.Disconnect();
+        reader.Dispose();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(detailedData?.MetaData?.Kafka?.Headers?.Count, Is.EqualTo(expectedCount), $"Expected {expectedCount} unique keys in dictionary.");
+            Assert.That(detailedData?.MetaData?.Kafka?.Headers?[keyToVerify], Is.EqualTo(expectedValue));
+        });
+        
+        consumerMock.Verify(mock => mock.Subscribe("topic-default"), Times.Once);
+        consumerMock.Verify(mock => mock.Commit(consumed), Times.Once);
+        consumerMock.Verify(mock => mock.Unsubscribe(), Times.Once);
+        consumerMock.Verify(mock => mock.Dispose(), Times.Once);
     }
 
     [Test]
@@ -234,7 +290,7 @@ public class ProtocolIntegrationCoverageTests
         protocol.Connect();
         var sent = protocol.Send(new Data<object>
         {
-            Body = Encoding.UTF8.GetBytes("file-content"),
+            Body = "file-content"u8.ToArray(),
             MetaData = new MetaData
             {
                 Storage = new Storage { Key = "file.bin" }
@@ -247,7 +303,7 @@ public class ProtocolIntegrationCoverageTests
             Assert.That(protocol.GetSerializationType(), Is.Null);
             Assert.That(sent.Body, Is.TypeOf<byte[]>());
             Assert.That(capturedPath, Is.EqualTo(Path.Combine("/tmp", "file.bin")));
-            Assert.That(capturedBody, Is.EqualTo(Encoding.UTF8.GetBytes("file-content")));
+            Assert.That(capturedBody, Is.EqualTo("file-content"u8.ToArray()));
         });
 
         producerMock.Verify(mock => mock.Connect(), Times.Once);
@@ -282,7 +338,7 @@ public class ProtocolIntegrationCoverageTests
                 Type = "type",
                 Headers = new Dictionary<string, object?> { ["h"] = "v" }
             },
-            body: Encoding.UTF8.GetBytes("rabbit-body"));
+            body: "rabbit-body"u8.ToArray());
 
         channelMock
             .SetupSequence(mock => mock.BasicGetAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()))
@@ -290,11 +346,13 @@ public class ProtocolIntegrationCoverageTests
             .ReturnsAsync(message);
 
         channelMock
-            .Setup(mock => mock.QueueDeleteAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<bool>(),
+            .Setup(mock => mock.QueueDeleteAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>(),
+                It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.FromResult<uint>(0));
         channelMock
-            .Setup(mock => mock.CloseAsync(It.IsAny<ShutdownEventArgs>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.CloseAsync(It.IsAny<ShutdownEventArgs>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         var connectionMock = new Mock<IConnection>();
@@ -315,7 +373,7 @@ public class ProtocolIntegrationCoverageTests
 
         var sent = sender.Send(new Data<object>
         {
-            Body = Encoding.UTF8.GetBytes("rabbit-body"),
+            Body = "rabbit-body"u8.ToArray(),
             MetaData = new MetaData
             {
                 RabbitMq = new RabbitMq
@@ -362,8 +420,10 @@ public class ProtocolIntegrationCoverageTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(protocol.GetInputCommunicationSerializationType(), Is.EqualTo(QaaS.Framework.Serialization.SerializationType.ProtobufMessage));
-            Assert.That(protocol.GetOutputCommunicationSerializationType(), Is.EqualTo(QaaS.Framework.Serialization.SerializationType.ProtobufMessage));
+            Assert.That(protocol.GetInputCommunicationSerializationType(),
+                Is.EqualTo(Serialization.SerializationType.ProtobufMessage));
+            Assert.That(protocol.GetOutputCommunicationSerializationType(),
+                Is.EqualTo(Serialization.SerializationType.ProtobufMessage));
             Assert.That(success.Item2, Is.Not.Null);
             Assert.That(((StringValue)success.Item2!.Body!).Value, Is.EqualTo("hello"));
         });
@@ -394,12 +454,12 @@ public class ProtocolIntegrationCoverageTests
             var okContext = await listener.GetContextAsync();
             Assert.That(okContext.Request.Headers["apikey"], Is.EqualTo("k"));
             okContext.Response.StatusCode = 200;
-            await okContext.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"ok\":true}"));
+            await okContext.Response.OutputStream.WriteAsync("{\"ok\":true}"u8.ToArray());
             okContext.Response.Close();
 
             var badContext = await listener.GetContextAsync();
             badContext.Response.StatusCode = 500;
-            await badContext.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"error\":true}"));
+            await badContext.Response.OutputStream.WriteAsync("{\"error\":true}"u8.ToArray());
             badContext.Response.Close();
         });
 
@@ -469,9 +529,9 @@ public class ProtocolIntegrationCoverageTests
         Assert.Multiple(() =>
         {
             Assert.That(sent, Is.Empty);
-            Assert.That(sender.GetSerializationType(), Is.EqualTo(QaaS.Framework.Serialization.SerializationType.Json));
-            Assert.That(regex.GetSerializationType(), Is.EqualTo(QaaS.Framework.Serialization.SerializationType.Json));
-            Assert.That(reader.GetSerializationType(), Is.EqualTo(QaaS.Framework.Serialization.SerializationType.Json));
+            Assert.That(sender.GetSerializationType(), Is.EqualTo(Serialization.SerializationType.Json));
+            Assert.That(regex.GetSerializationType(), Is.EqualTo(Serialization.SerializationType.Json));
+            Assert.That(reader.GetSerializationType(), Is.EqualTo(Serialization.SerializationType.Json));
         });
     }
 
@@ -521,7 +581,7 @@ public class FakeGrpcService
 
         public IMessage Timeout(IMessage request, CallOptions callOptions)
         {
-            throw new RpcException(new Grpc.Core.Status(StatusCode.DeadlineExceeded, "timeout"));
+            throw new RpcException(new Status(StatusCode.DeadlineExceeded, "timeout"));
         }
     }
 }
