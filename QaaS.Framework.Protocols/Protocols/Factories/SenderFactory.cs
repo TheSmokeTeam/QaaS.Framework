@@ -25,12 +25,15 @@ public static class SenderFactory
     /// <param name="isChunkable">Determines rather the sender should be singular or chunkable</param>
     /// <param name="type">The sender configuration that determines the type of sender to create</param>
     /// <param name="logger">Logger instance for logging operations and errors</param>
-    /// <param name="dataFilter">Optional data filter to apply to the sender's data processing</param>
+    /// <param name="dataFilter">Optional data filter to apply to the sender's data processing.
+    /// When omitted, senders keep the full body, timestamp, and metadata.</param>
     /// <returns>A tuple containing an ISender (nullable) and an IChunkSender (nullable) configured according to the provided configuration.
     /// The first item will be non-null for singular senders, the second for chunkable senders.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the provided configuration type is not supported or recognized</exception>
     public static (ISender?, IChunkSender?) CreateSender(bool isChunkable, ISenderConfig type, ILogger logger, DataFilter? dataFilter)
     {
+       var effectiveDataFilter = dataFilter ?? new DataFilter();
+
        IConnectable connectable = type switch
        {
            // Singular senders
@@ -38,7 +41,7 @@ public static class SenderFactory
            MsSqlSenderConfig config => new MsSqlProtocol(config, logger),
            OracleSenderConfig config => new OracleSqlProtocol(config, logger),
            MongoDbCollectionSenderConfig config => new MongoDbProtocol(config, logger),
-           ElasticSenderConfig config => new ElasticProtocol(config, RequireDataFilter<ElasticSenderConfig>(dataFilter), logger),
+           ElasticSenderConfig config => new ElasticProtocol(config, effectiveDataFilter, logger),
            
            // Chunkable senders
            RabbitMqSenderConfig config => new RabbitMqProtocol(config, logger),
@@ -62,12 +65,4 @@ public static class SenderFactory
            ? (sender, null)
            : throw new InvalidOperationException($"Protocol type {type.GetType().Name} does not support singular sending");
     }
-
-    /// <summary>
-    /// Sender implementations that apply body filtering need an explicit filter instance so callers
-    /// fail fast with a useful exception instead of a later null dereference.
-    /// </summary>
-    private static DataFilter RequireDataFilter<TConfig>(DataFilter? dataFilter) =>
-        dataFilter ?? throw new ArgumentNullException(nameof(dataFilter),
-            $"{typeof(TConfig).Name} requires a non-null {nameof(DataFilter)}.");
 }

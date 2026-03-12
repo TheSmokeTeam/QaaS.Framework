@@ -37,19 +37,19 @@ public class LoadBalancePolicy : Policy
     /// </summary>
     private void WaitForNextExecutionSlot()
     {
-        while (true)
+        var remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
+        while (remainingMilliseconds > 0)
         {
-            var remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
-            if (remainingMilliseconds <= 0)
-                return;
-
             if (remainingMilliseconds > 1)
             {
                 Thread.Sleep((int)Math.Floor(remainingMilliseconds));
-                continue;
+            }
+            else
+            {
+                Thread.SpinWait(20);
             }
 
-            Thread.SpinWait(20);
+            remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
         }
     }
 

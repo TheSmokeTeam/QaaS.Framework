@@ -23,12 +23,15 @@ public static class ReaderFactory
     /// </summary>
     /// <param name="type">The reader configuration that determines the type of reader to create</param>
     /// <param name="logger">Logger instance for logging operations and errors</param>
-    /// <param name="dataFilter">Optional data filter to apply to the reader's data processing</param>
+    /// <param name="dataFilter">Optional data filter to apply to the reader's data processing.
+    /// When omitted, readers keep the full body, timestamp, and metadata.</param>
     /// <returns>A tuple containing an IReader (nullable) and an IChunkReader (nullable) configured according to the provided configuration.
     /// The first item will be non-null for singular readers, the second for chunkable readers.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the provided configuration type is not supported or recognized</exception>
     public static (IReader?, IChunkReader?) CreateReader(IReaderConfig type, ILogger logger, DataFilter? dataFilter)
     {
+        var effectiveDataFilter = dataFilter ?? new DataFilter();
+
         return type switch
         {
             // Singular readers
@@ -43,18 +46,10 @@ public static class ReaderFactory
             OracleReaderConfig config => (null, new OracleSqlProtocol(config, logger)),
             MsSqlReaderConfig config => (null, new MsSqlProtocol(config, logger)),
             TrinoReaderConfig config => (null, new TrinoSqlProtocol(config, logger)),
-            ElasticReaderConfig config => (null, new ElasticProtocol(config, RequireDataFilter<ElasticReaderConfig>(dataFilter), logger)),
-            S3BucketReaderConfig config => (null, new S3Protocol(config, RequireDataFilter<S3BucketReaderConfig>(dataFilter), logger)),
+            ElasticReaderConfig config => (null, new ElasticProtocol(config, effectiveDataFilter, logger)),
+            S3BucketReaderConfig config => (null, new S3Protocol(config, effectiveDataFilter, logger)),
             
             _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
         };
     }
-
-    /// <summary>
-    /// Reader implementations that filter bodies/metadata need an explicit filter instance so callers
-    /// fail fast with a useful exception instead of a later null dereference.
-    /// </summary>
-    private static DataFilter RequireDataFilter<TConfig>(DataFilter? dataFilter) =>
-        dataFilter ?? throw new ArgumentNullException(nameof(dataFilter),
-            $"{typeof(TConfig).Name} requires a non-null {nameof(DataFilter)}.");
 }

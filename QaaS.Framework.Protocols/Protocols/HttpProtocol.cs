@@ -79,11 +79,13 @@ public class HttpProtocol : ITransactor, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         var requestUri = $"{_httpClient.BaseAddress}{_transactorConfiguration.Route}";
+        var totalAttempts = Math.Max(1, _transactorConfiguration.Retries);
         _logger.LogDebug(
-            "Starting HTTP {HttpMethod} request to {RequestUri}. Configured retries: {RetryCount}. Payload bytes: {PayloadLength}.",
+            "Starting HTTP {HttpMethod} request to {RequestUri}. Configured retries: {RetryCount}. Effective attempts: {AttemptCount}. Payload bytes: {PayloadLength}.",
             Method,
             requestUri,
             _transactorConfiguration.Retries,
+            totalAttempts,
             dataToSend.CastObjectData<byte[]>().Body?.Length ?? 0);
         var result = InvokeHttpRequest(dataToSend.CastObjectData<byte[]>(), requestUri);
         return new Tuple<DetailedData<object>, DetailedData<object>?>(dataToSend.CloneDetailed(result.Key),
@@ -110,7 +112,9 @@ public class HttpProtocol : ITransactor, IDisposable
     private KeyValuePair<DateTime, DetailedData<byte[]>?> InvokeHttpRequest(Data<byte[]> data, string requestUri)
     {
         var requestUtcTime = DateTime.UtcNow;
-        for (var attempt = 1; attempt <= _transactorConfiguration.Retries; attempt++)
+        var totalAttempts = Math.Max(1, _transactorConfiguration.Retries);
+
+        for (var attempt = 1; attempt <= totalAttempts; attempt++)
         {
             // HttpRequestMessage is single-use, so each retry must create a fresh request instance.
             using var requestData = CreateRequest(data, requestUri);
@@ -147,24 +151,24 @@ public class HttpProtocol : ITransactor, IDisposable
                         Timestamp = responseUtcTime
                     });
             }
-            catch (TaskCanceledException transactException) when (attempt < _transactorConfiguration.Retries)
+            catch (TaskCanceledException transactException) when (attempt < totalAttempts)
             {
                 _logger.LogWarning(transactException,
                     "HTTP {HttpMethod} request to {RequestUri} timed out on attempt {Attempt}/{TotalAttempts}. Retrying after {RetryDelayMs} ms.",
                     Method,
                     requestData.RequestUri,
                     attempt,
-                    _transactorConfiguration.Retries,
+                    totalAttempts,
                     _transactorConfiguration.MessageSendRetriesIntervalMs);
             }
-            catch (HttpRequestException transactException) when (attempt < _transactorConfiguration.Retries)
+            catch (HttpRequestException transactException) when (attempt < totalAttempts)
             {
                 _logger.LogWarning(transactException,
                     "HTTP {HttpMethod} request to {RequestUri} failed on attempt {Attempt}/{TotalAttempts}. Retrying after {RetryDelayMs} ms.",
                     Method,
                     requestData.RequestUri,
                     attempt,
-                    _transactorConfiguration.Retries,
+                    totalAttempts,
                     _transactorConfiguration.MessageSendRetriesIntervalMs);
             }
             catch (TaskCanceledException transactException)
