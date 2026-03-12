@@ -402,10 +402,8 @@ public class ProtocolAdvancedBehaviorTests
     public void RedisReaderProtocol_Read_ConsumesStringAndDeletesKey()
     {
         var databaseMock = new Mock<IDatabase>();
-        databaseMock.Setup(database => database.StringGet("k", CommandFlags.None))
+        databaseMock.Setup(database => database.StringGetDelete("k", CommandFlags.None))
             .Returns((RedisValue)Encoding.UTF8.GetBytes("value"));
-        databaseMock.Setup(database => database.KeyDelete("k", CommandFlags.None))
-            .Returns(true);
 
         var protocol = new RedisReaderProtocol(new RedisReaderConfig
         {
@@ -421,7 +419,8 @@ public class ProtocolAdvancedBehaviorTests
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.MetaData?.Redis?.Key, Is.EqualTo("k"));
         Assert.That(Encoding.UTF8.GetString((byte[])result.Body!), Is.EqualTo("value"));
-        databaseMock.Verify(database => database.KeyDelete("k", CommandFlags.None), Times.Once);
+        databaseMock.Verify(database => database.StringGetDelete("k", CommandFlags.None), Times.Once);
+        databaseMock.Verify(database => database.KeyDelete("k", CommandFlags.None), Times.Never);
     }
 
     [Test]

@@ -47,7 +47,7 @@ public static class ConfigurationMergeUtils
             return newConfiguration;
         }
 
-        var currentConfigurationDictionary = BuildDictionaryFromObject(currentConfiguration);
+        var currentConfigurationDictionary = BuildCurrentDictionary(currentConfiguration);
         var patchConfigurationDictionary = GetPatchDictionary(newConfiguration);
         var mergedConfiguration = MergeDictionaries(currentConfigurationDictionary, patchConfigurationDictionary)
             .BindToDictionaryIConfiguration()
@@ -56,12 +56,22 @@ public static class ConfigurationMergeUtils
         return (TConfiguration)mergedConfiguration;
     }
 
-    private static Dictionary<string, object?> BuildDictionaryFromObject(object configurationObject)
+    private static Dictionary<string, object?> BuildCurrentDictionary(object configurationObject)
     {
-        return new ConfigurationBuilder()
-            .AddInMemoryCollection(ConfigurationUtils.GetInMemoryCollectionFromObject(configurationObject))
-            .Build()
-            .GetDictionaryFromConfiguration();
+        var currentDictionary = new Dictionary<string, object?>();
+        foreach (var propertyInfo in configurationObject.GetType().GetProperties())
+        {
+            if (!propertyInfo.CanRead || propertyInfo.GetIndexParameters().Length != 0 ||
+                !IsPatchableProperty(propertyInfo) ||
+                !TryGetPropertyValue(propertyInfo, configurationObject, out var propertyValue))
+            {
+                continue;
+            }
+
+            currentDictionary[propertyInfo.Name] = ConvertCurrentValue(propertyInfo.PropertyType, propertyValue);
+        }
+
+        return currentDictionary;
     }
 
     private static Dictionary<string, object?> GetPatchDictionary(object? configurationObject)
@@ -174,6 +184,33 @@ public static class ConfigurationMergeUtils
         return propertyType.IsClass && propertyType != typeof(string) ? GetPatchDictionary(propertyValue) : propertyValue;
     }
 
+    private static object? ConvertCurrentValue(Type propertyType, object? propertyValue)
+    {
+        if (propertyValue == null)
+        {
+            return null;
+        }
+
+        if (propertyValue is IConfiguration configuration)
+        {
+            return configuration.GetDictionaryFromConfiguration();
+        }
+
+        if (propertyValue is IDictionary dictionary)
+        {
+            return ConvertCurrentDictionary(dictionary);
+        }
+
+        if (propertyValue is IEnumerable enumerable && propertyType != typeof(string))
+        {
+            return ConvertCurrentList(enumerable);
+        }
+
+        return propertyType.IsClass && propertyType != typeof(string)
+            ? BuildCurrentDictionary(propertyValue)
+            : propertyValue;
+    }
+
     private static Dictionary<string, object?> ConvertDictionary(IDictionary dictionary)
     {
         var convertedDictionary = new Dictionary<string, object?>();
@@ -218,6 +255,29 @@ public static class ConfigurationMergeUtils
                     ? GetPatchDictionary(item)
                     : item
             });
+        }
+
+        return convertedList;
+    }
+
+    private static Dictionary<string, object?> ConvertCurrentDictionary(IDictionary dictionary)
+    {
+        var convertedDictionary = new Dictionary<string, object?>();
+        foreach (DictionaryEntry entry in dictionary)
+        {
+            var key = entry.Key.ToString()!;
+            convertedDictionary[key] = ConvertCurrentValue(entry.Value?.GetType() ?? typeof(object), entry.Value);
+        }
+
+        return convertedDictionary;
+    }
+
+    private static List<object?> ConvertCurrentList(IEnumerable enumerable)
+    {
+        var convertedList = new List<object?>();
+        foreach (var item in enumerable)
+        {
+            convertedList.Add(ConvertCurrentValue(item?.GetType() ?? typeof(object), item));
         }
 
         return convertedList;

@@ -72,13 +72,12 @@ public class RedisReaderProtocol(RedisReaderConfig configuration, ILogger logger
 
     private DetailedData<object>? ReadString()
     {
-        var value = _redisDb!.StringGet(configuration.Key, configuration.CommandFlags);
+        var value = _redisDb!.StringGetDelete(configuration.Key, configuration.CommandFlags);
         if (value.IsNull)
         {
             return null;
         }
 
-        _redisDb.KeyDelete(configuration.Key, configuration.CommandFlags);
         return CreateDetailedData(value, new Redis { Key = configuration.Key });
     }
 

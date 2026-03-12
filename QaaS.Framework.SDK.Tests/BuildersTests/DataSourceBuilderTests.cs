@@ -140,8 +140,8 @@ public class DataSourceBuilderTests
         Assert.That(builder, Is.Not.Null);
         Assert.Multiple(() =>
         {
-            Assert.That(builder.Name, Is.Not.Null.Or.Empty);
-            Assert.That(_generatorInfo.GetValue(builder), Is.Not.Null.Or.Empty);
+            Assert.That(builder.Name, Is.Not.Null.And.Not.Empty);
+            Assert.That(_generatorInfo.GetValue(builder), Is.Not.Null.And.Not.Empty);
         });
     }
 

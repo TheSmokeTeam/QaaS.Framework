@@ -54,6 +54,14 @@ public class ConfigurationUtilitiesTests
         public string NormalizedValue => Value!.Trim();
     }
 
+    private sealed class ThrowingComputedSettings
+    {
+        public string? Value { get; set; }
+        public string? UpdatedName { get; set; }
+
+        public string NormalizedValue => Value!.Trim();
+    }
+
     private sealed class InvalidChild
     {
         [Required]
@@ -494,6 +502,28 @@ public class ConfigurationUtilitiesTests
             Assert.That(rebound["Value"], Is.EqualTo("kept"));
             Assert.That(rebound["UpdatedName"], Is.EqualTo("updated"));
             Assert.That(rebound["NormalizedValue"], Is.Null);
+        });
+    }
+
+    [Test]
+    public void ConfigurationMerge_IgnoresThrowingComputedPropertiesOnCurrentConfiguration()
+    {
+        var currentConfiguration = new ThrowingComputedSettings
+        {
+            Value = null,
+            UpdatedName = "original"
+        };
+
+        var mergedConfiguration = currentConfiguration.MergeConfiguration(new ThrowingComputedSettings
+        {
+            UpdatedName = "updated"
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(mergedConfiguration, Is.Not.Null);
+            Assert.That(mergedConfiguration!.Value, Is.Null);
+            Assert.That(mergedConfiguration.UpdatedName, Is.EqualTo("updated"));
         });
     }
 }
