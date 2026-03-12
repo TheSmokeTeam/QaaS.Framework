@@ -140,8 +140,8 @@ public class DataSourceBuilderTests
         Assert.That(builder, Is.Not.Null);
         Assert.Multiple(() =>
         {
-            Assert.That(builder.Name, Is.Not.Null.Or.Empty);
-            Assert.That(_generatorInfo.GetValue(builder), Is.Not.Null.Or.Empty);
+            Assert.That(builder.Name, Is.Not.Null.And.Not.Empty);
+            Assert.That(_generatorInfo.GetValue(builder), Is.Not.Null.And.Not.Empty);
         });
     }
 
@@ -191,6 +191,41 @@ public class DataSourceBuilderTests
         Assert.That(builtDataSource.Generator, Is.Not.Null);
         Assert.That(builtDataSource.DataSourceList, Has.Count.EqualTo(2));
         Assert.That(builtDataSource.DataSourceList.All(dataSourceFiltered => dataSources.Contains(dataSourceFiltered)));
+    }
+
+    [Test]
+    public void ConfigurationCrud_ReadUpdateAndDelete_WorkAsExpected()
+    {
+        var builder = new DataSourceBuilder()
+            .Configure(new
+            {
+                Existing = "value",
+                Nested = new
+                {
+                    Before = "keep"
+                }
+            });
+
+        var initialConfiguration = builder.ReadConfiguration();
+        builder.UpdateConfiguration(new
+        {
+            Nested = new
+            {
+                Added = "new"
+            }
+        });
+        var updatedConfiguration = builder.ReadConfiguration();
+        builder.DeleteConfiguration();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(initialConfiguration["Existing"], Is.EqualTo("value"));
+            Assert.That(initialConfiguration["Nested:Before"], Is.EqualTo("keep"));
+            Assert.That(updatedConfiguration["Existing"], Is.EqualTo("value"));
+            Assert.That(updatedConfiguration["Nested:Before"], Is.EqualTo("keep"));
+            Assert.That(updatedConfiguration["Nested:Added"], Is.EqualTo("new"));
+            Assert.That(builder.ReadConfiguration().GetChildren(), Is.Empty);
+        });
     }
 }
 

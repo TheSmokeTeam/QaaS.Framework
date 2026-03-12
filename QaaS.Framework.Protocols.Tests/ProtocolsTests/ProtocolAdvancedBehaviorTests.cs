@@ -149,6 +149,7 @@ public class ProtocolAdvancedBehaviorTests
     public void S3Client_ListsAndReadsObjects()
     {
         var s3Mock = new Mock<IAmazonS3>();
+        var metadataBytes = new byte[] { 0x00, 0xFF, 0x7F, 0x80 };
         s3Mock.Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
             .ReturnsAsync(new ListObjectsV2Response
             {
@@ -167,7 +168,7 @@ public class ProtocolAdvancedBehaviorTests
         s3Mock.Setup(client => client.GetObjectAsync("bucket", "meta", null, default))
             .ReturnsAsync(new GetObjectResponse
             {
-                ResponseStream = new MemoryStream(Encoding.UTF8.GetBytes("abc"))
+                ResponseStream = new MemoryStream(metadataBytes)
             });
 
         var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
@@ -180,7 +181,7 @@ public class ProtocolAdvancedBehaviorTests
         {
             Assert.That(nonEmpty.Select(obj => obj.Key), Is.EqualTo(["full"]));
             Assert.That(withEmpty, Has.Count.EqualTo(2));
-            Assert.That(Encoding.UTF8.GetString(fromMetadata.Value!), Is.EqualTo("abc"));
+            Assert.That(fromMetadata.Value, Is.EqualTo(metadataBytes));
         });
     }
 
@@ -395,6 +396,95 @@ public class ProtocolAdvancedBehaviorTests
 
             Assert.DoesNotThrow(() => method.Invoke(protocol, [transaction, data]));
         }
+    }
+
+    [Test]
+    public void RedisReaderProtocol_Read_ConsumesStringAndDeletesKey()
+    {
+        var databaseMock = new Mock<IDatabase>();
+        databaseMock.Setup(database => database.StringGetDelete("k", CommandFlags.None))
+            .Returns((RedisValue)Encoding.UTF8.GetBytes("value"));
+
+        var protocol = new RedisReaderProtocol(new RedisReaderConfig
+        {
+            HostNames = ["localhost:6379"],
+            Key = "k",
+            RedisDataType = RedisDataType.SetString,
+            PollIntervalMs = 1
+        }, Globals.Logger);
+        SetPrivateField(protocol, "_redisDb", databaseMock.Object);
+
+        var result = protocol.Read(TimeSpan.FromMilliseconds(10));
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.MetaData?.Redis?.Key, Is.EqualTo("k"));
+        Assert.That(Encoding.UTF8.GetString((byte[])result.Body!), Is.EqualTo("value"));
+        databaseMock.Verify(database => database.StringGetDelete("k", CommandFlags.None), Times.Once);
+        databaseMock.Verify(database => database.KeyDelete("k", CommandFlags.None), Times.Never);
+    }
+
+    [Test]
+    public void RedisReaderProtocol_Read_ConsumesHashAndDeletesField()
+    {
+        var databaseMock = new Mock<IDatabase>();
+        databaseMock.Setup(database => database.HashGet("hash-key", "field", CommandFlags.None))
+            .Returns((RedisValue)Encoding.UTF8.GetBytes("value"));
+        databaseMock.Setup(database => database.HashDelete("hash-key", "field", CommandFlags.None))
+            .Returns(true);
+
+        var protocol = new RedisReaderProtocol(new RedisReaderConfig
+        {
+            HostNames = ["localhost:6379"],
+            Key = "hash-key",
+            HashField = "field",
+            RedisDataType = RedisDataType.HashSet,
+            PollIntervalMs = 1
+        }, Globals.Logger);
+        SetPrivateField(protocol, "_redisDb", databaseMock.Object);
+
+        var result = protocol.Read(TimeSpan.FromMilliseconds(10));
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.MetaData?.Redis?.HashField, Is.EqualTo("field"));
+        Assert.That(Encoding.UTF8.GetString((byte[])result.Body!), Is.EqualTo("value"));
+        databaseMock.Verify(database => database.HashDelete("hash-key", "field", CommandFlags.None), Times.Once);
+    }
+
+    [Test]
+    public void RedisReaderProtocol_Read_WhenNoValueAvailable_ReturnsNullAfterTimeout()
+    {
+        var databaseMock = new Mock<IDatabase>();
+        databaseMock.Setup(database => database.ListLeftPop("queue", CommandFlags.None))
+            .Returns(RedisValue.Null);
+
+        var protocol = new RedisReaderProtocol(new RedisReaderConfig
+        {
+            HostNames = ["localhost:6379"],
+            Key = "queue",
+            RedisDataType = RedisDataType.ListLeftPush,
+            PollIntervalMs = 1
+        }, Globals.Logger);
+        SetPrivateField(protocol, "_redisDb", databaseMock.Object);
+
+        var result = protocol.Read(TimeSpan.FromMilliseconds(5));
+
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
+    public void RedisReaderProtocol_Read_WhenGeoConfigured_ThrowsNotSupportedException()
+    {
+        var databaseMock = new Mock<IDatabase>();
+        var protocol = new RedisReaderProtocol(new RedisReaderConfig
+        {
+            HostNames = ["localhost:6379"],
+            Key = "geo",
+            RedisDataType = RedisDataType.GeoAdd,
+            PollIntervalMs = 1
+        }, Globals.Logger);
+        SetPrivateField(protocol, "_redisDb", databaseMock.Object);
+
+        Assert.Throws<NotSupportedException>(() => protocol.Read(TimeSpan.FromMilliseconds(1)));
     }
 
     [Test]

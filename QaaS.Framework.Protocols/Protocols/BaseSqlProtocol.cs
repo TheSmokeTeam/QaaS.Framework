@@ -234,13 +234,10 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                     TableName);
                 milliSecondsSinceLastTableChange = (long)timeout.TotalMilliseconds;
             }
-
-            Logger.LogDebug("Since Last Change Done In Table " +
-                            "{TableName} " +
-                            "{MilliSecondsSinceLastTableChange} seconds have passed," +
-                            " timeout is {TimeoutMilliSeconds} milliseconds",
-                TableName, milliSecondsSinceLastTableChange, timeout);
         } while (milliSecondsSinceLastTableChange < (long)timeout.TotalMilliseconds);
+
+        Logger.LogDebug("Read timeout reached for table {TableName} after {MilliSecondsSinceLastTableChange} milliseconds since the latest change",
+            TableName, milliSecondsSinceLastTableChange);
     }
 
     /// <summary>
@@ -262,7 +259,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         {
             var latestChangeTime = GetDateTimeFromDateTimeField(
                 GetJsonEnumerableFromQuery(latestTableRowQuery).FirstOrDefault())!.Value;
-            Logger.LogDebug("Executed Query {LatestTableRowQuery} to get the time of the latest change to the" +
+            Logger.LogTrace("Executed Query {LatestTableRowQuery} to get the time of the latest change to the" +
                             " table {TableName}, Query result is {LatestChangeTime}",
                 latestTableRowQuery, TableName, latestChangeTime);
 

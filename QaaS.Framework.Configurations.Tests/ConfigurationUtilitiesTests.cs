@@ -32,10 +32,34 @@ public class ConfigurationUtilitiesTests
         public IConfiguration? Section { get; set; }
     }
 
+    private sealed class MergePatchSettings
+    {
+        public string Url { get; set; } = "";
+        public bool Enabled { get; set; } = true;
+        public int Retries { get; set; } = 3;
+        public NestedSettings Child { get; set; } = new();
+    }
+
     private sealed class RequiredSettings
     {
         [Required]
         public string? Name { get; set; }
+    }
+
+    private sealed class ComputedSettings
+    {
+        public string? Value { get; set; }
+        public string? UpdatedName { get; set; }
+
+        public string NormalizedValue => Value!.Trim();
+    }
+
+    private sealed class ThrowingComputedSettings
+    {
+        public string? Value { get; set; }
+        public string? UpdatedName { get; set; }
+
+        public string NormalizedValue => Value!.Trim();
     }
 
     private sealed class InvalidChild
@@ -402,17 +426,104 @@ public class ConfigurationUtilitiesTests
     }
 
     [Test]
-    public void IConfigurationUtils_BindConfigurationObjectToIConfiguration_OverwritesConfiguration()
+    public void IConfigurationUtils_BindConfigurationObjectToIConfiguration_MergesOnlyNonDefaultPatchFields()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Name"] = "old"
+                ["Url"] = "https://existing",
+                ["Enabled"] = "True",
+                ["Retries"] = "7",
+                ["Child:Name"] = "original-child"
             })
             .Build();
 
-        var rebound = configuration.BindConfigurationObjectToIConfiguration(new RequiredSettings { Name = "new" });
+        var rebound = configuration.BindConfigurationObjectToIConfiguration(new MergePatchSettings
+        {
+            Enabled = false,
+            Child = new NestedSettings { Name = "updated-child" }
+        });
 
-        Assert.That(rebound["Name"], Is.EqualTo("new"));
+        Assert.Multiple(() =>
+        {
+            Assert.That(rebound["Url"], Is.EqualTo("https://existing"));
+            Assert.That(rebound["Enabled"], Is.EqualTo("False"));
+            Assert.That(rebound["Retries"], Is.EqualTo("7"));
+            Assert.That(rebound["Child:Name"], Is.EqualTo("updated-child"));
+        });
+    }
+
+    [Test]
+    public void ConfigurationMerge_MergesAgainstFreshDefaultInstances()
+    {
+        var currentConfiguration = new MergePatchSettings
+        {
+            Url = "https://existing",
+            Enabled = true,
+            Retries = 8,
+            Child = new NestedSettings { Name = "original-child" }
+        };
+
+        var mergedConfiguration = currentConfiguration.MergeConfiguration(new MergePatchSettings
+        {
+            Enabled = false,
+            Retries = 0,
+            Child = new NestedSettings { Name = "updated-child" }
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(mergedConfiguration, Is.Not.Null);
+            Assert.That(mergedConfiguration!.Url, Is.EqualTo("https://existing"));
+            Assert.That(mergedConfiguration.Enabled, Is.False);
+            Assert.That(mergedConfiguration.Retries, Is.Zero);
+            Assert.That(mergedConfiguration.Child.Name, Is.EqualTo("updated-child"));
+        });
+    }
+
+    [Test]
+    public void IConfigurationUtils_BindConfigurationObjectToIConfiguration_IgnoresReadOnlyComputedProperties()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Value"] = "kept",
+                ["UpdatedName"] = "original"
+            })
+            .Build();
+
+        var rebound = configuration.BindConfigurationObjectToIConfiguration(new ComputedSettings
+        {
+            UpdatedName = "updated"
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(rebound["Value"], Is.EqualTo("kept"));
+            Assert.That(rebound["UpdatedName"], Is.EqualTo("updated"));
+            Assert.That(rebound["NormalizedValue"], Is.Null);
+        });
+    }
+
+    [Test]
+    public void ConfigurationMerge_IgnoresThrowingComputedPropertiesOnCurrentConfiguration()
+    {
+        var currentConfiguration = new ThrowingComputedSettings
+        {
+            Value = null,
+            UpdatedName = "original"
+        };
+
+        var mergedConfiguration = currentConfiguration.MergeConfiguration(new ThrowingComputedSettings
+        {
+            UpdatedName = "updated"
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(mergedConfiguration, Is.Not.Null);
+            Assert.That(mergedConfiguration!.Value, Is.Null);
+            Assert.That(mergedConfiguration.UpdatedName, Is.EqualTo("updated"));
+        });
     }
 }

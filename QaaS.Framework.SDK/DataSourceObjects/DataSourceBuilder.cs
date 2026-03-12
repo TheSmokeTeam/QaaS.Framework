@@ -105,6 +105,28 @@ public class DataSourceBuilder : IYamlConvertible
         return this;
     }
 
+    public IConfiguration ReadConfiguration()
+    {
+        return GeneratorConfiguration;
+    }
+
+    public DataSourceBuilder UpdateConfiguration(object configuration)
+    {
+        GeneratorConfiguration = GeneratorConfiguration.BindConfigurationObjectToIConfiguration(configuration);
+        return this;
+    }
+
+    public DataSourceBuilder UpsertConfiguration(object configuration)
+    {
+        return UpdateConfiguration(configuration);
+    }
+
+    public DataSourceBuilder DeleteConfiguration()
+    {
+        GeneratorConfiguration = new ConfigurationBuilder().Build();
+        return this;
+    }
+
     public void Read(IParser parser, Type expectedType, ObjectDeserializer nestedObjectDeserializer)
     {
         throw new NotSupportedException($"{nameof(Read)} doesn't support custom" +

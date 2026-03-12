@@ -117,8 +117,9 @@ public class S3Client : IS3Client
             {
                 using var response = Client.GetObjectAsync(bucketName, s3ObjectMetadata.Key, null);
                 using var responseStream = response.Result.ResponseStream;
-                using var streamReader = new StreamReader(responseStream);
-                var retrievedObjectFromS3 = System.Text.Encoding.UTF8.GetBytes(streamReader.ReadToEnd());
+                using var memoryStream = new MemoryStream();
+                responseStream.CopyTo(memoryStream);
+                var retrievedObjectFromS3 = memoryStream.ToArray();
                 retrievedObject = new KeyValuePair<S3Object, byte[]?>(s3ObjectMetadata, retrievedObjectFromS3);
                 return retrievedObjectFromS3;
             }, $"Retrieved s3 object {s3ObjectMetadata.Key} in bucket {bucketName}",

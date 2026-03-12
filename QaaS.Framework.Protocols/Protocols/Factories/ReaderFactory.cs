@@ -4,6 +4,7 @@ using QaaS.Framework.Protocols.ConfigurationObjects.Elastic;
 using QaaS.Framework.Protocols.ConfigurationObjects.IbmMq;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
+using QaaS.Framework.Protocols.ConfigurationObjects.Redis;
 using QaaS.Framework.Protocols.ConfigurationObjects.S3;
 using QaaS.Framework.Protocols.ConfigurationObjects.Socket;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
@@ -35,6 +36,7 @@ public static class ReaderFactory
             KafkaTopicReaderConfig config => (new KafkaTopicProtocol(config, logger), null),
             SocketReaderConfig config => (new SocketProtocol(config, logger), null),
             IbmMqReaderConfig config => (new IbmMqProtocol(config), null),
+            RedisReaderConfig config => (new RedisReaderProtocol(config, logger), null),
             
             // Chunkable readers
             PostgreSqlReaderConfig config => (null, new PostgreSqlProtocol(config, logger)),

@@ -12,6 +12,7 @@ using QaaS.Framework.Protocols.ConfigurationObjects.Grpc;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 using QaaS.Framework.Protocols.ConfigurationObjects.Prometheus;
 using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
+using QaaS.Framework.Protocols.ConfigurationObjects.Redis;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
 using QaaS.Framework.Protocols.Protocols;
 using QaaS.Framework.SDK.Session;
@@ -20,6 +21,7 @@ using QaaS.Framework.SDK.Session.MetaDataObjects;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using Renci.SshNet;
+using StackExchange.Redis;
 using StringValue = Google.Protobuf.WellKnownTypes.StringValue;
 
 namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
@@ -110,7 +112,7 @@ public class ProtocolIntegrationCoverageTests
         };
 
         consumerMock.SetupSequence(mock => mock.Consume(It.IsAny<TimeSpan>()))
-            .Returns((ConsumeResult<byte[]?, byte[]?>?)null)
+            .Returns((ConsumeResult<byte[]?, byte[]?>)null!)
             .Returns(consumed);
 
         SetPrivateField(reader, "_consumer", consumerMock.Object);
@@ -148,7 +150,6 @@ public class ProtocolIntegrationCoverageTests
             MessageSendMaxRetries = 1,
             MessageSendRetriesIntervalMs = 0,
             DefaultKafkaKey = "fallback-key",
-            Headers = null
         }, Globals.Logger);
 
         var producerMock = new Mock<IProducer<byte[]?, byte[]?>>();
@@ -293,15 +294,7 @@ public class ProtocolIntegrationCoverageTests
             .Setup(mock => mock.QueueDeleteAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.FromResult<uint>(0));
-        channelMock
-            .Setup(mock => mock.CloseAsync(It.IsAny<ShutdownEventArgs>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
         var connectionMock = new Mock<IConnection>();
-        connectionMock
-            .Setup(mock => mock.CloseAsync(It.IsAny<ushort>(), It.IsAny<string>(), It.IsAny<TimeSpan>(),
-                It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
 
         var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
         {
@@ -340,6 +333,36 @@ public class ProtocolIntegrationCoverageTests
             It.IsAny<CancellationToken>()), Times.Once);
         channelMock.Verify(mock => mock.Dispose(), Times.Once);
         connectionMock.Verify(mock => mock.Dispose(), Times.Once);
+    }
+
+    [Test]
+    public void RedisReaderProtocol_ReadString_UsesAtomicReadAndDelete()
+    {
+        var protocol = new RedisReaderProtocol(new RedisReaderConfig
+        {
+            HostNames = ["localhost:6379"],
+            Key = "items",
+            RedisDataType = RedisDataType.SetString
+        }, Globals.Logger);
+
+        var redisDbMock = new Mock<IDatabase>();
+        redisDbMock
+            .Setup(mock => mock.StringGetDelete("items", It.IsAny<CommandFlags>()))
+            .Returns((RedisValue)Encoding.UTF8.GetBytes("value"));
+
+        SetPrivateField(protocol, "_redisDb", redisDbMock.Object);
+
+        var result = protocol.Read(TimeSpan.FromMilliseconds(1));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Is.Not.Null);
+            Assert.That(result!.Body, Is.TypeOf<byte[]>());
+            Assert.That(result.MetaData!.Redis!.Key, Is.EqualTo("items"));
+        });
+
+        redisDbMock.Verify(mock => mock.StringGetDelete("items", It.IsAny<CommandFlags>()), Times.Once);
+        redisDbMock.Verify(mock => mock.KeyDelete(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Never);
     }
 
     [Test]

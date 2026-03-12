@@ -13,6 +13,11 @@ public class Yaml: IDeserializer
     public object? Deserialize(byte[]? data, Type? deserializeType = null)
     {
         if (data is null) return null;
+        if (deserializeType == typeof(string) && data.Length == 0)
+        {
+            return string.Empty;
+        }
+
         using var stream = new MemoryStream(data);
         return deserializeType != null 
             ? _deserializer.Deserialize(new StreamReader(stream), deserializeType) 
