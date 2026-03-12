@@ -369,6 +369,8 @@ public static class ConfigurationUtils
         {
             // If the value is null, we set it as null
             case null:
+                if (propertyType == typeof(string))
+                    return string.Empty;
                 return propertyType.GetDefaultValue();
             // If the value is a dictionary, we recursively convert it to a nested object
             case Dictionary<string, object?> nestedDict:

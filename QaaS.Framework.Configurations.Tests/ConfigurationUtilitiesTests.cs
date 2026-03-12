@@ -22,6 +22,17 @@ public class ConfigurationUtilitiesTests
         public string? Name { get; set; }
     }
 
+    private sealed class StringValueHolder
+    {
+        public string Value { get; set; } = string.Empty;
+    }
+
+    private sealed class NullableValueHolder
+    {
+        public int? Count { get; set; }
+        public string? Note { get; set; }
+    }
+
     private sealed class ComplexSettings
     {
         public int Number { get; set; }
@@ -158,6 +169,58 @@ public class ConfigurationUtilitiesTests
             Assert.That(bound.Map["a"], Is.EqualTo("A"));
             Assert.That(bound.Section?["inner"], Is.EqualTo("v"));
         });
+    }
+
+    [Test]
+    public void BindToObject_WithEmptyYamlScalar_BindsAsEmptyStringForStringProperty()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
+        File.WriteAllText(filePath, "Value:\n");
+
+        try
+        {
+            var configuration = new ConfigurationBuilder().AddYaml(filePath).Build();
+
+            var bound = configuration.BindToObject<StringValueHolder>(new BinderOptions
+            {
+                ErrorOnUnknownConfiguration = true,
+                BindNonPublicProperties = false
+            });
+
+            Assert.That(bound.Value, Is.EqualTo(string.Empty));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Test]
+    public void BindToObject_WithEmptyYamlScalar_PreservesNullForNullableNonStringProperty()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
+        File.WriteAllText(filePath, "Count:\nNote:\n");
+
+        try
+        {
+            var configuration = new ConfigurationBuilder().AddYaml(filePath).Build();
+
+            var bound = configuration.BindToObject<NullableValueHolder>(new BinderOptions
+            {
+                ErrorOnUnknownConfiguration = true,
+                BindNonPublicProperties = false
+            });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(bound.Count, Is.Null);
+                Assert.That(bound.Note, Is.EqualTo(string.Empty));
+            });
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
     }
 
     [Test]
