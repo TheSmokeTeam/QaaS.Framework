@@ -106,6 +106,12 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         if (fullNameMatches.Count == 1)
             return fullNameMatches[0];
 
+        if (fullNameMatches.Count > 1)
+            throw new ArgumentException(
+                $"Found multiple {typeof(THook).Name} hook instances with the exact type name {instanceName}. " +
+                "The hook type must be unique across all discovered assemblies." +
+                $"\n- {string.Join("\n- ", fullNameMatches.Select(type => $"{type.FullName} ({type.Assembly.FullName})"))}");
+
         var simpleNameMatches = _supportedHookTypes
             .Where(type => string.Equals(type.Name, instanceName, StringComparison.Ordinal))
             .Distinct()
