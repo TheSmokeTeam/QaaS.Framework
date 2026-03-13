@@ -34,7 +34,7 @@ public class HttpGetYamlConfigurationProvider: YamlConfigurationProvider
         using var httpClient = new HttpClient { Timeout = _timeout };
         try
         {
-            using var response = httpClient.GetStreamAsync(_yamlUrl).Result;
+            using var response = httpClient.GetStreamAsync(_yamlUrl).GetAwaiter().GetResult();
             base.Load(response);
         }
         catch (Exception e)

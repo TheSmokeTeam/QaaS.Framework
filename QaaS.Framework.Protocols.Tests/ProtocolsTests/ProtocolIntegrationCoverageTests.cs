@@ -431,13 +431,61 @@ public class ProtocolIntegrationCoverageTests
             Url = $"http://127.0.0.1:{port}",
             Expression = "up",
             ApiKey = "k",
-            TimeoutMs = 1
+            TimeoutMs = 1000
         });
 
         var okBody = protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/ok");
         Assert.That(okBody, Does.Contain("ok"));
         Assert.Throws<HttpRequestException>(() =>
             protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/bad"));
+
+        serverTask.GetAwaiter().GetResult();
+    }
+
+    [Test]
+    public void PrometheusProtocol_HttpGetResultBodyAsString_HonorsMillisecondTimeout()
+    {
+        var port = GetFreeTcpPort();
+        using var listener = new HttpListener();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+
+        var serverTask = Task.Run(async () =>
+        {
+            var delayedContext = await listener.GetContextAsync();
+            await Task.Delay(200);
+
+            try
+            {
+                delayedContext.Response.StatusCode = 200;
+                await delayedContext.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"slow\":true}"));
+            }
+            catch (HttpListenerException)
+            {
+                // The client timed out and closed the connection, which is the expected path.
+            }
+            finally
+            {
+                try
+                {
+                    delayedContext.Response.Close();
+                }
+                catch (HttpListenerException)
+                {
+                    // The timed-out client can close the socket before the listener finishes disposing the response.
+                }
+            }
+        });
+
+        var protocol = new ExposedPrometheusProtocol(new PrometheusFetcherConfig
+        {
+            Url = $"http://127.0.0.1:{port}",
+            Expression = "up",
+            TimeoutMs = 50
+        });
+
+        Assert.Throws<TaskCanceledException>(() =>
+            protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/slow"));
 
         serverTask.GetAwaiter().GetResult();
     }

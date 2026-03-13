@@ -12,6 +12,7 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
     private readonly Context _context;
     private readonly Assembly[] _hookAssemblies;
     private readonly IByNameObjectCreator _objectCreator;
+    private readonly Type[] _supportedHookTypes;
 
     /// <summary>
     /// Constructor
@@ -23,6 +24,7 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         _context = context;
         _objectCreator = objectCreator;
         _hookAssemblies = GetHookAssemblies().ToArray();
+        _supportedHookTypes = DiscoverSupportedHookTypes().ToArray();
     }
 
     private static IEnumerable<Assembly> GetHookAssemblies()
@@ -38,6 +40,10 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         {
             try
             {
+                var assemblyName = AssemblyName.GetAssemblyName(assemblyPath);
+                if (assemblies.ContainsKey(assemblyName.FullName ?? assemblyName.Name!))
+                    continue;
+
                 AddAssembly(assemblies, Assembly.LoadFrom(assemblyPath));
             }
             catch
@@ -58,35 +64,22 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         assemblies[key] = assembly;
     }
 
-    /// <summary>
-    /// Whether the given hook (by name) is supported in the given assembly
-    /// </summary>
-    /// <param name="name"> The name of the hook to check for support of </param>
-    /// <param name="assembly"> The assembly to look for the given hook </param>
-    /// <returns> True if the hook is supported and false otherwise </returns>
-    private bool IsSupportedInAssembly(string name, Assembly assembly) =>
-        assembly.GetTypes().Any(type => type.Name == name &&
-                                        _objectCreator.IsTypeSubClassOfT<THook>(type));
-
-    /// <summary>
-    /// Whether the given hook (by name) is supported by the providers
-    /// </summary>
-    /// <param name="name"> The name of the hook to check for support of </param>
-    /// <returns> True if the hook is supported and false otherwise </returns>
-    private bool IsSupported(string name)
+    private IEnumerable<Type> DiscoverSupportedHookTypes()
     {
-        var isSupported = false;
         foreach (var assembly in _hookAssemblies)
         {
+            Type[] loadableTypes;
             try
             {
-                if (!IsSupportedInAssembly(name, assembly))
-                    continue;
-                _context.Logger.LogInformation("Found {HookType} hook instance " +
-                                               "{InstanceName} in provided assembly {AssemblyName}"
-                    , typeof(THook).Name, name, assembly.FullName);
-                isSupported = true;
-                break;
+                loadableTypes = assembly.GetTypes();
+            }
+            catch (ReflectionTypeLoadException reflectionTypeLoadException)
+            {
+                loadableTypes = reflectionTypeLoadException.Types.Where(type => type is not null).ToArray()!;
+                _context.Logger.LogDebug(
+                    "Partially loaded assembly {AssemblyFullName} while searching for {HookType} hooks. " +
+                    "Continuing with {ResolvedTypeCount} loadable types.",
+                    assembly.FullName, typeof(THook).FullName, loadableTypes.Length);
             }
             catch (Exception e)
             {
@@ -94,10 +87,72 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
                     "Could not search assembly {AssemblyFullName} for {HookType} hooks, skipping it.\n " +
                     "Encountered the following exception when searching it:\n {Exception}",
                     assembly.FullName, typeof(THook).FullName, e);
+                continue;
             }
+
+            foreach (var loadableType in loadableTypes.Where(_objectCreator.IsTypeSubClassOfT<THook>))
+                yield return loadableType;
+        }
+    }
+
+    private Type ResolveSupportedHookType(string instanceName)
+    {
+        var fullNameMatches = _supportedHookTypes
+            .Where(type => string.Equals(type.FullName, instanceName, StringComparison.Ordinal) ||
+                           string.Equals(type.AssemblyQualifiedName, instanceName, StringComparison.Ordinal))
+            .Distinct()
+            .ToList();
+
+        if (fullNameMatches.Count == 1)
+            return fullNameMatches[0];
+
+        if (fullNameMatches.Count > 1)
+            throw new ArgumentException(
+                $"Found multiple {typeof(THook).Name} hook instances with the exact type name {instanceName}. " +
+                "The hook type must be unique across all discovered assemblies." +
+                $"\n- {string.Join("\n- ", fullNameMatches.Select(type => $"{type.FullName} ({type.Assembly.FullName})"))}");
+
+        var simpleNameMatches = _supportedHookTypes
+            .Where(type => string.Equals(type.Name, instanceName, StringComparison.Ordinal))
+            .Distinct()
+            .ToList();
+
+        foreach (var hookAssembly in _hookAssemblies)
+        {
+            var simpleNameMatchesInAssembly = simpleNameMatches
+                .Where(type => type.Assembly == hookAssembly)
+                .ToList();
+
+            if (simpleNameMatchesInAssembly.Count == 1)
+            {
+                if (simpleNameMatches.Count > 1)
+                {
+                    _context.Logger.LogWarning(
+                        "Found multiple {HookType} hook instances named {InstanceName}. Resolving to {ResolvedHookType} " +
+                        "from assembly {AssemblyName} because it appears first in hook discovery order.",
+                        typeof(THook).Name, instanceName, simpleNameMatchesInAssembly[0].FullName, hookAssembly.FullName);
+                }
+
+                return simpleNameMatchesInAssembly[0];
+            }
+
+            if (simpleNameMatchesInAssembly.Count > 1)
+                throw new ArgumentException(
+                    $"Found multiple {typeof(THook).Name} hook instances named {instanceName} in assembly {hookAssembly.FullName}. " +
+                    "Use the hook's full type name instead." +
+                    $"\n- {string.Join("\n- ", simpleNameMatchesInAssembly.Select(type => type.FullName))}");
         }
 
-        return isSupported;
+        return simpleNameMatches.Count switch
+        {
+            0 => throw new ArgumentException($"{typeof(THook).Name} hook instance {instanceName} " +
+                                             "not found in any of the provided assemblies." +
+                                             $"\n- {string.Join("\n- ", _hookAssemblies.Select(asm => asm.FullName))}"),
+            _ => throw new ArgumentException(
+                $"Found multiple {typeof(THook).Name} hook instances named {instanceName}. " +
+                "Use the hook's full type name instead." +
+                $"\n- {string.Join("\n- ", simpleNameMatches.Select(type => type.FullName))}")
+        };
     }
 
     /// <summary>
@@ -107,8 +162,10 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
     /// <returns> The instance of the hook name initialized </returns>
     private THook GetInstanceByName(string instanceName)
     {
-        var hookInstance = _objectCreator.GetInstanceOfSubClassOfTByNameFromAssemblies<THook>(instanceName,
-            _hookAssemblies);
+        var hookType = ResolveSupportedHookType(instanceName);
+        var hookInstance = _objectCreator.GetInstanceOfSubClassOfTByNameFromAssemblies<THook>(
+            hookType.FullName!,
+            [hookType.Assembly]);
         hookInstance.Context = _context;
         return hookInstance;
     }
@@ -118,9 +175,9 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
     {
         _context.Logger.LogDebug("Looking for {HookType} hook instance {InstanceName} in provided assemblies"
             , typeof(THook).Name, instanceName);
-        if (IsSupported(instanceName)) return GetInstanceByName(instanceName);
-        throw new ArgumentException($"{typeof(THook).Name} hook instance {instanceName} " +
-                                    $"not found in any of the following provided assemblies:" +
-                                    $"\n- {string.Join("\n- ", _hookAssemblies.Select(asm => asm.FullName))}");
+        var hookType = ResolveSupportedHookType(instanceName);
+        _context.Logger.LogInformation("Found {HookType} hook instance {InstanceName} in provided assembly {AssemblyName}",
+            typeof(THook).Name, instanceName, hookType.Assembly.FullName);
+        return GetInstanceByName(hookType.FullName!);
     }
 }
