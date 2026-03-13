@@ -86,6 +86,32 @@ public class ProvidersBehaviorTests
     }
 
     [Test]
+    public void ByNameObjectCreator_GetInstanceByName_WhenSimpleNameIsAmbiguous_Throws()
+    {
+        var creator = new ByNameObjectCreator(NullLogger.Instance);
+
+        var exception = Assert.Throws<AmbiguousMatchException>(() =>
+            creator.GetInstanceOfSubClassOfTByNameFromAssemblies<IHook>(
+                nameof(NamespaceA.DuplicateHook),
+                new[] { Assembly.GetExecutingAssembly() }));
+
+        Assert.That(exception!.Message, Does.Contain(typeof(NamespaceA.DuplicateHook).FullName));
+        Assert.That(exception.Message, Does.Contain(typeof(NamespaceB.DuplicateHook).FullName));
+    }
+
+    [Test]
+    public void ByNameObjectCreator_GetInstanceByName_WhenFullNameIsProvided_ReturnsExpectedHook()
+    {
+        var creator = new ByNameObjectCreator(NullLogger.Instance);
+
+        var instance = creator.GetInstanceOfSubClassOfTByNameFromAssemblies<IHook>(
+            typeof(NamespaceB.DuplicateHook).FullName!,
+            new[] { Assembly.GetExecutingAssembly() });
+
+        Assert.That(instance, Is.InstanceOf<NamespaceB.DuplicateHook>());
+    }
+
+    [Test]
     public void HookProvider_GetSupportedInstanceByName_ReturnsConfiguredHook()
     {
         var context = CreateContext();
@@ -94,6 +120,31 @@ public class ProvidersBehaviorTests
         var instance = provider.GetSupportedInstanceByName(nameof(TestHook));
 
         Assert.That(instance.GetType().Name, Is.EqualTo(nameof(TestHook)));
+        Assert.That(instance.Context, Is.SameAs(context));
+    }
+
+    [Test]
+    public void HookProvider_GetSupportedInstanceByName_WhenSimpleNameIsAmbiguous_Throws()
+    {
+        var context = CreateContext();
+        var provider = new HookProvider<IHook>(context, new ByNameObjectCreator(NullLogger.Instance));
+
+        var exception = Assert.Throws<ArgumentException>(() =>
+            provider.GetSupportedInstanceByName(nameof(NamespaceA.DuplicateHook)));
+
+        Assert.That(exception!.Message, Does.Contain(typeof(NamespaceA.DuplicateHook).FullName));
+        Assert.That(exception.Message, Does.Contain(typeof(NamespaceB.DuplicateHook).FullName));
+    }
+
+    [Test]
+    public void HookProvider_GetSupportedInstanceByName_WhenFullNameIsProvided_ReturnsExpectedHook()
+    {
+        var context = CreateContext();
+        var provider = new HookProvider<IHook>(context, new ByNameObjectCreator(NullLogger.Instance));
+
+        var instance = provider.GetSupportedInstanceByName(typeof(NamespaceA.DuplicateHook).FullName!);
+
+        Assert.That(instance, Is.InstanceOf<NamespaceA.DuplicateHook>());
         Assert.That(instance.Context, Is.SameAs(context));
     }
 

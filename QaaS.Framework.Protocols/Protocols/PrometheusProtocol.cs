@@ -11,6 +11,11 @@ namespace QaaS.Framework.Protocols.Protocols;
 
 public class PrometheusProtocol : IFetcher
 {
+    private static readonly HttpClient SharedHttpClient = new()
+    {
+        Timeout = Timeout.InfiniteTimeSpan
+    };
+
     private readonly PrometheusFetcherConfig _fetcherConfig;
     private readonly ILogger _logger;
 
@@ -68,16 +73,19 @@ public class PrometheusProtocol : IFetcher
     /// </summary>
     protected virtual string HttpGetResultBodyAsString(string queryRequestUri)
     {
-        using var client = new HttpClient();
-        client.Timeout = TimeSpan.FromSeconds(_fetcherConfig.TimeoutMs);
+        using var request = new HttpRequestMessage(HttpMethod.Get, queryRequestUri);
+        using var timeoutCancellationTokenSource =
+            new CancellationTokenSource(TimeSpan.FromMilliseconds(_fetcherConfig.TimeoutMs));
 
         if (!string.IsNullOrWhiteSpace(_fetcherConfig.ApiKey))
-            client.DefaultRequestHeaders.Add("apikey", _fetcherConfig.ApiKey);
+            request.Headers.Add("apikey", _fetcherConfig.ApiKey);
 
-        var response = client.GetAsync(queryRequestUri).Result;
+        using var response = SharedHttpClient.SendAsync(request, timeoutCancellationTokenSource.Token)
+            .GetAwaiter()
+            .GetResult();
         _logger.LogDebug("Received response from prometheus query_range API - {HttpResponse}",
             response.ToString());
-        var body = response.Content.ReadAsStringAsync().Result;
+        var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"Http request status code is not successful," +
                                            $" its `{response.StatusCode}` and the returned content is `{body}` ");
