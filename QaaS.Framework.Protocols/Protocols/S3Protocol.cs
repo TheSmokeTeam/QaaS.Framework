@@ -110,11 +110,13 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
     public DetailedData<object> Send(Data<object> dataToSend)
     {
         // Resolve the key once so the upload path and the completion log refer to the same object name.
-        var objectKey = _senderConfig!.Prefix + (dataToSend.MetaData?.Storage?.Key ?? Generator.GenerateObjectName());
+        var objectKey = dataToSend.MetaData?.Storage?.Key is { Length: > 0 } metadataKey
+            ? _senderConfig!.Prefix + metadataKey
+            : Generator.GenerateObjectName();
         _logger.LogDebug(
             "Uploading S3 object {ObjectKey} to bucket {BucketName}. Payload bytes: {PayloadLength}.",
             objectKey,
-            _senderConfig.StorageBucket,
+            _senderConfig!.StorageBucket,
             dataToSend.CastObjectData<byte[]>().Body?.Length ?? 0);
         S3Extentions.RunS3OperationWithRetryMechanism(() =>
         {

@@ -36,8 +36,7 @@ internal static class DictionaryUtils
                         result[nestedKvp.Key] = nestedKvp.Value;
                     break;
                 case IDictionary nestedDict:
-                    var nestedFlattened = new Dictionary<string, object?>(nestedDict as IDictionary<string, object?> ??
-                                                                          new Dictionary<string, object?>())
+                    var nestedFlattened = ToStringObjectDictionary(nestedDict)
                         .GetInMemoryCollectionFromDictionary(result, flattenKey);
                     foreach (var nestedKvp in nestedFlattened)
                         result[nestedKvp.Key] = nestedKvp.Value;
@@ -75,8 +74,7 @@ internal static class DictionaryUtils
                     nestedConfig.GetDictionaryFromConfiguration()
                         .GetInMemoryCollectionFromDictionary(result, listItemKey); break;
                 case IDictionary nestedDict:
-                    new Dictionary<string, object?>(nestedDict as IDictionary<string, object?> ??
-                                                    new Dictionary<string, object?>())
+                    ToStringObjectDictionary(nestedDict)
                         .GetInMemoryCollectionFromDictionary(result, listItemKey); break;
                 case IList listItemList:
                     GetInMemoryCollectionFromList(listItemList, listItemKey, result);
@@ -126,5 +124,22 @@ internal static class DictionaryUtils
         {
             return dictionary.Values.ToList();
         }
+    }
+
+    internal static Dictionary<string, object?> ToStringObjectDictionary(IDictionary dictionary)
+    {
+        var result = new Dictionary<string, object?>();
+        foreach (DictionaryEntry entry in dictionary)
+        {
+            var key = entry.Key?.ToString();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            result[key] = entry.Value;
+        }
+
+        return result;
     }
 }

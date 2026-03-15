@@ -78,6 +78,11 @@ public static class ConfigurationUtils
 
         foreach (var propertyInfo in properties)
         {
+            if (propertyInfo.GetIndexParameters().Length > 0)
+            {
+                continue;
+            }
+
             string key = parentKey != null
                 ? $"{parentKey}{ConfigurationConstants.PathSeparator}{propertyInfo.Name}"
                 : propertyInfo.Name;
@@ -91,8 +96,7 @@ public static class ConfigurationUtils
                     nestedConfig.GetDictionaryFromConfiguration()
                         .GetInMemoryCollectionFromDictionary(inMemoryCollection, key); break;
                 case IDictionary nestedDict:
-                    new Dictionary<string, object?>(nestedDict as IDictionary<string, object?> ??
-                                                    new Dictionary<string, object?>())
+                    DictionaryUtils.ToStringObjectDictionary(nestedDict)
                         .GetInMemoryCollectionFromDictionary(inMemoryCollection, key); break;
                 case IEnumerable nestedCollection:
                     nestedCollection.Cast<object?>().ToList()

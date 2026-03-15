@@ -10,6 +10,7 @@ using Amazon.S3.Model;
 using IBM.WMQ;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using QaaS.Framework.Protocols.ConfigurationObjects;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using QaaS.Framework.Protocols.ConfigurationObjects.IbmMq;
@@ -73,6 +74,19 @@ public class ProtocolAdvancedBehaviorTests
         {
             Disposed = true;
         }
+    }
+
+    private sealed class ControlledTimeS3Protocol : S3Protocol
+    {
+        private readonly DateTime _currentUtc;
+
+        public ControlledTimeS3Protocol(S3BucketReaderConfig configuration, DataFilter dataFilter, DateTime currentUtc)
+            : base(configuration, dataFilter, Globals.Logger)
+        {
+            _currentUtc = currentUtc;
+        }
+
+        protected override DateTime GetCurrentDateTimeUtc() => _currentUtc;
     }
 
     private sealed class TestSocketProtocol(SocketReaderConfig configuration) : SocketProtocol(configuration, Globals.Logger)
@@ -481,6 +495,140 @@ public class ProtocolAdvancedBehaviorTests
             Assert.That(new QaaS.Framework.Serialization.Deserializers.Json().Deserialize(consumed.Body as byte[],
                 typeof(SerializableS3Payload)), Is.Null);
         });
+    }
+
+    [Test]
+    public void S3Protocol_ReadChunk_FiltersObjectsFromRunStartTime_AndUsesGeneratedKeys()
+    {
+        var now = new DateTime(2026, 3, 15, 12, 0, 0, DateTimeKind.Utc);
+        var objects = new[]
+        {
+            new S3Object { Key = "old", LastModified = now.AddSeconds(-2), Size = 3 },
+            new S3Object { Key = "new", LastModified = now, Size = 3 }
+        };
+        var amazonClientMock = new Mock<IAmazonS3>();
+        amazonClientMock.Setup(client => client.PutObjectAsync(It.IsAny<PutObjectRequest>(), default))
+            .ReturnsAsync(new PutObjectResponse());
+        var fakeClient = new FakeS3Client
+        {
+            Client = amazonClientMock.Object,
+            ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
+            GetAllObjects = (_, _, _, _) => objects.Select(s3Object =>
+                new KeyValuePair<S3Object, byte[]?>(s3Object, Encoding.UTF8.GetBytes(s3Object.Key!)))
+        };
+
+        var readerProtocol = new ControlledTimeS3Protocol(new S3BucketReaderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1",
+            AccessKey = "ak",
+            SecretKey = "sk",
+            ReadFromRunStartTime = true
+        }, new DataFilter { Body = true }, now);
+        SetPrivateField(readerProtocol, "_s3Client", fakeClient);
+
+        var senderProtocol = new S3Protocol(new S3BucketSenderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1",
+            AccessKey = "ak",
+            SecretKey = "sk",
+            Prefix = "pref-",
+            S3SentObjectsNaming = ObjectNamingGeneratorType.GrowingNumericalSeries
+        }, Globals.Logger);
+        SetPrivateField(senderProtocol, "_s3Client", fakeClient);
+
+        var read = readerProtocol.ReadChunk(TimeSpan.Zero).ToList();
+        var sent = senderProtocol.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(read.Select(item => item.MetaData?.Storage?.Key), Is.EqualTo(new[] { "new" }));
+            Assert.That(sent.Body, Is.TypeOf<byte[]>());
+            amazonClientMock.Verify(client => client.PutObjectAsync(
+                It.Is<PutObjectRequest>(request => request.Key == "pref-0"),
+                default), Times.Once);
+        });
+    }
+
+    [Test]
+    public void S3Protocol_PrivateInactivityHelper_HandlesMissingObjectsAndUnspecifiedDateKinds()
+    {
+        var fakeClient = new FakeS3Client
+        {
+            Client = new Mock<IAmazonS3>().Object,
+            ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(
+            [
+                new S3Object
+                {
+                    Key = "unspecified",
+                    LastModified = new DateTime(2026, 3, 15, 12, 0, 0, DateTimeKind.Unspecified),
+                    Size = 1
+                }
+            ])
+        };
+        var protocol = new ControlledTimeS3Protocol(new S3BucketReaderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1",
+            AccessKey = "ak",
+            SecretKey = "sk",
+            ReadFromRunStartTime = false
+        }, new DataFilter { Body = false }, new DateTime(2026, 3, 15, 12, 0, 1, DateTimeKind.Utc));
+        SetPrivateField(protocol, "_s3Client", fakeClient);
+
+        var helper = typeof(S3Protocol).GetMethod("GetNumberOfMilliSecondsPassedSinceLastS3ObjectModification",
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        var unspecifiedResult = helper.Invoke(protocol, null);
+
+        var emptyClient = new FakeS3Client
+        {
+            Client = new Mock<IAmazonS3>().Object,
+            ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>([])
+        };
+        SetPrivateField(protocol, "_s3Client", emptyClient);
+        var emptyResult = helper.Invoke(protocol, null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(unspecifiedResult, Is.Null);
+            Assert.That(emptyResult, Is.Null);
+        });
+    }
+
+    [Test]
+    public void S3Protocol_ConnectAndDispose_CoverSenderReaderAndNullClientBranches()
+    {
+        var sender = new S3Protocol(new S3BucketSenderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1:9000",
+            AccessKey = "ak",
+            SecretKey = "sk"
+        }, Globals.Logger);
+        var reader = new S3Protocol(new S3BucketReaderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1:9000",
+            AccessKey = "ak",
+            SecretKey = "sk"
+        }, new DataFilter(), Globals.Logger);
+        var noClient = new S3Protocol(new S3BucketSenderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1:9000",
+            AccessKey = "ak",
+            SecretKey = "sk"
+        }, Globals.Logger);
+
+        sender.Connect();
+        reader.Connect();
+        noClient.Dispose();
+        sender.Dispose();
+        reader.Dispose();
+
+        Assert.Pass();
     }
 
     [Test]
@@ -894,7 +1042,19 @@ public class ProtocolAdvancedBehaviorTests
 
     private static void SetPrivateField<TValue>(object instance, string fieldName, TValue value)
     {
-        var fieldInfo = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-        fieldInfo!.SetValue(instance, value);
+        var currentType = instance.GetType();
+        while (currentType != null)
+        {
+            var fieldInfo = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (fieldInfo != null)
+            {
+                fieldInfo.SetValue(instance, value);
+                return;
+            }
+
+            currentType = currentType.BaseType;
+        }
+
+        throw new MissingFieldException(instance.GetType().FullName, fieldName);
     }
 }
