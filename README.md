@@ -2,7 +2,9 @@
 
 Composable .NET packages for building, running, and validating QaaS test workflows.
 
-[![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF)](./.github/workflows/ci.yml)
+[![CI](https://github.com/TheSmokeTeam/QaaS.Framework/actions/workflows/ci.yml/badge.svg)](https://github.com/TheSmokeTeam/QaaS.Framework/actions/workflows/ci.yml)
+[![Line Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/eldarush/4d6d6965f43876456fe6d77569bd2415/raw/line-coverage-badge.json)](https://github.com/TheSmokeTeam/QaaS.Framework/actions/workflows/ci.yml)
+[![Branch Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/eldarush/4d6d6965f43876456fe6d77569bd2415/raw/branch-coverage-badge.json)](https://github.com/TheSmokeTeam/QaaS.Framework/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-qaas--docs-blue)](https://thesmoketeam.github.io/qaas-docs/)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
