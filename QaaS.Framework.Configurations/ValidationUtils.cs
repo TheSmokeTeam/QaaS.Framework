@@ -40,12 +40,15 @@ public static class ValidationUtils
             
         // Get all properties of sub object to validate them, If an object has a recursive reference to itself
         // the function will stackoverflow, so properties with the same type as `obj` are ignored
-        var properties = obj.GetType().GetProperties().Where(p => p.CanRead &&
-                                                                  p.GetIndexParameters().Length == 0 &&
-                                                                  p.PropertyType != obj.GetType());
+        var properties = obj.GetType().GetProperties(bindingFlags).Where(p => p.GetIndexParameters().Length == 0 &&
+                                                                              p.PropertyType != obj.GetType());
         foreach (var property in properties)
         {
-            var value = property.GetValue(obj);
+            var getter = property.GetGetMethod(nonPublic: true);
+            if (getter == null)
+                continue;
+
+            var value = getter.Invoke(obj, null);
             var propertyPath = $"{parentPath}{ConfigurationConstants.PathSeparator}{property.Name}";
                 
             // Handle enumerable properties
@@ -113,18 +116,37 @@ public static class ValidationUtils
         }
         else
         {
-            foreach (var property in objType.GetProperties(bindingFlags))
+            _ = Validator.TryValidateObject(obj, new ValidationContext(obj), validationResults, true);
+            var objectValidationContext = new ValidationContext(obj, null, null)
+            {
+                MemberName = string.Empty
+            };
+
+            foreach (var validationAttribute in objType.GetCustomAttributes<ValidationAttribute>())
+            {
+                var result = validationAttribute.GetValidationResult(obj, objectValidationContext);
+                if (result != ValidationResult.Success && result != null)
+                    validationResults.Add(result);
+            }
+
+            if ((bindingFlags & BindingFlags.NonPublic) == 0)
+            {
+                results.AddRange(DistinctValidationResults(validationResults));
+                return !validationResults.Any();
+            }
+
+            foreach (var property in objType.GetProperties(bindingFlags)
+                         .Where(property => property.GetMethod?.IsPublic != true))
             {
                 // Ignore indexed properties
                 if (property.GetIndexParameters().Length > 0) 
                     continue;
                 
                 var getter = property.GetGetMethod(nonPublic: true);
-                if(getter == null) 
-                    throw new InvalidOperationException($"Property {property.Name} in {obj.GetType().Name}" +
-                                                        $" is not accessible");
+                if (getter == null)
+                    continue;
                 
-                var propertyValue = getter.IsPrivate ? getter.Invoke(obj, null) : property.GetValue(obj);
+                var propertyValue = getter.Invoke(obj, null);
                 
                 var validationContext = new ValidationContext(obj, null, null)
                 {
@@ -140,7 +162,18 @@ public static class ValidationUtils
                 }
             }
         }
-        results.AddRange(validationResults);
+        results.AddRange(DistinctValidationResults(validationResults));
         return !validationResults.Any();
+    }
+
+    private static IEnumerable<ValidationResult> DistinctValidationResults(IEnumerable<ValidationResult> validationResults)
+    {
+        return validationResults
+            .GroupBy(result => new
+            {
+                Message = result.ErrorMessage ?? string.Empty,
+                Members = string.Join("|", result.MemberNames.OrderBy(member => member, StringComparer.Ordinal))
+            })
+            .Select(group => group.First());
     }
 }
