@@ -1,3 +1,4 @@
+using System.Reflection;
 using QaaS.Framework.Executions.Loaders;
 using QaaS.Framework.Executions.Options;
 
@@ -56,5 +57,33 @@ public class ExecutionsCoverageEdgeCaseTests
             Assert.That(Constants.DefaultSerilogLogger, Is.Not.Null);
             Assert.That(Constants.DefaultLogger, Is.Not.Null);
         });
+    }
+
+    [Test]
+    public void BuildDefaultSerilogLogger_DoesNotEmitElasticWarnings_WhenSendLogsWasNotRequested()
+    {
+        var buildMethod = typeof(Constants).GetMethod("BuildDefaultSerilogLogger",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+        var originalOut = Console.Out;
+        var originalError = Console.Error;
+
+        try
+        {
+            Console.SetOut(stdout);
+            Console.SetError(stderr);
+
+            var logger = (Serilog.ILogger)buildMethod.Invoke(null, null)!;
+            logger.Information("default logger initialized");
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+            Console.SetError(originalError);
+        }
+
+        var combinedOutput = stdout + Environment.NewLine + stderr;
+        Assert.That(combinedOutput, Does.Not.Contain("Elasticsearch logging is enabled"));
     }
 }
