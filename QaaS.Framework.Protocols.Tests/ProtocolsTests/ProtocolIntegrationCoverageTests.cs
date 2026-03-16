@@ -351,10 +351,14 @@ public class ProtocolIntegrationCoverageTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.FromResult<uint>(0));
         channelMock
-            .Setup(mock =>
-                mock.CloseAsync(It.IsAny<ShutdownEventArgs>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Setup(mock => mock.CloseAsync(It.IsAny<ushort>(), It.IsAny<string>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         var connectionMock = new Mock<IConnection>();
+        connectionMock
+            .Setup(mock => mock.CloseAsync(It.IsAny<ushort>(), It.IsAny<string>(), It.IsAny<TimeSpan>(),
+                It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
         {
