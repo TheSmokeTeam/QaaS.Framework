@@ -18,7 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="AWSSDK.S3" Version="4.0.18.8" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.19" />
       <PackageReference Include="BlushingPenguin.JsonPath" Version="1.0.6" />
       <PackageReference Include="Confluent.Kafka" Version="2.13.2" />
       <PackageReference Include="Grpc.Core" Version="2.46.6" />
@@ -34,7 +34,7 @@
       <PackageReference Include="StackExchange.Redis" Version="2.12.1" />
       <PackageReference Include="SSH.NET" Version="2025.1.0" />
       <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.4" />
-      <PackageReference Include="Npgsql" Version="10.0.1" />
+    <PackageReference Include="Npgsql" Version="10.0.2" />
       <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.100" />
     </ItemGroup>
 
