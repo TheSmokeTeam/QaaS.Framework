@@ -30,7 +30,8 @@ public record SqlReaderConfig : SqlConfig, IReaderConfig
                  $"far before the start of the read action to start reading messages in seconds"), DefaultValue(0)]
     public uint FilterSecondsBeforeRunStartTime { get; set; } = 0;
 
-    [Description("The columns to ignore in the sql query results, if no columns are given doesn't ignore any columns"),
+    [UniqueItemsInEnumerable,
+     Description("The columns to ignore in the sql query results, if no columns are given doesn't ignore any columns"),
      DefaultValue(new string[] { })]
     public string[] ColumnsToIgnore { get; set; } = [];
 };

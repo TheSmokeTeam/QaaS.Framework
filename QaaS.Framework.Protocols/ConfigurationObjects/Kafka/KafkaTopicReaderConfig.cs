@@ -1,9 +1,12 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using Confluent.Kafka;
+using QaaS.Framework.Configurations.CustomValidationAttributes;
 
 namespace QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 
+[PropertyComparison(nameof(HeartbeatIntervalMs), nameof(SessionTimeOutMs), PropertyComparisonOperator.LessThanOrEqual,
+    ErrorMessage = $"{nameof(HeartbeatIntervalMs)} must be less than or equal to {nameof(SessionTimeOutMs)}.")]
 public record KafkaTopicReaderConfig : BaseKafkaTopicProtocolConfig, IReaderConfig
 {
     [Required, Description("Name of the topic to read messages from")]

@@ -1,12 +1,14 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using QaaS.Framework.Configurations.CustomValidationAttributes;
 
 namespace QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 
 public record RabbitMqSenderConfig : BaseRabbitMqConfig, ISenderConfig
 {
-    [DefaultValue(null),
-     RequiredIfAny(nameof(QueueName), [null]),
+    [DefaultValue(null), MinLength(1),
+     RequiredIfAny(nameof(QueueName), null, ""),
+     RequiredOrNullBasedOnOtherFieldsConfiguration(new[] { nameof(QueueName) }, false),
      Description("Name of the exchange to send messages to" +
                  $"Cannot be set if configured {nameof(QueueName)} to read from.")]
     public string? ExchangeName { get; set; } = null;
@@ -15,8 +17,9 @@ public record RabbitMqSenderConfig : BaseRabbitMqConfig, ISenderConfig
                  " doesn't contain any RoutingKey in its MetaData this routing key is used"), DefaultValue("/")]
     public string RoutingKey { get; set; } = "/";
 
-    [DefaultValue(null),
+    [DefaultValue(null), MinLength(1),
      RequiredIfAny(nameof(ExchangeName), null, ""),
+     RequiredOrNullBasedOnOtherFieldsConfiguration(new[] { nameof(ExchangeName) }, false),
      Description("Name of the queue to send messages to. " +
                  $"Cannot be set if configured {nameof(ExchangeName)} to read from.")]
     public string? QueueName { get; set; } = null;

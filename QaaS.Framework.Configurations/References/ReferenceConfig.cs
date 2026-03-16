@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using QaaS.Framework.Configurations.CustomValidationAttributes;
+
 namespace QaaS.Framework.Configurations.References;
 
 /// <summary>
@@ -12,10 +15,12 @@ public record ReferenceConfig
     /// The keyword that indicates where to add items to the configured lists paths, if the keyword is not present in a certain list
     /// will by default stack it at the end of it
     /// </summary>
+    [Required, MinLength(1)]
     public string ReferenceReplaceKeyword { get; init; } = null!;
     
     /// <summary>
     /// The paths to the YAML configuration files that create the referenced configuration
     /// </summary>
+    [Required, MinLength(1), AllPathsInEnumerableValid, UniqueItemsInEnumerable]
     public IList<string>? ReferenceFilesPaths { get; init; }
 }

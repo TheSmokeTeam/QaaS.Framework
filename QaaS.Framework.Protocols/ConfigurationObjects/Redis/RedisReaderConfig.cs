@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using StackExchange.Redis;
+using QaaS.Framework.Configurations.CustomValidationAttributes;
 
 namespace QaaS.Framework.Protocols.ConfigurationObjects.Redis;
 
@@ -15,7 +16,8 @@ public record RedisReaderConfig : BaseRedisConfig, IReaderConfig
     [Description("Redis database to use"), DefaultValue(0)]
     public int RedisDataBase { get; set; } = 0;
 
-    [Description("Hash field to consume when using HashSet"), DefaultValue(null)]
+    [RequiredIfAny(nameof(RedisDataType), global::QaaS.Framework.Protocols.ConfigurationObjects.Redis.RedisDataType.HashSet), MinLength(1),
+     Description("Hash field to consume when using HashSet"), DefaultValue(null)]
     public string? HashField { get; set; }
 
     [Description("Order in which to consume sorted set items when using SortedSetAdd"), DefaultValue(Order.Ascending)]

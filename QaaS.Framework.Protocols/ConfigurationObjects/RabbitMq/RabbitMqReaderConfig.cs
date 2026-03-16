@@ -6,8 +6,9 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 
 public record RabbitMqReaderConfig : BaseRabbitMqConfig, IReaderConfig
 {
-    [DefaultValue(null),
-     RequiredIfAny(nameof(QueueName), [null]),
+    [DefaultValue(null), MinLength(1),
+     RequiredIfAny(nameof(QueueName), null, ""),
+     RequiredOrNullBasedOnOtherFieldsConfiguration(new[] { nameof(QueueName) }, false),
      Description("Name of the exchange to read messages from" +
                  $"Cannot be set if configured {nameof(QueueName)} to read from.")]
     public string? ExchangeName { get; set; }
@@ -15,8 +16,9 @@ public record RabbitMqReaderConfig : BaseRabbitMqConfig, IReaderConfig
     [Description("Routing key of messages to read"), DefaultValue("/")]
     public string RoutingKey { get; set; } = "/";
 
-    [DefaultValue(null),
-     RequiredIfAny(nameof(ExchangeName), [null]),
+    [DefaultValue(null), MinLength(1),
+     RequiredIfAny(nameof(ExchangeName), null, ""),
+     RequiredOrNullBasedOnOtherFieldsConfiguration(new[] { nameof(ExchangeName) }, false),
      Description("Name of the queue to read messages from" +
                  $"Cannot be set if configured {nameof(ExchangeName)} to read from.")]
     public string? QueueName { get; set; } = null;

@@ -86,12 +86,9 @@ public class RequiredOrNullBasedOnOtherFieldsConfiguration : ValidationAttribute
     }
     
     /// <summary>
-    /// Determines whether the specified value is considered "configured" (not null).
+    /// Determines whether the specified value is considered "configured".
     /// </summary>
     /// <param name="value">The value to check.</param>
     /// <returns>True if the value is considered configured; otherwise, false.</returns>
-    private static bool IsConfigured(object? value)
-    {
-        return value != null;
-    }
+    private static bool IsConfigured(object? value) => ValidationValueInspector.IsConfigured(value);
 }
