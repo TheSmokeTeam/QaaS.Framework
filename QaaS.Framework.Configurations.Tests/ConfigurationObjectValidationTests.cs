@@ -119,6 +119,11 @@ public class ConfigurationObjectValidationTests
             ReferenceReplaceKeyword = "__REF__",
             ReferenceFilesPaths = [$"C:\\temp\\bad{invalidPathCharacter}.yaml"]
         });
+        var nullPathEntry = Validate(new ReferenceConfig
+        {
+            ReferenceReplaceKeyword = "__REF__",
+            ReferenceFilesPaths = ["C:\\temp\\ref.yaml", null!]
+        });
 
         Assert.Multiple(() =>
         {
@@ -126,6 +131,7 @@ public class ConfigurationObjectValidationTests
             Assert.That(duplicate.IsValid, Is.False);
             Assert.That(missingPaths.IsValid, Is.False);
             Assert.That(invalidPath.IsValid, Is.False);
+            Assert.That(nullPathEntry.IsValid, Is.False);
         });
     }
 

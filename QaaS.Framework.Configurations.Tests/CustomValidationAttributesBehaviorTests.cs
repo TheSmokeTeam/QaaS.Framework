@@ -18,6 +18,12 @@ public class CustomValidationAttributesBehaviorTests
         public List<string> Paths { get; set; } = [];
     }
 
+    private sealed class NullablePathListContainer
+    {
+        [AllPathsInEnumerableValid]
+        public List<string?> Paths { get; set; } = [];
+    }
+
     private sealed class UniqueItemsContainer
     {
         [UniqueItemsInEnumerable]
@@ -60,9 +66,12 @@ public class CustomValidationAttributesBehaviorTests
     {
         var valid = new PathListContainer { Paths = ["C:\\temp\\a.txt", "C:\\temp\\b.txt"] };
         var invalid = new PathListContainer { Paths = ["C:\\temp\\a.txt", "C:\\temp\\a\0b.txt"] };
+        var invalidNullEntry = new NullablePathListContainer { Paths = ["C:\\temp\\a.txt", null] };
 
         Assert.That(Validator.TryValidateObject(valid, new ValidationContext(valid), null, true), Is.True);
         Assert.That(Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true), Is.False);
+        Assert.That(Validator.TryValidateObject(invalidNullEntry, new ValidationContext(invalidNullEntry), null, true),
+            Is.False);
     }
 
     [Test]
