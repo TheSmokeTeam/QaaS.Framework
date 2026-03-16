@@ -332,6 +332,62 @@ public class ConfigurationUtilitiesTests
     }
 
     [Test]
+    public void EnrichedBuild_WithEnvironmentVariables_ResolvesPlaceholdersWithoutKeepingEnvironmentKeys()
+    {
+        const string environmentVariableName = "QAAS_FRAMEWORK_ENV_PLACEHOLDER_TEST";
+        var originalValue = Environment.GetEnvironmentVariable(environmentVariableName);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(environmentVariableName, "from-env");
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["root:value"] = $"${{{environmentVariableName}}}"
+                })
+                .EnrichedBuild(addEnvironmentVariables: true);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(configuration["root:value"], Is.EqualTo("from-env"));
+                Assert.That(configuration[environmentVariableName], Is.Null);
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(environmentVariableName, originalValue);
+        }
+    }
+
+    [Test]
+    public void EnrichedBuild_WithEnvironmentVariableSectionCopy_CopiesDestinationWithoutKeepingSourceSection()
+    {
+        const string environmentSectionRoot = "QAAS_FRAMEWORK_ENV_SECTION_TEST";
+        var originalValue = Environment.GetEnvironmentVariable($"{environmentSectionRoot}__child__value");
+
+        try
+        {
+            Environment.SetEnvironmentVariable($"{environmentSectionRoot}__child__value", "from-env");
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["resolvedSection"] = $"${{{environmentSectionRoot}}}"
+                })
+                .EnrichedBuild(addEnvironmentVariables: true);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(configuration["resolvedSection:child:value"], Is.EqualTo("from-env"));
+                Assert.That(configuration[$"{environmentSectionRoot}:child:value"], Is.Null);
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable($"{environmentSectionRoot}__child__value", originalValue);
+        }
+    }
+
+    [Test]
     public void CollapseShiftLeftArrowsInConfiguration_CollapsesChildren()
     {
         var configuration = new ConfigurationBuilder()

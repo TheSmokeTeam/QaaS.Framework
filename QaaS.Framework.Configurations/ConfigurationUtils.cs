@@ -150,12 +150,21 @@ public static class ConfigurationUtils
     /// parameterless configuration resolution extensions to the build process
     /// </summary>
     public static IConfiguration EnrichedBuild(this IConfigurationBuilder configurationBuilder,
-        bool addEnvironmentVariables) =>
-        addEnvironmentVariables
-            ? configurationBuilder.AddEnvironmentVariables().AddPlaceholderResolver().Build()
-                .CollapseShiftLeftArrowsInConfiguration()
-            : configurationBuilder.AddPlaceholderResolver().Build()
-                .CollapseShiftLeftArrowsInConfiguration();
+        bool addEnvironmentVariables)
+    {
+        var baseConfiguration = configurationBuilder.Build();
+        var placeholderResolutionConfiguration = BuildPlaceholderResolutionConfiguration(baseConfiguration,
+            addEnvironmentVariables);
+        var resolvedConfiguration = new ConfigurationBuilder()
+            .AddConfiguration(new ConfigurationPlaceholderParser(placeholderResolutionConfiguration)
+                .ResolvePlaceholders())
+            .Build()
+            .CollapseShiftLeftArrowsInConfiguration();
+
+        return addEnvironmentVariables
+            ? RemovePlaceholderOnlyEnvironmentKeys(resolvedConfiguration, baseConfiguration)
+            : resolvedConfiguration;
+    }
 
     /// <summary>
     /// Converts IConfiguration object to a c# object of given type and validates the object according to
@@ -472,5 +481,57 @@ public static class ConfigurationUtils
                     // index 1 - dictionary value type
                     dictType.GetGenericArguments()[1], logger, parentPath);
         return dict;
+    }
+
+    private static IConfiguration BuildPlaceholderResolutionConfiguration(IConfiguration baseConfiguration,
+        bool addEnvironmentVariables)
+    {
+        var placeholderResolutionBuilder = new ConfigurationBuilder()
+            .AddConfiguration(baseConfiguration);
+
+        if (addEnvironmentVariables)
+        {
+            placeholderResolutionBuilder.AddEnvironmentVariables();
+        }
+
+        return placeholderResolutionBuilder.Build();
+    }
+
+    private static IConfiguration RemovePlaceholderOnlyEnvironmentKeys(IConfiguration resolvedConfiguration,
+        IConfiguration baseConfiguration)
+    {
+        var allowedTopLevelKeys = GetTopLevelConfigurationKeys(baseConfiguration);
+        var filteredConfiguration = resolvedConfiguration.AsEnumerable()
+            .Where(pair => IsAllowedConfigurationPath(pair.Key, allowedTopLevelKeys));
+
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(filteredConfiguration)
+            .Build();
+    }
+
+    private static HashSet<string> GetTopLevelConfigurationKeys(IConfiguration configuration)
+    {
+        var topLevelKeys = configuration.GetChildren()
+            .Select(child => child.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (configuration.AsEnumerable().Any(pair => pair.Key == string.Empty))
+        {
+            topLevelKeys.Add(string.Empty);
+        }
+
+        return topLevelKeys;
+    }
+
+    private static bool IsAllowedConfigurationPath(string key, ISet<string> allowedTopLevelKeys)
+    {
+        if (key == string.Empty)
+        {
+            return allowedTopLevelKeys.Contains(string.Empty);
+        }
+
+        var separatorIndex = key.IndexOf(ConfigurationConstants.PathSeparator, StringComparison.Ordinal);
+        var topLevelKey = separatorIndex >= 0 ? key[..separatorIndex] : key;
+        return allowedTopLevelKeys.Contains(topLevelKey);
     }
 }

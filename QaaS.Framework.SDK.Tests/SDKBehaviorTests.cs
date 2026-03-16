@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using QaaS.Framework.Configurations;
 using QaaS.Framework.SDK.ContextObjects;
 using QaaS.Framework.SDK.DataSourceObjects;
 using QaaS.Framework.SDK.Extensions;
@@ -556,6 +557,49 @@ public class SDKBehaviorTests
             Assert.That(validation, Is.Empty);
             Assert.That(context.RootConfiguration["RequiredValue"], Is.EqualTo("ok"));
         });
+    }
+
+    [Test]
+    public void Bind_BindsFromContext_WithEnvironmentVariableResolution_WithoutLoggingUnknownEnvironmentKeys()
+    {
+        const string environmentVariableName = "QAAS_FRAMEWORK_SDK_BIND_ENV_TEST";
+        var originalValue = Environment.GetEnvironmentVariable(environmentVariableName);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(environmentVariableName, "configured");
+            var logger = new CaptureLogger();
+            var context = new Context
+            {
+                Logger = logger,
+                RootConfiguration = new ConfigurationBuilder()
+                    .AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["RequiredValue"] = $"${{{environmentVariableName}}}"
+                    })
+                    .EnrichedBuild(addEnvironmentVariables: true),
+                CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            };
+            var validation = new List<ValidationResult>();
+
+            var bound = Bind.BindFromContext<HookConfig>(context, validation, new BinderOptions
+            {
+                ErrorOnUnknownConfiguration = true,
+                BindNonPublicProperties = false
+            });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(bound.RequiredValue, Is.EqualTo("configured"));
+                Assert.That(validation, Is.Empty);
+                Assert.That(context.RootConfiguration[environmentVariableName], Is.Null);
+                Assert.That(logger.Levels, Does.Not.Contain(LogLevel.Warning));
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(environmentVariableName, originalValue);
+        }
     }
 
     [Test]
