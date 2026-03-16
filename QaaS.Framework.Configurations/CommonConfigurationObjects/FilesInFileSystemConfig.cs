@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using QaaS.Framework.Configurations.CustomValidationAttributes;
 
 namespace QaaS.Framework.Configurations.CommonConfigurationObjects;
 
@@ -8,7 +9,7 @@ namespace QaaS.Framework.Configurations.CommonConfigurationObjects;
 /// </summary>
 public record FilesInFileSystemConfig : IStorageConfig
 {
-    [Required, Description("The path of the directory containing the relevant files")]
+    [Required, ValidPath, Description("The path of the directory containing the relevant files")]
     public string? Path { get; set; }
     
     [Description("The search string to match against the names of files in path." +

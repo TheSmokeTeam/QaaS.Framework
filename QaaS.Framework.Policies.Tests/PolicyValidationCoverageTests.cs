@@ -62,7 +62,7 @@ public class PolicyValidationCoverageTests
         Assert.Multiple(() =>
         {
             Assert.That(invalid, Is.False);
-            Assert.That(invalidResults.Single().ErrorMessage, Does.Contain("'MinRate' cannot be bigger then 'MaxRate'"));
+            Assert.That(invalidResults.Single().ErrorMessage, Does.Contain("'StartRate' cannot be greater than 'MaxRate'"));
             Assert.That(valid, Is.True);
             Assert.That(validResults, Is.Empty);
         });

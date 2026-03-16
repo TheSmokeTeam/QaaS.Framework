@@ -106,7 +106,7 @@ public class ExecutionsBehaviorTests
         {
             Assert.That(options.LoggerLevel, Is.Null);
             Assert.That(options.LoggerConfigurationFilePath, Is.Null);
-            Assert.That(options.SendLogs, Is.True);
+            Assert.That(options.SendLogs, Is.False);
             Assert.That(options.ElasticUri, Is.Null);
             Assert.That(options.ElasticUsername, Is.Null);
             Assert.That(options.ElasticPassword, Is.Null);

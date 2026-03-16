@@ -1,12 +1,13 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using Confluent.Kafka;
+using QaaS.Framework.Configurations.CustomValidationAttributes;
 
 namespace QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 
 public record BaseKafkaTopicProtocolConfig
 {
-    [Required,
+    [Required, MinLength(1), UniqueItemsInEnumerable,
      Description("List of the kafka hostnames (each hostname should contain the port too for example: - 'host1:8080'")]
     public string[]? HostNames { get; set; }
     

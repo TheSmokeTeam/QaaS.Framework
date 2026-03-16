@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using QaaS.Framework.Configurations.ConfigurationBindingUtils;
 using QaaS.Framework.Configurations.ConfigurationBuilderExtensions;
 using QaaS.Framework.Configurations.CustomExceptions;
+using QaaS.Framework.Configurations.CustomValidationAttributes;
 using QaaS.Framework.Configurations.References;
 
 namespace QaaS.Framework.Configurations.Tests;
@@ -83,6 +84,23 @@ public class ConfigurationUtilitiesTests
     {
         public List<InvalidChild> Items { get; set; } = [];
         public Dictionary<string, InvalidChild> ByName { get; set; } = [];
+    }
+
+    private sealed class NonPublicRecursiveValidationRoot
+    {
+        internal NonPublicRecursiveValidationChild Child { get; set; } = new();
+    }
+
+    [PropertyComparison(nameof(Min), nameof(Max), PropertyComparisonOperator.LessThanOrEqual,
+        ErrorMessage = "'Min' cannot be greater than 'Max'.")]
+    private sealed class NonPublicRecursiveValidationChild
+    {
+        [Required]
+        public string? RequiredValue { get; set; }
+
+        public int Min { get; set; }
+
+        public int Max { get; set; }
     }
 
     [Test]
@@ -485,6 +503,34 @@ public class ConfigurationUtilitiesTests
             Assert.That(results, Is.Not.Empty);
             Assert.That(results.Any(r => r.ErrorMessage?.Contains("Items:0") == true), Is.True);
             Assert.That(results.Any(r => r.ErrorMessage?.Contains("ByName:node-a") == true), Is.True);
+        });
+    }
+
+    [Test]
+    public void ValidationUtils_TryValidateObjectRecursive_ValidatesNonPublicNestedPropertiesAndClassLevelAttributes()
+    {
+        var root = new NonPublicRecursiveValidationRoot
+        {
+            Child = new NonPublicRecursiveValidationChild
+            {
+                RequiredValue = null,
+                Min = 5,
+                Max = 3
+            }
+        };
+        var results = new List<ValidationResult>();
+
+        var valid = ValidationUtils.TryValidateObjectRecursive(root, results,
+            bindingFlags: System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+                          System.Reflection.BindingFlags.Instance);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(valid, Is.False);
+            Assert.That(results.Any(result => result.ErrorMessage?.Contains("Child - The RequiredValue field is required.") == true),
+                Is.True);
+            Assert.That(results.Any(result => result.ErrorMessage?.Contains("Child - 'Min' cannot be greater than 'Max'.") == true),
+                Is.True);
         });
     }
 

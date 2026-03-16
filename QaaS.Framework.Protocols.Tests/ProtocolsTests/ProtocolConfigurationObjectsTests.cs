@@ -3,8 +3,10 @@ using Confluent.Kafka;
 using QaaS.Framework.Protocols.ConfigurationObjects;
 using QaaS.Framework.Protocols.ConfigurationObjects.Elastic;
 using QaaS.Framework.Protocols.ConfigurationObjects.Grpc;
+using QaaS.Framework.Protocols.ConfigurationObjects.Http;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
+using QaaS.Framework.Protocols.ConfigurationObjects.Redis;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
@@ -13,6 +15,13 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 [TestFixture]
 public class ProtocolConfigurationObjectsTests
 {
+    private static (bool IsValid, List<ValidationResult> Results) Validate(object value)
+    {
+        var results = new List<ValidationResult>();
+        var isValid = Validator.TryValidateObject(value, new ValidationContext(value), results, true);
+        return (isValid, results);
+    }
+
     [Test]
     public void KafkaConfigurationObjects_DefaultValuesAndValidation_Work()
     {
@@ -30,6 +39,7 @@ public class ProtocolConfigurationObjectsTests
             TopicName = "topic",
             GroupId = "group"
         };
+        var invalidReader = reader with { HeartbeatIntervalMs = reader.SessionTimeOutMs + 1 };
         var sender = new KafkaTopicSenderConfig
         {
             HostNames = ["host1:9092"],
@@ -40,6 +50,8 @@ public class ProtocolConfigurationObjectsTests
             CompressionLevel = 3
         };
         var invalidSender = sender with { CompressionLevel = 99 };
+        var duplicateHosts = baseConfig with { HostNames = ["host1:9092", "host1:9092"] };
+        var missingHosts = baseConfig with { HostNames = [] };
 
         Assert.Multiple(() =>
         {
@@ -49,13 +61,17 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(reader.EnableAutoCommit, Is.True);
             Assert.That(sender.QueueBufferingMaxMessages, Is.EqualTo(100000));
             Assert.That(sender.QueueBufferingBackpressureThreshold, Is.EqualTo(1));
-            Assert.That(Validator.TryValidateObject(sender, new ValidationContext(sender), null, true), Is.True);
-            Assert.That(Validator.TryValidateObject(invalidSender, new ValidationContext(invalidSender), null, true), Is.False);
+            Assert.That(Validate(sender).IsValid, Is.True);
+            Assert.That(Validate(invalidSender).IsValid, Is.False);
+            Assert.That(Validate(reader).IsValid, Is.True);
+            Assert.That(Validate(invalidReader).IsValid, Is.False);
+            Assert.That(Validate(duplicateHosts).IsValid, Is.False);
+            Assert.That(Validate(missingHosts).IsValid, Is.False);
         });
     }
 
     [Test]
-    public void RabbitMqConfigurationObjects_DefaultValues_Work()
+    public void RabbitMqConfigurationObjects_DefaultValues_AndMutualExclusionRules_Work()
     {
         var baseConfig = new BaseRabbitMqConfig { Host = "localhost" };
         var sender = new RabbitMqSenderConfig
@@ -68,6 +84,13 @@ public class ProtocolConfigurationObjectsTests
             Host = "localhost",
             QueueName = "q"
         };
+        var invalidSenderBothTargets = sender with { ExchangeName = "exchange" };
+        var invalidReaderMissingTarget = new RabbitMqReaderConfig { Host = "localhost" };
+        var invalidSenderEmptyQueue = new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            QueueName = string.Empty
+        };
 
         Assert.Multiple(() =>
         {
@@ -77,8 +100,11 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(sender.RoutingKey, Is.EqualTo("/"));
             Assert.That(sender.ExchangeName, Is.Null);
             Assert.That(reader.CreatedQueueTimeToExpireMs, Is.EqualTo(300000));
-            Assert.That(Validator.TryValidateObject(sender, new ValidationContext(sender), null, true), Is.True);
-            Assert.That(Validator.TryValidateObject(reader, new ValidationContext(reader), null, true), Is.True);
+            Assert.That(Validate(sender).IsValid, Is.True);
+            Assert.That(Validate(reader).IsValid, Is.True);
+            Assert.That(Validate(invalidSenderBothTargets).IsValid, Is.False);
+            Assert.That(Validate(invalidReaderMissingTarget).IsValid, Is.False);
+            Assert.That(Validate(invalidSenderEmptyQueue).IsValid, Is.False);
         });
     }
 
@@ -128,7 +154,7 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(reader.TimestampField, Is.EqualTo("@timestamp"));
             Assert.That(reader.ReadBatchSize, Is.EqualTo(1000));
             Assert.That(sender.PublishAsync, Is.False);
-            Assert.That(Validator.TryValidateObject(sender, new ValidationContext(sender), null, true), Is.True);
+            Assert.That(Validate(sender).IsValid, Is.True);
         });
     }
 
@@ -165,11 +191,74 @@ public class ProtocolConfigurationObjectsTests
         Assert.Multiple(() =>
         {
             Assert.That(grpc.Port, Is.EqualTo((ushort)5001));
-            Assert.That(Validator.TryValidateObject(grpc, new ValidationContext(grpc), null, true), Is.True);
+            Assert.That(Validate(grpc).IsValid, Is.True);
             Assert.That(sftpBase.Port, Is.EqualTo(22));
             Assert.That(sftpSender.Prefix, Is.EqualTo("pref-"));
             Assert.That(sftpSender.NamingType, Is.EqualTo(ObjectNamingGeneratorType.GrowingNumericalSeries));
-            Assert.That(Validator.TryValidateObject(sftpSender, new ValidationContext(sftpSender), null, true), Is.True);
+            Assert.That(Validate(sftpSender).IsValid, Is.True);
+        });
+    }
+
+    [Test]
+    public void RedisAndJwtConfigurationObjects_ValidateConditionalRules()
+    {
+        var validRedisReader = new RedisReaderConfig
+        {
+            HostNames = ["localhost:6379"],
+            RedisDataType = RedisDataType.HashSet,
+            Key = "orders",
+            HashField = "id"
+        };
+        var invalidRedisReader = validRedisReader with { HashField = null };
+
+        var validClaimsJwt = new JwtAuthConfig
+        {
+            Secret = "secret",
+            Claims = new Dictionary<string, string> { ["sub"] = "1" }
+        };
+        var validHierarchicalJwt = new JwtAuthConfig
+        {
+            Secret = "secret",
+            HierarchicalClaims = "sub: 1"
+        };
+        var invalidJwtBothSources = new JwtAuthConfig
+        {
+            Secret = "secret",
+            Claims = new Dictionary<string, string> { ["sub"] = "1" },
+            HierarchicalClaims = "sub: 1"
+        };
+        var invalidJwtYaml = new JwtAuthConfig
+        {
+            Secret = "secret",
+            HierarchicalClaims = "[bad"
+        };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Validate(validRedisReader).IsValid, Is.True);
+            Assert.That(Validate(invalidRedisReader).IsValid, Is.False);
+            Assert.That(Validate(validClaimsJwt).IsValid, Is.True);
+            Assert.That(Validate(validHierarchicalJwt).IsValid, Is.True);
+            Assert.That(Validate(invalidJwtBothSources).IsValid, Is.False);
+            Assert.That(Validate(invalidJwtYaml).IsValid, Is.False);
+        });
+    }
+
+    [Test]
+    public void SqlConfigurationObjects_RejectDuplicateIgnoredColumns()
+    {
+        var validReader = new SqlReaderConfig
+        {
+            TableName = "tbl",
+            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
+            ColumnsToIgnore = ["created_at", "updated_at"]
+        };
+        var invalidReader = validReader with { ColumnsToIgnore = ["created_at", "created_at"] };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Validate(validReader).IsValid, Is.True);
+            Assert.That(Validate(invalidReader).IsValid, Is.False);
         });
     }
 

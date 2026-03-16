@@ -1,11 +1,14 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using QaaS.Framework.Configurations.CustomValidationAttributes;
 
 namespace QaaS.Framework.Policies.ConfigurationObjects;
 
+[PropertyComparison(nameof(StartRate), nameof(MaxRate), PropertyComparisonOperator.LessThanOrEqual,
+    ErrorMessage = $"'{nameof(StartRate)}' cannot be greater than '{nameof(MaxRate)}'.")]
 public class IncreasingLoadBalancePolicyConfig : IPolicyConfig
 {
-    [MaxRateBiggerThenMinRateValidation, Required, Range(1, ulong.MaxValue),
+    [Required, Range(1, ulong.MaxValue),
      Description($"The initial amount of actions to perform every {nameof(TimeIntervalMs)} milliseconds")]
     public ulong? StartRate { get; set; }
 
@@ -24,25 +27,4 @@ public class IncreasingLoadBalancePolicyConfig : IPolicyConfig
     [Range(1, ulong.MaxValue), Description("The time in milliseconds to perform `Rate` actions in"),
      DefaultValue(1000)]
     public ulong TimeIntervalMs { get; set; } = 1000;
-}
-
-/// <summary>
-/// Validation of all of the Stages
-/// </summary>
-internal class MaxRateBiggerThenMinRateValidation : ValidationAttribute
-{
-    /// <summary>
-    /// Check that one of the two parameters 'TimeoutMS' or 'Count' exists for the policy
-    /// configuration to be valid
-    /// </summary>
-    /// <param name="value">instance if the configuration</param>
-    /// <param name="validationContext">context of the configuration</param>
-    /// <returns>true if the configuration is valid, false otherwise</returns>
-    protected override ValidationResult IsValid(object? value, ValidationContext validationContext)
-    {
-        var config = (IncreasingLoadBalancePolicyConfig)validationContext.ObjectInstance;
-        return config.StartRate > config.MaxRate
-            ? new ValidationResult("'MinRate' cannot be bigger then 'MaxRate'")
-            : ValidationResult.Success!;
-    }
 }
