@@ -357,6 +357,189 @@ public class ProtocolBehaviorTests
     }
 
     [Test]
+    public void HttpProtocol_InitializesBaseAddress_HierarchicalClaims_AndMethodMappings()
+    {
+        var hierarchicalClaimsProtocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Delete,
+            BaseAddress = "http://127.0.0.1/api",
+            Port = null,
+            JwtAuth = new JwtAuthConfig
+            {
+                BuildJwtConfig = true,
+                Secret = "secret",
+                HierarchicalClaims = "sub: user\nscope: api"
+            }
+        }, Globals.Logger, TimeSpan.FromSeconds(1));
+        var putProtocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Put,
+            BaseAddress = "http://127.0.0.1/",
+            Port = 8080
+        }, Globals.Logger, TimeSpan.FromSeconds(1));
+
+        var httpClientField = typeof(HttpProtocol).GetField("_httpClient", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var deleteClient = (HttpClient)httpClientField.GetValue(hierarchicalClaimsProtocol)!;
+        var putClient = (HttpClient)httpClientField.GetValue(putProtocol)!;
+        var getHttpMethod = typeof(HttpProtocol).GetMethod("GetHttpMethod", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(deleteClient.BaseAddress, Is.EqualTo(new Uri("http://127.0.0.1/api")));
+            Assert.That(putClient.BaseAddress, Is.EqualTo(new Uri("http://127.0.0.1:8080")));
+            Assert.That(deleteClient.DefaultRequestHeaders.Authorization!.Scheme, Is.EqualTo("Bearer"));
+            Assert.That(getHttpMethod.Invoke(hierarchicalClaimsProtocol, null), Is.EqualTo(HttpMethod.Delete));
+            Assert.That(getHttpMethod.Invoke(putProtocol, null), Is.EqualTo(HttpMethod.Put));
+        });
+    }
+
+    [Test]
+    public void HttpProtocol_CreateRequest_AppliesUriAndHeaderFallbacks()
+    {
+        var protocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Post,
+            BaseAddress = "http://127.0.0.1",
+            Port = 80,
+            Headers = new Dictionary<string, string> { ["X-Config-Content"] = "content" },
+            RequestHeaders = new Dictionary<string, string> { ["X-Config-Request"] = "request" }
+        }, Globals.Logger, TimeSpan.FromSeconds(1));
+        var createRequest = typeof(HttpProtocol).GetMethod("CreateRequest", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        var metadataRequest = (HttpRequestMessage)createRequest.Invoke(protocol,
+        [
+            new Data<byte[]>
+            {
+                Body = Encoding.UTF8.GetBytes("payload"),
+                MetaData = new MetaData
+                {
+                    Http = new Http
+                    {
+                        Uri = new Uri("http://127.0.0.1/custom"),
+                        Headers = new Dictionary<string, string> { ["X-Body"] = "1" },
+                        RequestHeaders = new Dictionary<string, string> { ["X-Request"] = "2" }
+                    }
+                }
+            },
+            "http://127.0.0.1/fallback"
+        ])!;
+        var configFallbackRequest = (HttpRequestMessage)createRequest.Invoke(protocol,
+        [
+            new Data<byte[]>
+            {
+                Body = Encoding.UTF8.GetBytes("payload")
+            },
+            "http://127.0.0.1/fallback"
+        ])!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(metadataRequest.RequestUri, Is.EqualTo(new Uri("http://127.0.0.1/custom")));
+            Assert.That(metadataRequest.Content!.Headers.GetValues("X-Body"), Is.EqualTo(new[] { "1" }));
+            Assert.That(metadataRequest.Headers.GetValues("X-Request"), Is.EqualTo(new[] { "2" }));
+            Assert.That(configFallbackRequest.RequestUri, Is.EqualTo(new Uri("http://127.0.0.1/fallback")));
+            Assert.That(configFallbackRequest.Content!.Headers.GetValues("X-Config-Content"), Is.EqualTo(new[] { "content" }));
+            Assert.That(configFallbackRequest.Headers.GetValues("X-Config-Request"), Is.EqualTo(new[] { "request" }));
+        });
+    }
+
+    [Test]
+    public void HttpProtocol_AddHeadersToRequest_HandlesNullAndSingleSourceHeaders()
+    {
+        var protocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Post,
+            BaseAddress = "http://127.0.0.1",
+            Port = 80
+        }, Globals.Logger, TimeSpan.FromSeconds(1));
+        var addHeaders = typeof(HttpProtocol).GetMethod("AddHeadersToRequest", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        HttpRequestMessage NewRequest() => new(HttpMethod.Post, "http://127.0.0.1")
+        {
+            Content = new ByteArrayContent([])
+        };
+
+        var withoutHeaders = (HttpRequestMessage)addHeaders.Invoke(protocol, [NewRequest(), null, null])!;
+        var contentOnly = (HttpRequestMessage)addHeaders.Invoke(protocol,
+        [
+            NewRequest(),
+            new Dictionary<string, string> { ["X-Body"] = "1" },
+            null
+        ])!;
+        var requestOnly = (HttpRequestMessage)addHeaders.Invoke(protocol,
+        [
+            NewRequest(),
+            null,
+            new Dictionary<string, string> { ["X-Request"] = "2" }
+        ])!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(withoutHeaders.Content!.Headers.Contains("X-Body"), Is.False);
+            Assert.That(withoutHeaders.Headers.Contains("X-Request"), Is.False);
+            Assert.That(contentOnly.Content!.Headers.GetValues("X-Body"), Is.EqualTo(new[] { "1" }));
+            Assert.That(contentOnly.Headers.Contains("X-Request"), Is.False);
+            Assert.That(requestOnly.Content!.Headers.Contains("X-Body"), Is.False);
+            Assert.That(requestOnly.Headers.GetValues("X-Request"), Is.EqualTo(new[] { "2" }));
+        });
+    }
+
+    [Test]
+    public void HttpProtocol_Transact_WithNullPayload_ExercisesRetryPath()
+    {
+        var port = GetFreeTcpPort();
+        var serverTask = Task.Run(async () =>
+        {
+            await Task.Delay(350);
+            using var listener = new HttpListener();
+            listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+            listener.Start();
+            var context = await listener.GetContextAsync();
+            context.Response.StatusCode = (int)HttpStatusCode.OK;
+            await context.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("retry-ok"));
+            context.Response.Close();
+        });
+
+        using var protocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Post,
+            BaseAddress = "http://127.0.0.1",
+            Port = port,
+            Route = "/",
+            Retries = 4,
+            MessageSendRetriesIntervalMs = 200
+        }, Globals.Logger, TimeSpan.FromSeconds(2));
+
+        var result = protocol.Transact(new Data<object> { Body = null });
+
+        serverTask.GetAwaiter().GetResult();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Item1.Body, Is.Null);
+            Assert.That(result.Item2 == null ||
+                        Encoding.UTF8.GetString((byte[])result.Item2.Body!) == "retry-ok", Is.True);
+        });
+    }
+
+    [Test]
+    public void HttpProtocol_GetHttpMethod_ThrowsForInvalidValues()
+    {
+        var protocol = new HttpProtocol(new HttpTransactorConfig
+        {
+            Method = HttpMethods.Get,
+            BaseAddress = "http://127.0.0.1",
+            Port = 80
+        }, Globals.Logger, TimeSpan.FromSeconds(1))
+        {
+            Method = (HttpMethods)999
+        };
+
+        var getHttpMethod = typeof(HttpProtocol).GetMethod("GetHttpMethod", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.Throws<TargetInvocationException>(() => getHttpMethod.Invoke(protocol, null));
+    }
+
+    [Test]
     public void HttpExtensions_HierarchicalClaimsParsingAndValidation()
     {
         var getClaimsMethod = typeof(HttpProtocol).Assembly

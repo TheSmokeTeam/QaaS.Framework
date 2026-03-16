@@ -143,6 +143,7 @@ public class DataSourceBuilder : IYamlConvertible
             Generator,
             Lazy,
             DataSourceNames,
+            DataSourcePatterns,
             Serialize,
             Deserialize,
             GeneratorConfiguration = generatorConfiguration
@@ -166,7 +167,7 @@ public class DataSourceBuilder : IYamlConvertible
     public DataSource Build(InternalContext context,IEnumerable<DataSource> dataSources,
         IEnumerable<KeyValuePair<string, IGenerator>> generators)
     {
-        var generator = generators.FirstOrDefault(pair => pair.Key == Name!).Value ??
+        var generator = generators.FirstOrDefault(pair => pair.Key == Generator!).Value ??
                         throw new ArgumentException($"Data source {Name}'s provided generator {Generator} was" +
                                                     $" not found in provided generators.");
         context.Logger.LogDebugWithMetaData(

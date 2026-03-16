@@ -17,6 +17,14 @@ public class AdvancedCustomValidationAttributesTests
         public string? MustBeNullWhenDisabled { get; set; }
     }
 
+    private sealed class NullConditionalSample
+    {
+        public string? Mode { get; set; }
+
+        [RequiredIfAny(new[] { nameof(Mode) }, new object[] { null! })]
+        public string? RequiredWhenModeIsNull { get; set; }
+    }
+
     private sealed class MissingConditionPropertySample
     {
         [RequiredIfAny("MissingProperty:1")]
@@ -39,6 +47,30 @@ public class AdvancedCustomValidationAttributesTests
 
         [RequiredUnlessAll(new[] { nameof(A), nameof(B) }, "x", "y")]
         public string? RequiredValue { get; set; }
+    }
+
+    private sealed class NullUnlessStringSample
+    {
+        public string? Mode { get; set; }
+
+        [NullUnlessAll("Mode:Enabled")]
+        public string? Value { get; set; }
+    }
+
+    private sealed class NullUnlessAllNullConditionSample
+    {
+        public string? Mode { get; set; }
+
+        [NullUnlessAll(new[] { nameof(Mode) }, new object[] { null! })]
+        public string? Value { get; set; }
+    }
+
+    private sealed class RequiredUnlessAllNullConditionSample
+    {
+        public string? Mode { get; set; }
+
+        [RequiredUnlessAll(new[] { nameof(Mode) }, new object[] { null! })]
+        public string? Value { get; set; }
     }
 
     private sealed class RangeIfAnySample
@@ -143,6 +175,67 @@ public class AdvancedCustomValidationAttributesTests
         public DualListHolder? Holder { get; set; }
     }
 
+    private sealed class DualListHolderWrongEnumerable
+    {
+        public int Left { get; set; }
+        public List<UniqueItem>? Right { get; set; }
+    }
+
+    private sealed class UniqueAcrossPropertiesWrongEnumerableTypeSample
+    {
+        [UniquePropertyInEnumerableProperties(nameof(UniqueItem.Id), "id collisions are not allowed",
+            nameof(DualListHolderWrongEnumerable.Left), nameof(DualListHolderWrongEnumerable.Right))]
+        public DualListHolderWrongEnumerable? Holder { get; set; }
+    }
+
+    private sealed class MissingIdItem
+    {
+        public string? Other { get; set; }
+    }
+
+    private sealed class DualMissingIdHolder
+    {
+        public List<MissingIdItem>? Left { get; set; }
+        public List<MissingIdItem>? Right { get; set; }
+    }
+
+    private sealed class UniqueAcrossPropertiesMissingItemFieldSample
+    {
+        [UniquePropertyInEnumerableProperties(nameof(UniqueItem.Id), "id collisions are not allowed",
+            nameof(DualMissingIdHolder.Left), nameof(DualMissingIdHolder.Right))]
+        public DualMissingIdHolder? Holder { get; set; }
+    }
+
+    private sealed class ValueListItem
+    {
+        public string? Stage { get; set; }
+        public string? RunUntilStage { get; set; }
+    }
+
+    private sealed class ValueAppearsInListSample
+    {
+        [ValueAppearsInList(nameof(ValueListItem.Stage), nameof(ValueListItem.RunUntilStage))]
+        public List<ValueListItem>? Items { get; set; }
+    }
+
+    private sealed class ValueAppearsInListScalarSample
+    {
+        [ValueAppearsInList(nameof(ValueListItem.Stage), nameof(ValueListItem.RunUntilStage))]
+        public int Value { get; set; }
+    }
+
+    private sealed class ValueAppearsInListMissingSourcePropertySample
+    {
+        [ValueAppearsInList("Missing", nameof(ValueListItem.RunUntilStage))]
+        public List<ValueListItem> Items { get; set; } = [];
+    }
+
+    private sealed class ValueAppearsInListMissingTargetPropertySample
+    {
+        [ValueAppearsInList(nameof(ValueListItem.Stage), "Missing")]
+        public List<ValueListItem> Items { get; set; } = [];
+    }
+
     private sealed class RequiredOrNullSample
     {
         public string? TriggerRequired { get; set; }
@@ -157,6 +250,41 @@ public class AdvancedCustomValidationAttributesTests
     {
         [RequiredOrNullBasedOnOtherFieldsConfiguration(new[] { "MissingProperty" }, true)]
         public string? Target { get; set; }
+    }
+
+    private sealed class RequiredUnlessStringSample
+    {
+        public string? Mode { get; set; }
+
+        [RequiredUnlessAll("Mode:Enabled")]
+        public string? Value { get; set; }
+    }
+
+    private sealed class MissingRequiredUnlessPropertySample
+    {
+        [RequiredUnlessAll("MissingProperty:Enabled")]
+        public string? Value { get; set; }
+    }
+
+    private sealed class NonEnumerableReferenceSample
+    {
+        [AllItemsInEnumerablePropertyInEnumerableExistAsPropertyInEnumerable(
+            nameof(GraphNode.DependsOn), nameof(GraphNode.Name))]
+        public int Value { get; set; }
+    }
+
+    private sealed class MissingGraphPropertySample
+    {
+        [AllItemsInEnumerablePropertyInEnumerableExistAsPropertyInEnumerable(
+            nameof(GraphNode.DependsOn), "Missing")]
+        public List<GraphNode> Nodes { get; set; } = [];
+    }
+
+    private sealed class NullGraphNameSample
+    {
+        [AllItemsInEnumerablePropertyInEnumerableExistAsPropertyInEnumerable(
+            nameof(GraphNode.DependsOn), nameof(GraphNode.Name))]
+        public List<GraphNode> Nodes { get; set; } = [];
     }
 
     private static (bool IsValid, List<ValidationResult> ValidationResults) Validate(object value)
@@ -192,6 +320,27 @@ public class AdvancedCustomValidationAttributesTests
     }
 
     [Test]
+    public void ConditionalValidation_ArrayConstructor_SupportsNullConditions()
+    {
+        var requiredFailure = Validate(new NullConditionalSample
+        {
+            Mode = null,
+            RequiredWhenModeIsNull = null
+        });
+        var success = Validate(new NullConditionalSample
+        {
+            Mode = "configured",
+            RequiredWhenModeIsNull = null
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(requiredFailure.IsValid, Is.False);
+            Assert.That(success.IsValid, Is.True);
+        });
+    }
+
+    [Test]
     public void NullUnlessAll_And_RequiredUnlessAll_ValidateAllBranches()
     {
         var nullUnlessValid = new NullUnlessSample { A = "x", B = "y", NullableValue = "value" };
@@ -209,6 +358,33 @@ public class AdvancedCustomValidationAttributesTests
         Assert.That(Validate(requiredUnlessValid).IsValid, Is.True);
         Assert.That(Validate(requiredUnlessInvalid).IsValid, Is.False);
         Assert.That(Validate(requiredUnlessHasValue).IsValid, Is.True);
+    }
+
+    [Test]
+    public void NullUnlessAll_And_RequiredUnlessAll_StringAndNullConditionConstructors_AreHandled()
+    {
+        var nullUnlessStringValid = Validate(new NullUnlessStringSample
+        {
+            Mode = "Enabled",
+            Value = "value"
+        });
+        var nullUnlessNullConditionValid = Validate(new NullUnlessAllNullConditionSample
+        {
+            Mode = null,
+            Value = "value"
+        });
+        var requiredUnlessNullConditionValid = Validate(new RequiredUnlessAllNullConditionSample
+        {
+            Mode = null,
+            Value = null
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(nullUnlessStringValid.IsValid, Is.True);
+            Assert.That(nullUnlessNullConditionValid.IsValid, Is.True);
+            Assert.That(requiredUnlessNullConditionValid.IsValid, Is.True);
+        });
     }
 
     [Test]
@@ -340,6 +516,28 @@ public class AdvancedCustomValidationAttributesTests
     }
 
     [Test]
+    public void AllItemsInEnumerablePropertyInEnumerableExistAsPropertyInEnumerable_HandlesNonEnumerableAndNullPropertyBranches()
+    {
+        var nonEnumerable = Validate(new NonEnumerableReferenceSample
+        {
+            Value = 1
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(nonEnumerable.IsValid, Is.True);
+            Assert.Throws<ArgumentException>(() => Validate(new MissingGraphPropertySample
+            {
+                Nodes = [new GraphNode { Name = "A", DependsOn = [] }]
+            }));
+            Assert.Throws<ArgumentException>(() => Validate(new NullGraphNameSample
+            {
+                Nodes = [new GraphNode { Name = null, DependsOn = [] }]
+            }));
+        });
+    }
+
+    [Test]
     public void UniquePropertyInEnumerableProperties_ValidatesSingleObjectAndEnumerableModes()
     {
         var singleValid = Validate(new UniqueAcrossPropertiesSample
@@ -396,6 +594,121 @@ public class AdvancedCustomValidationAttributesTests
                 Right = [new UniqueItem { Id = "b" }]
             }
         }));
+    }
+
+    [Test]
+    public void UniquePropertyInEnumerableProperties_HandlesNullValuesWrongEnumerableTypesAndMissingItemFields()
+    {
+        var nullHolder = Validate(new UniqueAcrossPropertiesSample
+        {
+            Holder = null
+        });
+        var emptyEnumerable = Validate(new UniqueAcrossPropertiesListSample
+        {
+            Holders = []
+        });
+        var nullEnumerableProperty = Validate(new UniqueAcrossPropertiesSample
+        {
+            Holder = new DualListHolder
+            {
+                Left = null,
+                Right = [new UniqueItem { Id = "b" }]
+            }
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(nullHolder.IsValid, Is.True);
+            Assert.That(emptyEnumerable.IsValid, Is.True);
+            Assert.That(nullEnumerableProperty.IsValid, Is.True);
+            Assert.Throws<NotSupportedException>(() => Validate(new UniqueAcrossPropertiesWrongEnumerableTypeSample
+            {
+                Holder = new DualListHolderWrongEnumerable
+                {
+                    Left = 5,
+                    Right = [new UniqueItem { Id = "b" }]
+                }
+            }));
+            Assert.Throws<NotSupportedException>(() => Validate(new UniqueAcrossPropertiesMissingItemFieldSample
+            {
+                Holder = new DualMissingIdHolder
+                {
+                    Left = [new MissingIdItem { Other = "a" }],
+                    Right = []
+                }
+            }));
+        });
+    }
+
+    [Test]
+    public void ValueAppearsInList_ValidatesBranchesAndConstructorGuards()
+    {
+        Assert.Throws<ArgumentNullException>(() => _ = new ValueAppearsInListAttribute(null!, "RunUntilStage"));
+        Assert.Throws<ArgumentNullException>(() => _ = new ValueAppearsInListAttribute("Stage", null!));
+
+        var scalar = Validate(new ValueAppearsInListScalarSample
+        {
+            Value = 1
+        });
+        var valid = Validate(new ValueAppearsInListSample
+        {
+            Items =
+            [
+                new ValueListItem { Stage = "A" },
+                new ValueListItem { Stage = "B", RunUntilStage = "A" },
+                new ValueListItem { Stage = "C", RunUntilStage = null }
+            ]
+        });
+        var invalid = Validate(new ValueAppearsInListSample
+        {
+            Items =
+            [
+                new ValueListItem { Stage = "A" },
+                new ValueListItem { Stage = "B", RunUntilStage = "Missing" }
+            ]
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(scalar.IsValid, Is.True);
+            Assert.That(valid.IsValid, Is.True);
+            Assert.That(invalid.IsValid, Is.False);
+            Assert.That(invalid.ValidationResults.Single().ErrorMessage, Does.Contain("Valid values are"));
+            Assert.Throws<ArgumentException>(() => Validate(new ValueAppearsInListMissingSourcePropertySample
+            {
+                Items = [new ValueListItem { Stage = "A" }]
+            }));
+            Assert.Throws<ArgumentException>(() => Validate(new ValueAppearsInListMissingTargetPropertySample
+            {
+                Items = [new ValueListItem { Stage = "A" }]
+            }));
+        });
+    }
+
+    [Test]
+    public void RequiredUnlessAll_StringConstructorAndNullConditionalBranches_AreHandled()
+    {
+        var valid = Validate(new RequiredUnlessStringSample
+        {
+            Mode = "Enabled",
+            Value = null
+        });
+        var invalid = Validate(new RequiredUnlessStringSample
+        {
+            Mode = null,
+            Value = null
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(valid.IsValid, Is.True);
+            Assert.That(invalid.IsValid, Is.False);
+            Assert.That(invalid.ValidationResults.Single().ErrorMessage, Does.Contain("required"));
+            Assert.Throws<NotSupportedException>(() => Validate(new MissingRequiredUnlessPropertySample
+            {
+                Value = null
+            }));
+        });
     }
 
     [Test]

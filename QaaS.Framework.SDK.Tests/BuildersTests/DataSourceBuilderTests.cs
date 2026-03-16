@@ -93,8 +93,8 @@ public class DataSourceBuilderTests
         // arrange
         // Create test generators
         var generators = builders
-            .Select(dsb => new KeyValuePair<string, IGenerator>(dsb.Name!, new TestGenerator()))
-            .ToDictionary();
+            .Select(dsb => new KeyValuePair<string, IGenerator>((string)_generatorInfo.GetValue(dsb)!, new TestGenerator()))
+            .ToList();
 
         // Register all builders
         var registeredDataSources = builders.Select(b => b.Register()).ToList();
@@ -120,7 +120,7 @@ public class DataSourceBuilderTests
             Assert.That(resultedNames.All((builders.FirstOrDefault()?.DataSourceNames.ToList() ?? []).Contains));
             Assert.That(firstDataSource.DataSourceList.All(registeredDataSources.Contains));
             Assert.That(firstDataSource.DataSourceList.Select(source => source.Generator)
-                .All(generators.Values.Contains));
+                .All(generators.Select(pair => pair.Value).Contains));
         }
         else
         {
@@ -167,7 +167,7 @@ public class DataSourceBuilderTests
         // Create test generators
         var generators = new Dictionary<string, IGenerator>
         {
-            ["test-source"] = new TestGenerator()
+            ["test-generator"] = new TestGenerator()
         };
 
         // Create test data sources
@@ -225,6 +225,38 @@ public class DataSourceBuilderTests
             Assert.That(updatedConfiguration["Nested:Before"], Is.EqualTo("keep"));
             Assert.That(updatedConfiguration["Nested:Added"], Is.EqualTo("new"));
             Assert.That(builder.ReadConfiguration().GetChildren(), Is.Empty);
+        });
+    }
+
+    [Test]
+    public void Register_SetsSerializerDeserializerAndSpecificTypeMetadata()
+    {
+        var deserializerBuilder = new DataSourceBuilder()
+            .Named("typed-source")
+            .HookNamed("typed-generator")
+            .WithDeserializer(new DeserializeConfig
+            {
+                Deserializer = SerializationType.Json,
+                SpecificType = new SpecificTypeConfig
+                {
+                    AssemblyName = typeof(TestGenerator).Assembly.FullName,
+                    TypeFullName = typeof(TestGenerator).FullName
+                }
+            });
+        var serializerBuilder = new DataSourceBuilder()
+            .Named("serializer-source")
+            .HookNamed("typed-generator")
+            .WithSerializer(new SerializeConfig { Serializer = SerializationType.Json });
+
+        var registered = deserializerBuilder.Register();
+        var serialized = serializerBuilder.Register();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registered.Name, Is.EqualTo("typed-source"));
+            Assert.That(registered.Deserializer, Is.Not.Null);
+            Assert.That(registered.DeserializerSpecificType, Is.EqualTo(typeof(TestGenerator)));
+            Assert.That(serialized.Serializer, Is.Not.Null);
         });
     }
 }

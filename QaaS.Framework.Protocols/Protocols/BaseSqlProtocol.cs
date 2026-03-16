@@ -355,7 +355,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         if (value == null || value == DBNull.Value)
             return "NULL";
         if (DateTime.TryParse(value.ToString(), out var time))
-            GetTimeFieldSqlFormat(time);
+            return GetTimeFieldSqlFormat(time);
         var regex = new Regex(udtRegexPattern);
         if (regex.IsMatch(value.ToString()!)) 
             return value;
