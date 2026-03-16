@@ -236,7 +236,6 @@ public class ProtocolIntegrationCoverageTests
                 Value = "value"u8.ToArray(),
                 Headers = kafkaHeaders
             }
-            }
         };
 
         consumerMock.Setup(m => m.Consume(It.IsAny<TimeSpan>())).Returns(consumed);
