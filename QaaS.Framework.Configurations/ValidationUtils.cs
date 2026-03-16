@@ -44,11 +44,8 @@ public static class ValidationUtils
                                                                               p.PropertyType != obj.GetType());
         foreach (var property in properties)
         {
-            var getter = property.GetGetMethod(nonPublic: true);
-            if (getter == null)
+            if (!TryGetPropertyValue(obj, property, out var value))
                 continue;
-
-            var value = getter.Invoke(obj, null);
             var propertyPath = $"{parentPath}{ConfigurationConstants.PathSeparator}{property.Name}";
                 
             // Handle enumerable properties
@@ -142,12 +139,9 @@ public static class ValidationUtils
                 if (property.GetIndexParameters().Length > 0) 
                     continue;
                 
-                var getter = property.GetGetMethod(nonPublic: true);
-                if (getter == null)
+                if (!TryGetPropertyValue(obj, property, out var propertyValue))
                     continue;
-                
-                var propertyValue = getter.Invoke(obj, null);
-                
+
                 var validationContext = new ValidationContext(obj, null, null)
                 {
                     MemberName = property.Name
@@ -175,5 +169,30 @@ public static class ValidationUtils
                 Members = string.Join("|", result.MemberNames.OrderBy(member => member, StringComparer.Ordinal))
             })
             .Select(group => group.First());
+    }
+
+    private static bool TryGetPropertyValue(object instance, PropertyInfo property, out object? value)
+    {
+        try
+        {
+            value = property.GetValue(instance);
+            return true;
+        }
+        catch (TargetInvocationException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is MethodAccessException or ArgumentException)
+        {
+            var getter = property.GetGetMethod(nonPublic: true);
+            if (getter == null)
+            {
+                value = null;
+                return false;
+            }
+
+            value = getter.Invoke(instance, null);
+            return true;
+        }
     }
 }
