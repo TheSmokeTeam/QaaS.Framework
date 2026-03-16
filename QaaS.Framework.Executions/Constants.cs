@@ -17,17 +17,15 @@ public static class Constants
 
     private static Serilog.ILogger BuildDefaultSerilogLogger()
     {
-        var warnings = new List<string>();
-        var logger = new LoggerConfiguration()
+        // The framework-level fallback logger must stay console-only.
+        // Elasticsearch shipping is configured per run through LoggerOptions.SendLogs, and the
+        // default logger should not emit sink warnings before any command opts into that path.
+        return new LoggerConfiguration()
             .MinimumLevel
-            .Is(LogEventLevel.Verbose).WriteTo
-            .Console(LogEventLevel.Information).AddQaaSElasticSink(warningLogger: warnings.Add).CreateLogger();
-        foreach (var warning in warnings)
-        {
-            logger.Warning("{WarningMessage}", warning);
-        }
-
-        return logger;
+            .Is(LogEventLevel.Verbose)
+            .WriteTo
+            .Console(LogEventLevel.Information)
+            .CreateLogger();
     }
 
     // sends only logs that contains metadata to elasticSearch
