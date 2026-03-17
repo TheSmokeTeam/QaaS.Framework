@@ -58,7 +58,7 @@ public static class ConfigurationUtils
     public static Dictionary<string, string?> GetInMemoryCollectionFromObject(object? configurationObject,
         BindingFlags bindingAttr = BindingFlags.Instance | BindingFlags.Public)
     {
-        Dictionary<string, string?> inMemoryCollection = [];
+        var inMemoryCollection = DictionaryUtils.CreateConfigurationDictionary<string?>();
         if (configurationObject == null)
             return inMemoryCollection;
 
@@ -415,7 +415,7 @@ public static class ConfigurationUtils
             {
                 if (propertyType == typeof(IConfiguration))
                 {
-                    var result = new Dictionary<string, string?>();
+                    var result = DictionaryUtils.CreateConfigurationDictionary<string?>();
                     nestedList.GetInMemoryCollectionFromList(string.Empty, result);
                     return new ConfigurationBuilder()
                         .AddInMemoryCollection(result).Build();

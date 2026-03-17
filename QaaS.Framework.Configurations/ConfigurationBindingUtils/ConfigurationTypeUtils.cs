@@ -18,7 +18,7 @@ internal static class TypeUtils
         if (!type.IsInterface) 
             return Activator.CreateInstance(type);
         return type == typeof(IConfiguration) ? new ConfigurationBuilder().
-            AddInMemoryCollection(new Dictionary<string, string?>()).Build() : null;
+            AddInMemoryCollection(DictionaryUtils.CreateConfigurationDictionary<string?>()).Build() : null;
     }
     
     /// <summary>

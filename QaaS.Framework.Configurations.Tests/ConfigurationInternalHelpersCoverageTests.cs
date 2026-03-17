@@ -312,6 +312,30 @@ public class ConfigurationInternalHelpersCoverageTests
     }
 
     [Test]
+    public void DictionaryUtility_BindToDictionaryIConfiguration_CollapsesCaseInsensitiveDuplicatePaths()
+    {
+        var configuration = (IConfiguration)InvokeDictionaryUtils("BindToDictionaryIConfiguration",
+            new Dictionary<string, object?>
+            {
+                ["Metadata"] = new Dictionary<string, object?>
+                {
+                    ["Team"] = "existing-team"
+                },
+                ["MetaData"] = new Dictionary<string, object?>
+                {
+                    ["Team"] = "updated-team"
+                }
+            })!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(configuration["MetaData:Team"], Is.EqualTo("updated-team"));
+            Assert.That(configuration.AsEnumerable()
+                .Count(pair => string.Equals(pair.Key, "MetaData:Team", StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
     public void MergeUtility_PropertyHelpers_HandleAutoPropertiesAndThrowingGetters()
     {
         var autoProperty = typeof(GetterShapes).GetProperty(nameof(GetterShapes.Auto))!;

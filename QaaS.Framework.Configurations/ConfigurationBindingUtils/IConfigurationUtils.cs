@@ -23,7 +23,7 @@ public static class IConfigurationUtils
     /// <returns>Dictionary representation of the configuration</returns>
     public static Dictionary<string, object?> GetDictionaryFromConfiguration(this IConfiguration? configuration)
     {
-        var configurationDictionary = new Dictionary<string, object?>();
+        var configurationDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
         if (configuration == null)
             return configurationDictionary;
         foreach (var section in configuration.GetChildren())
@@ -50,7 +50,7 @@ public static class IConfigurationUtils
            children.Select(c => int.Parse(c.Key)).SequenceEqual(Enumerable.Range(0, children.Count)))
             return children.Select(ConvertConfigurationSectionToObject).ToList();
 
-        var configurationDictionary = new Dictionary<string, object?>();
+        var configurationDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
         // if the section has children, then we assume that this is a dictionary
         // and we recursively convert the children to a dictionary
         foreach (var child in children)
