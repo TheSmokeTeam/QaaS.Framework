@@ -9,6 +9,21 @@ namespace QaaS.Framework.Configurations.ConfigurationBindingUtils;
 /// </summary>
 internal static class DictionaryUtils
 {
+    internal static Dictionary<string, TValue> CreateConfigurationDictionary<TValue>() =>
+        new(StringComparer.OrdinalIgnoreCase);
+
+    internal static Dictionary<string, TValue> CreateConfigurationDictionary<TValue>(
+        IEnumerable<KeyValuePair<string, TValue>> source)
+    {
+        var result = CreateConfigurationDictionary<TValue>();
+        foreach (var pair in source)
+        {
+            result[pair.Key] = pair.Value;
+        }
+
+        return result;
+    }
+
     /// <summary>
     /// Flattens a dictionary of object to a dictionary of strings
     /// </summary>
@@ -92,7 +107,7 @@ internal static class DictionaryUtils
         this IDictionary<string, object?> sourceDictionary)
     {
         var configurationKeyValuePairs = sourceDictionary.GetInMemoryCollectionFromDictionary(
-            new Dictionary<string, string?>());
+            CreateConfigurationDictionary<string?>());
         var instance = new ConfigurationBuilder()
             .AddInMemoryCollection(configurationKeyValuePairs).Build();
         return instance;
@@ -128,7 +143,7 @@ internal static class DictionaryUtils
 
     internal static Dictionary<string, object?> ToStringObjectDictionary(IDictionary dictionary)
     {
-        var result = new Dictionary<string, object?>();
+        var result = CreateConfigurationDictionary<object?>();
         foreach (DictionaryEntry entry in dictionary)
         {
             var key = entry.Key?.ToString();

@@ -52,6 +52,16 @@ public class ConfigurationUtilitiesTests
         public NestedSettings Child { get; set; } = new();
     }
 
+    private sealed class MetaDataSettings
+    {
+        public string? Team { get; set; }
+    }
+
+    private sealed class MetaDataContainer
+    {
+        public MetaDataSettings MetaData { get; set; } = new();
+    }
+
     private sealed class RequiredSettings
     {
         [Required]
@@ -615,6 +625,32 @@ public class ConfigurationUtilitiesTests
             Assert.That(rebound["Enabled"], Is.EqualTo("False"));
             Assert.That(rebound["Retries"], Is.EqualTo("7"));
             Assert.That(rebound["Child:Name"], Is.EqualTo("updated-child"));
+        });
+    }
+
+    [Test]
+    public void IConfigurationUtils_BindConfigurationObjectToIConfiguration_MergesKeysCaseInsensitively()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Metadata:Team"] = "existing-team"
+            })
+            .Build();
+
+        var rebound = configuration.BindConfigurationObjectToIConfiguration(new MetaDataContainer
+        {
+            MetaData = new MetaDataSettings
+            {
+                Team = "updated-team"
+            }
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(rebound["MetaData:Team"], Is.EqualTo("updated-team"));
+            Assert.That(rebound.AsEnumerable()
+                .Count(pair => string.Equals(pair.Key, "MetaData:Team", StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
         });
     }
 

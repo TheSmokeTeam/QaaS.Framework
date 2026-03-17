@@ -58,7 +58,7 @@ public static class ConfigurationMergeUtils
 
     private static Dictionary<string, object?> BuildCurrentDictionary(object configurationObject)
     {
-        var currentDictionary = new Dictionary<string, object?>();
+        var currentDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
         foreach (var propertyInfo in configurationObject.GetType().GetProperties())
         {
             if (!propertyInfo.CanRead || propertyInfo.GetIndexParameters().Length != 0 ||
@@ -76,7 +76,7 @@ public static class ConfigurationMergeUtils
 
     private static Dictionary<string, object?> GetPatchDictionary(object? configurationObject)
     {
-        var patchDictionary = new Dictionary<string, object?>();
+        var patchDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
         if (configurationObject == null)
         {
             return patchDictionary;
@@ -213,7 +213,7 @@ public static class ConfigurationMergeUtils
 
     private static Dictionary<string, object?> ConvertDictionary(IDictionary dictionary)
     {
-        var convertedDictionary = new Dictionary<string, object?>();
+        var convertedDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
         foreach (DictionaryEntry entry in dictionary)
         {
             var key = entry.Key.ToString()!;
@@ -262,7 +262,7 @@ public static class ConfigurationMergeUtils
 
     private static Dictionary<string, object?> ConvertCurrentDictionary(IDictionary dictionary)
     {
-        var convertedDictionary = new Dictionary<string, object?>();
+        var convertedDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
         foreach (DictionaryEntry entry in dictionary)
         {
             var key = entry.Key.ToString()!;
@@ -325,7 +325,13 @@ public static class ConfigurationMergeUtils
 
     private static Dictionary<string, object?> CloneDictionary(IDictionary<string, object?> sourceDictionary)
     {
-        return sourceDictionary.ToDictionary(pair => pair.Key, pair => CloneValue(pair.Value));
+        var clonedDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
+        foreach (var pair in sourceDictionary)
+        {
+            clonedDictionary[pair.Key] = CloneValue(pair.Value);
+        }
+
+        return clonedDictionary;
     }
 
     private static bool TryGetPropertyValue(System.Reflection.PropertyInfo propertyInfo, object instance,
