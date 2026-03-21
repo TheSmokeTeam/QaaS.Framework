@@ -12,6 +12,7 @@ namespace QaaS.Framework.SDK.ContextObjects;
 public class ContextBuilder : IContextBuilder
 {
     private readonly List<string> _configurationOverwriteFiles = new();
+    private readonly List<string> _configurationOverwriteFolders = new();
     private readonly List<string> _configurationOverwriteArguments = new();
     private readonly List<ReferenceConfig> _referenceConfigs = new();
     private readonly IConfigurationBuilder _configurationBuilder;
@@ -87,6 +88,14 @@ public class ContextBuilder : IContextBuilder
     }
 
     /// <inheritdoc />
+    public IContextBuilder WithOverwriteFolder(string? overwriteFolder)
+    {
+        if (overwriteFolder == null) return this;
+        _configurationOverwriteFolders.Add(overwriteFolder);
+        return this;
+    }
+
+    /// <inheritdoc />
     public IContextBuilder SetCase(string? caseFile)
     {
         if (caseFile == null) return this;
@@ -145,6 +154,9 @@ public class ContextBuilder : IContextBuilder
         if (_configurationFile != null) _configurationBuilder.AddYaml(_configurationFile);
         // Overwriting variable .yaml files
         foreach (var overwriteFile in _configurationOverwriteFiles) _configurationBuilder.AddYaml(overwriteFile);
+        foreach (var overwriteFolder in _configurationOverwriteFolders)
+        foreach (var overwriteFile in PathUtils.EnumerateYamlFilesInDirectory(overwriteFolder))
+            _configurationBuilder.AddYaml(overwriteFile);
 
         IConfiguration? configuration;
         if (!_resolveCaseLast)

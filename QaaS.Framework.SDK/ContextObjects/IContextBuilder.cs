@@ -31,6 +31,13 @@ public interface IContextBuilder
     public IContextBuilder WithOverwriteFile(string? overwriteFile);
 
     /// <summary>
+    /// Adds a local folder whose YAML files overwrite the previously given configuration files in alphabetical order.
+    /// </summary>
+    /// <param name="overwriteFolder">The relative or absolute path to the folder containing overwriting YAML files.</param>
+    /// <returns>The current builder.</returns>
+    public IContextBuilder WithOverwriteFolder(string? overwriteFolder);
+
+    /// <summary>
     /// Sets the case the context belongs to (If not set the context does not belong to any case)
     /// </summary>
     /// <param name="caseFile"> The relative path to the .yaml case file </param>
