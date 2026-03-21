@@ -8,7 +8,7 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace QaaS.Framework.Executions;
 
-public static class Constants
+public static class ExecutionLogging
 {
     public static readonly Serilog.ILogger DefaultSerilogLogger = BuildDefaultSerilogLogger();
 

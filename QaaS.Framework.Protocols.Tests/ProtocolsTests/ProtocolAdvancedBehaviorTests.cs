@@ -33,6 +33,7 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 [TestFixture]
 public class ProtocolAdvancedBehaviorTests
 {
+    [Serializable]
     private sealed class SerializableS3Payload
     {
         public string Name { get; set; } = string.Empty;
