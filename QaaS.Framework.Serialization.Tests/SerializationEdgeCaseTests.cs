@@ -5,7 +5,6 @@ using ProtobufDeserializer = QaaS.Framework.Serialization.Deserializers.Protobuf
 using XmlDeserializer = QaaS.Framework.Serialization.Deserializers.Xml;
 using XmlElementDeserializer = QaaS.Framework.Serialization.Deserializers.XmlElement;
 using YamlDeserializer = QaaS.Framework.Serialization.Deserializers.Yaml;
-using MessagePack;
 using System.Reflection;
 
 namespace QaaS.Framework.Serialization.Tests;
@@ -16,10 +15,11 @@ public class SerializationEdgeCaseTests
     [Test]
     public void BinaryDeserializer_WithSpecificType_ReturnsTypedPayload()
     {
+        var serializer = new BinarySerializer();
         var deserializer = new BinaryDeserializer();
         const string payload = "typed";
 
-        var bytes = MessagePackSerializer.Serialize(payload);
+        var bytes = serializer.Serialize(payload);
         var result = deserializer.Deserialize(bytes, typeof(string)) as string;
 
         Assert.That(result, Is.EqualTo(payload));
