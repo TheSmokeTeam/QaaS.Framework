@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
+using QaaS.Framework.Configurations;
 using QaaS.Framework.Configurations.ConfigurationBindingUtils;
 using QaaS.Framework.Configurations.CustomValidationAttributes;
 using QaaS.Framework.SDK.ContextObjects;
@@ -105,22 +106,50 @@ public class DataSourceBuilder : IYamlConvertible
         return this;
     }
 
+    /// <summary>
+    /// Compatibility alias for <see cref="Configure" /> that matches the configuration CRUD pattern used by other builders.
+    /// </summary>
+    public DataSourceBuilder CreateConfiguration(object configuration)
+    {
+        return Configure(configuration);
+    }
+
+    /// <summary>
+    /// Compatibility alias for <see cref="CreateConfiguration" />.
+    /// </summary>
+    public DataSourceBuilder Create(object configuration)
+    {
+        return CreateConfiguration(configuration);
+    }
+
+    /// <summary>
+    /// Returns the currently configured generator configuration.
+    /// </summary>
     public IConfiguration ReadConfiguration()
     {
         return GeneratorConfiguration;
     }
 
+    /// <summary>
+    /// Merges the provided configuration object into the current generator configuration.
+    /// </summary>
     public DataSourceBuilder UpdateConfiguration(object configuration)
     {
-        GeneratorConfiguration = GeneratorConfiguration.BindConfigurationObjectToIConfiguration(configuration);
+        GeneratorConfiguration = GeneratorConfiguration.UpdateConfiguration(configuration);
         return this;
     }
 
+    /// <summary>
+    /// Compatibility alias for <see cref="UpdateConfiguration" />.
+    /// </summary>
     public DataSourceBuilder UpsertConfiguration(object configuration)
     {
         return UpdateConfiguration(configuration);
     }
 
+    /// <summary>
+    /// Clears the configured generator configuration.
+    /// </summary>
     public DataSourceBuilder DeleteConfiguration()
     {
         GeneratorConfiguration = new ConfigurationBuilder().Build();

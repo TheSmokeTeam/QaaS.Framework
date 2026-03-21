@@ -60,6 +60,16 @@ public class ExecutionsCoverageEdgeCaseTests
     }
 
     [Test]
+    public void Constants_BackwardCompatibilitySurface_ReusesExecutionLoggingDefaults()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(Constants.DefaultSerilogLogger, Is.SameAs(ExecutionLogging.DefaultSerilogLogger));
+            Assert.That(Constants.DefaultLogger, Is.SameAs(ExecutionLogging.DefaultLogger));
+        });
+    }
+
+    [Test]
     public void BuildDefaultSerilogLogger_DoesNotEmitElasticWarnings_WhenSendLogsWasNotRequested()
     {
         var buildMethod = typeof(ExecutionLogging).GetMethod("BuildDefaultSerilogLogger",
