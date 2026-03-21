@@ -33,6 +33,7 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 [TestFixture]
 public class ProtocolAdvancedBehaviorTests
 {
+    [Serializable]
     private sealed class SerializableS3Payload
     {
         public string Name { get; set; } = string.Empty;
@@ -386,7 +387,8 @@ public class ProtocolAdvancedBehaviorTests
             new S3DeserializationScenario(
                 "binary",
                 new QaaS.Framework.Serialization.Serializers.Binary().Serialize(binaryPayload)!,
-                bytes => new QaaS.Framework.Serialization.Deserializers.Binary().Deserialize(bytes),
+                bytes => new QaaS.Framework.Serialization.Deserializers.Binary()
+                    .Deserialize(bytes, typeof(SerializableS3Payload)),
                 result =>
                 {
                     var payload = result as SerializableS3Payload;

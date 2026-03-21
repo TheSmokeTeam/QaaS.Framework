@@ -197,7 +197,7 @@ public class DataSourceBuilderTests
     public void ConfigurationCrud_ReadUpdateAndDelete_WorkAsExpected()
     {
         var builder = new DataSourceBuilder()
-            .Configure(new
+            .CreateConfiguration(new
             {
                 Existing = "value",
                 Nested = new

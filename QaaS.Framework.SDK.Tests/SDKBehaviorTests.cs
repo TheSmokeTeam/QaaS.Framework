@@ -494,9 +494,14 @@ public class SDKBehaviorTests
     {
         var baseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
         var overwriteYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
+        var overwriteFolder = Path.Combine(Path.GetTempPath(), $"overwrite-folder-{Guid.NewGuid():N}");
         var caseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
         File.WriteAllText(baseYaml, "root:\n  value: base\n");
         File.WriteAllText(overwriteYaml, "root:\n  value: overwrite\n");
+        Directory.CreateDirectory(overwriteFolder);
+        File.WriteAllText(Path.Combine(overwriteFolder, "01-overwrite.yaml"), "root:\n  value: folder-a\n");
+        File.WriteAllText(Path.Combine(overwriteFolder, "02-overwrite.yml"), "root:\n  value: folder-b\n");
+        File.WriteAllText(Path.Combine(overwriteFolder, "ignore.txt"), "root:\n  value: ignored\n");
         File.WriteAllText(caseYaml, "root:\n  value: case\n");
 
         try
@@ -505,6 +510,7 @@ public class SDKBehaviorTests
             var context = new ContextBuilder(baseYaml)
                 .SetLogger(NullLogger.Instance)
                 .WithOverwriteFile(overwriteYaml)
+                .WithOverwriteFolder(overwriteFolder)
                 .WithOverwriteArgument("root:value=argument")
                 .SetCase(caseYaml)
                 .SetExecutionId("exec-1")
@@ -526,6 +532,8 @@ public class SDKBehaviorTests
             File.Delete(baseYaml);
             File.Delete(overwriteYaml);
             File.Delete(caseYaml);
+            if (Directory.Exists(overwriteFolder))
+                Directory.Delete(overwriteFolder, true);
         }
     }
 

@@ -2,10 +2,10 @@ using BinaryDeserializer = QaaS.Framework.Serialization.Deserializers.Binary;
 using BinarySerializer = QaaS.Framework.Serialization.Serializers.Binary;
 using MessagePackDeserializer = QaaS.Framework.Serialization.Deserializers.MessagePack;
 using ProtobufDeserializer = QaaS.Framework.Serialization.Deserializers.ProtobufMessage;
+using System.Runtime.Serialization;
 using XmlDeserializer = QaaS.Framework.Serialization.Deserializers.Xml;
 using XmlElementDeserializer = QaaS.Framework.Serialization.Deserializers.XmlElement;
 using YamlDeserializer = QaaS.Framework.Serialization.Deserializers.Yaml;
-using MessagePack;
 using System.Reflection;
 
 namespace QaaS.Framework.Serialization.Tests;
@@ -16,13 +16,31 @@ public class SerializationEdgeCaseTests
     [Test]
     public void BinaryDeserializer_WithSpecificType_ReturnsTypedPayload()
     {
+        var serializer = new BinarySerializer();
         var deserializer = new BinaryDeserializer();
         const string payload = "typed";
 
-        var bytes = MessagePackSerializer.Serialize(payload);
+        var bytes = serializer.Serialize(payload);
         var result = deserializer.Deserialize(bytes, typeof(string)) as string;
 
         Assert.That(result, Is.EqualTo(payload));
+    }
+
+    [Test]
+    public void BinaryDeserializer_WithoutSpecificType_ThrowsArgumentException()
+    {
+        var bytes = new BinarySerializer().Serialize("typed");
+
+        Assert.Throws<ArgumentException>(() => new BinaryDeserializer().Deserialize(bytes));
+    }
+
+    [Test]
+    public void BinaryDeserializer_WithUnexpectedRuntimeType_ThrowsSerializationException()
+    {
+        var bytes = new BinarySerializer().Serialize("typed");
+
+        Assert.Throws<SerializationException>(() =>
+            new BinaryDeserializer().Deserialize(bytes, typeof(int)));
     }
 
     [Test]
