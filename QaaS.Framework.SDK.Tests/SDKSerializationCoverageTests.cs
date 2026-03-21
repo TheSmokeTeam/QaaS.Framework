@@ -282,6 +282,7 @@ public class SDKSerializationCoverageTests
                 .SetLogger(NullLogger.Instance)
                 .SetConfigurationFile(null)
                 .WithOverwriteFile(null)
+                .WithOverwriteFolder(null)
                 .WithOverwriteArgument(null)
                 .SetCase(null)
                 .WithOverwriteArgument("root:value=argument")

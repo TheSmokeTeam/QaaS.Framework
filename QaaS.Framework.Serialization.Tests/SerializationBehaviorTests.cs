@@ -77,7 +77,7 @@ public class SerializationBehaviorTests
         const string payload = "gamma";
 
         var bytes = serializer.Serialize(payload);
-        var result = deserializer.Deserialize(bytes);
+        var result = deserializer.Deserialize(bytes, typeof(string));
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result, Is.EqualTo("gamma"));

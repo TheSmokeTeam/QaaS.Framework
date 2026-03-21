@@ -50,19 +50,29 @@ public class ExecutionsCoverageEdgeCaseTests
     }
 
     [Test]
-    public void Constants_DefaultLoggers_AreInitialized()
+    public void ExecutionLogging_DefaultLoggers_AreInitialized()
     {
         Assert.Multiple(() =>
         {
-            Assert.That(Constants.DefaultSerilogLogger, Is.Not.Null);
-            Assert.That(Constants.DefaultLogger, Is.Not.Null);
+            Assert.That(ExecutionLogging.DefaultSerilogLogger, Is.Not.Null);
+            Assert.That(ExecutionLogging.DefaultLogger, Is.Not.Null);
+        });
+    }
+
+    [Test]
+    public void Constants_BackwardCompatibilitySurface_ReusesExecutionLoggingDefaults()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(Constants.DefaultSerilogLogger, Is.SameAs(ExecutionLogging.DefaultSerilogLogger));
+            Assert.That(Constants.DefaultLogger, Is.SameAs(ExecutionLogging.DefaultLogger));
         });
     }
 
     [Test]
     public void BuildDefaultSerilogLogger_DoesNotEmitElasticWarnings_WhenSendLogsWasNotRequested()
     {
-        var buildMethod = typeof(Constants).GetMethod("BuildDefaultSerilogLogger",
+        var buildMethod = typeof(ExecutionLogging).GetMethod("BuildDefaultSerilogLogger",
             BindingFlags.NonPublic | BindingFlags.Static)!;
         var stdout = new StringWriter();
         var stderr = new StringWriter();
