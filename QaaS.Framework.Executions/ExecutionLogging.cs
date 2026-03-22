@@ -79,6 +79,7 @@ public static class ExecutionLogging
 
     internal static bool ShouldApplyDefaultsProvider(Options.LoggerOptions options) =>
         options.LoggerConfigurationFilePath is null &&
+        !options.DisableElasticDefaults &&
         !options.SendLogs &&
         string.IsNullOrWhiteSpace(options.ElasticUri) &&
         string.IsNullOrWhiteSpace(options.ElasticUsername) &&

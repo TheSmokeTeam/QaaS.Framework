@@ -35,4 +35,8 @@ All available options (not case sensitive) are: {nameof(LogEventLevel.Verbose)},
     [Option("elastic-password", Default = null,
         HelpText = "Optional Elasticsearch password for the logger sink.")]
     public string? ElasticPassword { get; init; } = null;
+
+    [Option("disable-elastic-defaults", Default = false,
+        HelpText = "Disables Elastic defaults registered through the runtime defaults provider for this run.")]
+    public bool DisableElasticDefaults { get; init; } = false;
 }

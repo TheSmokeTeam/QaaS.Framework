@@ -118,6 +118,7 @@ public class ExecutionsBehaviorTests
             Assert.That(options.ElasticUri, Is.Null);
             Assert.That(options.ElasticUsername, Is.Null);
             Assert.That(options.ElasticPassword, Is.Null);
+            Assert.That(options.DisableElasticDefaults, Is.False);
         });
     }
 
@@ -206,6 +207,23 @@ public class ExecutionsBehaviorTests
         });
 
         Assert.That(resolvedOptions.SendLogs, Is.True);
+    }
+
+    [Test]
+    public void ResolveElasticLoggingOptions_DoesNotUseProvider_WhenDefaultsWereExplicitlyDisabled()
+    {
+        ExecutionLogging.RegisterDefaults(sendLogs: true, elasticUri: "http://elastic.local:9200");
+
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions
+        {
+            DisableElasticDefaults = true
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resolvedOptions.SendLogs, Is.False);
+            Assert.That(resolvedOptions.ElasticUri, Is.Null);
+        });
     }
 
     [Test]
