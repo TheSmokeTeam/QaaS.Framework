@@ -15,6 +15,11 @@ namespace QaaS.Framework.Executions.Tests;
 [TestFixture]
 public class ExecutionsBehaviorTests
 {
+    private sealed class TestDefaultsProvider(ElasticLoggingDefaults defaults) : IElasticLoggingDefaultsProvider
+    {
+        public ElasticLoggingDefaults GetDefaults() => defaults;
+    }
+
     private sealed class TestRunner : IRunner
     {
         public bool DidRun { get; private set; }
@@ -97,6 +102,9 @@ public class ExecutionsBehaviorTests
         public bool Force { get; set; }
     }
 
+    [SetUp]
+    public void SetUp() => ExecutionLogging.RegisterDefaults(sendLogs: false);
+
     [Test]
     public void LoggerOptions_DefaultValues_AreNullOrExpectedDefaults()
     {
@@ -111,6 +119,93 @@ public class ExecutionsBehaviorTests
             Assert.That(options.ElasticUsername, Is.Null);
             Assert.That(options.ElasticPassword, Is.Null);
         });
+    }
+
+    [Test]
+    public void RegisterDefaultsProvider_ReturnsRegisteredProvider()
+    {
+        var defaults = new ElasticLoggingDefaults
+        {
+            SendLogs = true,
+            ElasticUri = "http://elastic.local:9200",
+            ElasticUsername = "elastic",
+            ElasticPassword = "secret"
+        };
+        var provider = new TestDefaultsProvider(defaults);
+
+        ExecutionLogging.RegisterDefaultsProvider(provider);
+
+        Assert.That(ExecutionLogging.GetDefaultsProvider(), Is.SameAs(provider));
+    }
+
+    [Test]
+    public void ResolveElasticLoggingOptions_UsesProviderDefaults_WhenOptionsAreUntouched()
+    {
+        ExecutionLogging.RegisterDefaults(
+            sendLogs: true,
+            elasticUri: "http://elastic.local:9200",
+            elasticUsername: "elastic",
+            elasticPassword: "secret");
+
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resolvedOptions.SendLogs, Is.True);
+            Assert.That(resolvedOptions.ElasticUri, Is.EqualTo("http://elastic.local:9200"));
+            Assert.That(resolvedOptions.ElasticUsername, Is.EqualTo("elastic"));
+            Assert.That(resolvedOptions.ElasticPassword, Is.EqualTo("secret"));
+        });
+    }
+
+    [Test]
+    public void ResolveElasticLoggingOptions_DoesNotUseProvider_WhenLoggerConfigurationFilePathIsProvided()
+    {
+        ExecutionLogging.RegisterDefaults(sendLogs: true, elasticUri: "http://elastic.local:9200");
+
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions
+        {
+            LoggerConfigurationFilePath = "logger.yaml"
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resolvedOptions.SendLogs, Is.False);
+            Assert.That(resolvedOptions.ElasticUri, Is.Null);
+            Assert.That(resolvedOptions.LoggerConfigurationFilePath, Is.EqualTo("logger.yaml"));
+        });
+    }
+
+    [Test]
+    public void ResolveElasticLoggingOptions_DoesNotUseProvider_WhenAnyElasticValueWasProvided()
+    {
+        ExecutionLogging.RegisterDefaults(sendLogs: true, elasticUri: "http://elastic.local:9200");
+
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions
+        {
+            ElasticUri = "http://manual.local:9200"
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resolvedOptions.SendLogs, Is.False);
+            Assert.That(resolvedOptions.ElasticUri, Is.EqualTo("http://manual.local:9200"));
+            Assert.That(resolvedOptions.ElasticUsername, Is.Null);
+            Assert.That(resolvedOptions.ElasticPassword, Is.Null);
+        });
+    }
+
+    [Test]
+    public void ResolveElasticLoggingOptions_DoesNotUseProvider_WhenSendLogsWasExplicitlyEnabled()
+    {
+        ExecutionLogging.RegisterDefaults(sendLogs: false);
+
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions
+        {
+            SendLogs = true
+        });
+
+        Assert.That(resolvedOptions.SendLogs, Is.True);
     }
 
     [Test]

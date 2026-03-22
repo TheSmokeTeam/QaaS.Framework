@@ -8,12 +8,81 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace QaaS.Framework.Executions;
 
+public sealed record ElasticLoggingDefaults
+{
+    public bool SendLogs { get; init; }
+
+    public string? ElasticUri { get; init; }
+
+    public string? ElasticUsername { get; init; }
+
+    public string? ElasticPassword { get; init; }
+}
+
+public interface IElasticLoggingDefaultsProvider
+{
+    ElasticLoggingDefaults GetDefaults();
+}
+
 public static class ExecutionLogging
 {
+    private sealed class StaticElasticLoggingDefaultsProvider(ElasticLoggingDefaults defaults)
+        : IElasticLoggingDefaultsProvider
+    {
+        public ElasticLoggingDefaults GetDefaults() => defaults;
+    }
+
     public static readonly Serilog.ILogger DefaultSerilogLogger = BuildDefaultSerilogLogger();
 
     public static readonly ILogger DefaultLogger =
         new SerilogLoggerFactory(DefaultSerilogLogger).CreateLogger("DefaultLogger");
+
+    private static IElasticLoggingDefaultsProvider? _defaultsProvider;
+
+    public static void RegisterDefaultsProvider(IElasticLoggingDefaultsProvider defaultsProvider)
+    {
+        ArgumentNullException.ThrowIfNull(defaultsProvider);
+        _defaultsProvider = defaultsProvider;
+    }
+
+    public static IElasticLoggingDefaultsProvider? GetDefaultsProvider() => _defaultsProvider;
+
+    public static void RegisterDefaults(
+        bool sendLogs,
+        string? elasticUri = null,
+        string? elasticUsername = null,
+        string? elasticPassword = null) =>
+        RegisterDefaultsProvider(new StaticElasticLoggingDefaultsProvider(new ElasticLoggingDefaults
+        {
+            SendLogs = sendLogs,
+            ElasticUri = elasticUri,
+            ElasticUsername = elasticUsername,
+            ElasticPassword = elasticPassword
+        }));
+
+    internal static ResolvedElasticLoggingOptions ResolveElasticLoggingOptions(Options.LoggerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var defaults = ShouldApplyDefaultsProvider(options)
+            ? GetDefaultsProvider()?.GetDefaults()
+            : null;
+
+        return new ResolvedElasticLoggingOptions(
+            options.LoggerLevel,
+            options.LoggerConfigurationFilePath,
+            defaults?.SendLogs ?? options.SendLogs,
+            defaults?.ElasticUri ?? options.ElasticUri,
+            defaults?.ElasticUsername ?? options.ElasticUsername,
+            defaults?.ElasticPassword ?? options.ElasticPassword);
+    }
+
+    internal static bool ShouldApplyDefaultsProvider(Options.LoggerOptions options) =>
+        options.LoggerConfigurationFilePath is null &&
+        !options.SendLogs &&
+        string.IsNullOrWhiteSpace(options.ElasticUri) &&
+        string.IsNullOrWhiteSpace(options.ElasticUsername) &&
+        string.IsNullOrWhiteSpace(options.ElasticPassword);
 
     private static Serilog.ILogger BuildDefaultSerilogLogger()
     {
@@ -102,3 +171,11 @@ public static class ExecutionLogging
         };
     }
 }
+
+internal sealed record ResolvedElasticLoggingOptions(
+    LogEventLevel? LoggerLevel,
+    string? LoggerConfigurationFilePath,
+    bool SendLogs,
+    string? ElasticUri,
+    string? ElasticUsername,
+    string? ElasticPassword);

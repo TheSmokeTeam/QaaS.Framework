@@ -25,6 +25,10 @@
       <PackageReference Include="Serilog.Sinks.Elasticsearch" Version="10.0.0" />
     </ItemGroup>
 
+    <ItemGroup>
+      <InternalsVisibleTo Include="QaaS.Framework.Executions.Tests" />
+    </ItemGroup>
+
 
     <ItemGroup>
       <None Include="../README.md" Pack="true" PackagePath="/" />
