@@ -22,7 +22,7 @@
     <ItemGroup>
       <PackageReference Include="CommandLineParser" Version="2.9.1" />
       <PackageReference Include="morelinq" Version="4.4.0" />
-      <PackageReference Include="QaaS.ElasticConfiguration" Version="[1.0.0]">
+      <PackageReference Include="QaaS.ElasticBootstrap" Version="[1.0.0]">
         <ExcludeAssets>none</ExcludeAssets>
         <IncludeAssets>build;buildTransitive;compile;contentFiles;native;runtime</IncludeAssets>
       </PackageReference>
