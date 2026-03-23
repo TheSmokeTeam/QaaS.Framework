@@ -8,10 +8,12 @@ namespace QaaS.Framework.Configurations.ConfigurationBuilderExtensions;
 public static class PlaceholderConfigurationBuilderExtension
 {
     /// <summary>
-    /// Resolves placeholders in the configurationBuilder
+    /// Adds the placeholder-resolving configuration source to the configuration builder.
     /// </summary>
-    /// <param name="configurationBuilder">The <see cref="IConfigurationBuilder"/> with unresolved placeholders</param>
-    /// <returns>The <see cref="IConfigurationBuilder"/> with resolved placeholders</returns>
+    /// <remarks>
+    /// Call this extension before building IConfiguration when placeholder expansion should be applied as part of the configuration pipeline.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="Placeholders" />
     public static IConfigurationBuilder AddPlaceholderResolver(this IConfigurationBuilder configurationBuilder)
     {
         var configuration = configurationBuilder.Build();

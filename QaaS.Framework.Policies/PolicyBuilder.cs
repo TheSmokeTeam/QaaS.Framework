@@ -33,6 +33,13 @@ public class PolicyBuilder
         return this;
     }
     
+    /// <summary>
+    /// Sets the configuration currently stored on the Framework policy builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
     public PolicyBuilder Configure(IPolicyConfig config)
     {
         Reset();
@@ -60,6 +67,13 @@ public class PolicyBuilder
         return this;
     }
 
+    /// <summary>
+    /// Builds the configured Framework policy builder output from the current state.
+    /// </summary>
+    /// <remarks>
+    /// Call this after the fluent configuration is complete. The method validates the accumulated state and materializes the runtime or immutable configuration object represented by the builder.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
     public Policy Build()
     {
         IPolicyConfig? type = null;
@@ -90,6 +104,13 @@ public class PolicyBuilder
         };
     }
 
+    /// <summary>
+    /// Builds a policy chain from the supplied policy builder collection.
+    /// </summary>
+    /// <remarks>
+    /// This helper lets callers collapse several fluent policy builders into the policy chain consumed by the runtime configuration surface.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
     public static Policy? BuildPolicies(PolicyBuilder[]? policyBuilders)
     {
         Policy? policies = null; // create policies from builders

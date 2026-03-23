@@ -11,13 +11,12 @@ namespace QaaS.Framework.Configurations.ConfigurationBuilderExtensions;
 public static class YamlConfigurationBuilderExtension
 {
     /// <summary>
-    /// Adds the <see cref="HttpGetYamlConfigurationSource"/> configuration source to the
-    /// <see cref="IConfigurationBuilder"/>
+    /// Adds a YAML configuration source that is loaded through HTTP GET.
     /// </summary>
-    /// <param name="builder">The <see cref="IConfigurationBuilder"/> to add to</param>
-    /// <param name="yamlUrl">The url to the YAML file to get</param>
-    /// <param name="timeout">The timeout for the HTTP request. If not provided, the default is 100 seconds</param>
-    /// <returns>The <see cref="IConfigurationBuilder"/></returns>
+    /// <remarks>
+    /// Call this extension during configuration bootstrap when YAML should be loaded remotely instead of from the local file system.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="YAML" />
     public static IConfigurationBuilder AddYamlFromHttpGet(this IConfigurationBuilder builder,
         string yamlUrl, TimeSpan? timeout = null)
     {
@@ -25,14 +24,12 @@ public static class YamlConfigurationBuilderExtension
     }
     
     /// <summary>
-    /// Adds a YAML to the <see cref="IConfigurationBuilder"/> with
-    /// <see cref="ConfigurationCollapseParser.CollapseShiftLeftArrowsInConfiguration"/> support,
-    /// if the yaml starts with http:// or https:// adds it
-    /// using <see cref="AddYamlFromHttpGet"/> else adds it using the `AddYamlFile`
+    /// Adds a YAML configuration source from a local file path or URL.
     /// </summary>
-    /// <param name="builder">The <see cref="IConfigurationBuilder"/> to add to</param>
-    /// <param name="yamlPath">The path to the yaml to add (can be Url or Path)</param>
-    /// <returns>The <see cref="IConfigurationBuilder"/></returns>
+    /// <remarks>
+    /// Call this extension during configuration bootstrap so YAML sources go through the same QaaS-aware loading path for files and remote URLs.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="YAML" />
     public static IConfigurationBuilder AddYaml(this IConfigurationBuilder builder,
         string yamlPath)
     {
