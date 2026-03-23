@@ -43,7 +43,7 @@ public static class ValidationUtils
         var properties = GetValidationProperties(obj.GetType(), bindingFlags)
             .Where(property => property.GetIndexParameters().Length == 0 &&
                                property.PropertyType != obj.GetType() &&
-                               (property.GetMethod?.IsPublic == true || ShouldInspectProperty(property)));
+                               ShouldTraverseProperty(property, bindingFlags));
         foreach (var property in properties)
         {
             if (!TryGetPropertyValue(obj, property, out var value))
@@ -205,6 +205,18 @@ public static class ValidationUtils
         return property.GetCustomAttributes<ValidationAttribute>().Any()
                || property.GetCustomAttributes<DescriptionAttribute>().Any()
                || property.GetCustomAttributes<DefaultValueAttribute>().Any();
+    }
+
+    private static bool ShouldTraverseProperty(PropertyInfo property, BindingFlags bindingFlags)
+    {
+        if (property.GetMethod?.IsPublic == true)
+            return true;
+
+        if ((bindingFlags & BindingFlags.NonPublic) == 0)
+            return false;
+
+        return property.GetGetMethod(nonPublic: true) != null &&
+               (ShouldInspectProperty(property) || !IsTerminalType(property.PropertyType));
     }
 
     private static IEnumerable<ValidationResult> DistinctValidationResults(IEnumerable<ValidationResult> validationResults)

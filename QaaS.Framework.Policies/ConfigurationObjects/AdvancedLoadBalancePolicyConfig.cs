@@ -4,15 +4,26 @@ using QaaS.Framework.Policies.AdvancedLoadBalance;
 
 namespace QaaS.Framework.Policies.ConfigurationObjects;
 
-public record AdvancedLoadBalancePolicyConfig : IPolicyConfig
+public record AdvancedLoadBalancePolicyConfig : IPolicyConfig, IValidatableObject
 {
-    [EitherTimeoutMsOrAmountRequired]
-    [Required, Description(
+    [Description(
          "The stages of publishing information, in each stage the messages will be published" +
          "with a given rate untill 'Amount' messages are generated or untill 'TimeoutMs' is reached")]
     internal StageConfig[]? Stages { get; set; }
 
     public IReadOnlyList<StageConfig> ReadStages() => Stages ?? [];
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Stages == null)
+        {
+            yield return new ValidationResult("The Stages field is required.");
+            yield break;
+        }
+
+        if (Stages.Any(instance => !instance.Amount.HasValue && !instance.TimeoutMs.HasValue))
+            yield return new ValidationResult("Either 'TimeoutMs' or 'Amount' must have a value.");
+    }
 }
 
 /// <summary>
@@ -36,20 +47,3 @@ public record StageConfig
     public ulong TimeIntervalMs { get; set; } = 1000;
 }
 
-internal class EitherTimeoutMsOrAmountRequiredAttribute : ValidationAttribute
-{
-    /// <summary>
-    /// Check that one of the two parameters 'TimeoutMS' or 'Count' exists for the policy
-    /// configuration to be valid
-    /// </summary>
-    /// <param name="value">instance if the configuration</param>
-    /// <param name="validationContext">context of the configuration</param>
-    /// <returns>true if the configuration is valid, false otherwise</returns>
-    protected override ValidationResult IsValid(object? value, ValidationContext validationContext)
-    {
-        var config = (AdvancedLoadBalancePolicyConfig)validationContext.ObjectInstance;
-        return config.Stages!.Any(instance => !instance.Amount.HasValue && !instance.TimeoutMs.HasValue)
-            ? new ValidationResult("Either 'TimeoutMs' or 'Amount' must have a value.")
-            : ValidationResult.Success!;
-    }
-}
