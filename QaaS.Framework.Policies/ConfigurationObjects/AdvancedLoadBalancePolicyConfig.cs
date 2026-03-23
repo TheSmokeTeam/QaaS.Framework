@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using QaaS.Framework.Policies.AdvancedLoadBalance;
 
@@ -9,8 +9,7 @@ public record AdvancedLoadBalancePolicyConfig : IPolicyConfig, IValidatableObjec
     [Description(
          "The stages of publishing information, in each stage the messages will be published" +
          "with a given rate untill 'Amount' messages are generated or untill 'TimeoutMs' is reached")]
-    internal StageConfig[]? Stages { get; set; }
-
+    public StageConfig[]? Stages { get; internal set; }
     public IReadOnlyList<StageConfig> ReadStages() => Stages ?? [];
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)

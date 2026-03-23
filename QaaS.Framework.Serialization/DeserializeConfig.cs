@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using QaaS.Framework.Configurations.CustomValidationAttributes;
 
 namespace QaaS.Framework.Serialization;
@@ -14,7 +14,6 @@ public record DeserializeConfig
     [RequiredIfAny(nameof(Deserializer), SerializationType.ProtobufMessage), 
      Description("Configuration for making deserializer deserialize into a specific C# object, " +
                  "if set to null will deserialize to default deserilizer's C# object"), DefaultValue(null)]
-    internal SpecificTypeConfig? SpecificType { get; set; } = null;
-
+    public SpecificTypeConfig? SpecificType { get; internal set; } = null;
     public SpecificTypeConfig? ReadSpecificType() => SpecificType;
 }

@@ -29,34 +29,27 @@ public class DataSourceBuilder : IYamlConvertible
     public string? Name { get; internal set; }
 
     [Required, Description("The name of the generator to use")]
-    internal string? Generator { get; set; }
-
+    public string? Generator { get; internal set; }
     [Description("True to iterate over data lazily"), DefaultValue(false)]
-    internal bool Lazy { get; set; } = false;
-
+    public bool Lazy { get; internal set; } = false;
     [EnumerablePropertyDoesNotContainAnotherPropertyValue(nameof(Name)),
      Description("Names of data sources to pass to this data source for usage, those data sources dont have to be" +
                  " defined before this data source.")]
-    internal string[] DataSourceNames { get; set; } = [];
-
+    public string[] DataSourceNames { get; internal set; } = [];
     [EnumerablePropertyDoesNotContainAnotherPropertyValue(nameof(Name)),
      Description(
          "Regex patterns of data sources to pass to this data source for usage, those data sources dont have to be" +
          " defined before this data source.")]
-    internal string[] DataSourcePatterns { get; set; } = [];
-
+    public string[] DataSourcePatterns { get; internal set; } = [];
     [Description("Implementation configuration for the generator, " +
                  "the configuration given here is loaded into the provided generator dynamically.")]
-    internal IConfiguration GeneratorConfiguration { get; set; } = new ConfigurationBuilder().Build();
-
+    public IConfiguration GeneratorConfiguration { get; internal set; } = new ConfigurationBuilder().Build();
     [Description("Serialize to use on the generated data"), DefaultValue(null)]
     [NullUnlessAll(new[] { nameof(Deserialize) }, [null])]
-    internal SerializeConfig? Serialize { get; set; } = null;
-
+    public SerializeConfig? Serialize { get; internal set; } = null;
     [Description("Deserialize to use on the generated data"), DefaultValue(null)]
     [NullUnlessAll(new[] { nameof(Serialize) }, [null])]
-    internal DeserializeConfig? Deserialize { get; set; } = null;
-
+    public DeserializeConfig? Deserialize { get; internal set; } = null;
     /// <summary>
     /// Sets the name used for the current Framework data source builder instance.
     /// </summary>

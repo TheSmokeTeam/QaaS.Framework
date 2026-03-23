@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using QaaS.Framework.SDK.DataSourceObjects;
@@ -13,7 +13,7 @@ namespace QaaS.Framework.SDK.Tests.BuildersTests;
 public class DataSourceBuilderTests
 {
     private static PropertyInfo _generatorInfo =
-        typeof(DataSourceBuilder).GetProperty("Generator", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        typeof(DataSourceBuilder).GetProperty("Generator", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
 
     private static IEnumerable<TestCaseData> GetDataSourcesBuilders()
     {

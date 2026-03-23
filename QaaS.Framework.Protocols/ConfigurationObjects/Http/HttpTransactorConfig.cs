@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using QaaS.Framework.Serialization;
 
@@ -29,8 +29,7 @@ public class HttpTransactorConfig : ITransactorConfig
 
     [Description("The JWT configurations for the generation and addition of a JWT as a Bearer authorization header, " +
                  "if this field is not configured will not use JwtAuth"), DefaultValue(null)]
-    internal JwtAuthConfig? JwtAuth { get; set; } = null;
-
+    public JwtAuthConfig? JwtAuth { get; internal set; } = null;
     public JwtAuthConfig? ReadJwtAuth() => JwtAuth;
 
     [Description("The amount of times to retry each failed request"), DefaultValue(1), Range(1, int.MaxValue)]

@@ -6,23 +6,18 @@ namespace QaaS.Framework.Policies;
 
 public class PolicyBuilder
 {
-    internal CountPolicyConfig? Count { get; set; }
-
-    internal TimeoutPolicyConfig? Timeout { get; set; }
-
+    public CountPolicyConfig? Count { get; internal set; }
+    public TimeoutPolicyConfig? Timeout { get; internal set; }
     [Description("This policy is in charge of controlling the rate in which the action is repeatedly executed")]
-    internal LoadBalancePolicyConfig? LoadBalance { get; set; }
-
+    public LoadBalancePolicyConfig? LoadBalance { get; internal set; }
     [Description(
          "This policy is in charge of controlling the rate in which the action is repeatedly executed and increasing it overtime")]
-    internal IncreasingLoadBalancePolicyConfig? IncreasingLoadBalance { get; set; }
-
+    public IncreasingLoadBalancePolicyConfig? IncreasingLoadBalance { get; internal set; }
     [Description(
          "This policy executes actions in separate stages, each stage has a rate in which to execute" +
          " the actions included in it and a count or timeout to know after how many actions or after" +
          " how much time to end the stage and move to the next.")]
-    internal AdvancedLoadBalancePolicyConfig? AdvancedLoadBalance { get; set; }
-
+    public AdvancedLoadBalancePolicyConfig? AdvancedLoadBalance { get; internal set; }
     private PolicyBuilder Reset()
     {
         Count = null;
