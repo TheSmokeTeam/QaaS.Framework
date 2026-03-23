@@ -8,12 +8,12 @@ namespace QaaS.Framework.SDK.Extensions;
 public static class EnumerableExtensions
 {
     /// <summary>
-    /// Validates the enumerable only consists of one item, if not throws indicative exception, if yes returns that one
-    /// item
+    /// Returns the single item contained in the provided sequence.
     /// </summary>
-    /// <param name="enumerable"> The enumerable to validate and return as a single item </param>
-    /// <typeparam name="TItem"> The type of the items in the enumerable </typeparam>
-    /// <returns> The single item in the enumerable </returns>
+    /// <remarks>
+    /// The helper enforces the invariant that exactly one item must be present and throws when the sequence is empty or contains more than one value.
+    /// </remarks>
+    /// <qaas-docs group="Utilities" subgroup="Enumerables" />
     public static TItem AsSingle<TItem>(this IEnumerable<TItem> enumerable)
     {
         if (enumerable == null)
@@ -35,23 +35,12 @@ public static class EnumerableExtensions
     }
 
     /// <summary>
-    /// Returns only the data objects from 'dataList' that pass the given filter.
+    /// Filters configuration objects by the supplied conditions and returns the matching items.
     /// </summary>
-    /// 
-    /// <param name="dataList"> The list of data to search for datas that have
-    /// a field matching an item in the `conditionFieldItemEnumerable` </param>
-    /// <param name="conditionFieldItemEnumerable"> A list of filter patterns to filter against a field
-    /// in the data in the `dataList` </param>
-    /// <param name="filter"> The filter function used to filter the dataList </param>
-    /// <param name="nameOfDataList"> The name of the list of data given for usage in the exception thrown when
-    /// none of its datas match an item from the `conditionFieldItemEnumerable` by the equation function</param>
-    /// 
-    /// <typeparam name="TData"> The type of the data </typeparam>
-    /// <typeparam name="TPattern"> The type of the filter pattern </typeparam>
-    /// <returns> A list of data matching the given `conditionFieldItemEnumerable` according to the equation function </returns>
-    /// 
-    /// <exception cref="ArgumentException"> Thrown when an item from `conditionFieldItemEnumerable` does not match
-    /// any of the datas in the `dataList` according to the equation function</exception>
+    /// <remarks>
+    /// Throws when a requested condition does not match any item so callers can fail fast on invalid configuration references.
+    /// </remarks>
+    /// <qaas-docs group="Utilities" subgroup="Enumerables" />
     public static IList<TData> GetFilteredConfigurationObjectList<TData, TPattern>(
              IImmutableList<TData> dataList,
              IEnumerable<TPattern>? conditionFieldItemEnumerable, 

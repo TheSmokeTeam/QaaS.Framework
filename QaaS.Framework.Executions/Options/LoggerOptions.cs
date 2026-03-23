@@ -21,7 +21,7 @@ All available options (not case sensitive) are: {nameof(LogEventLevel.Verbose)},
     public string? LoggerConfigurationFilePath { get; init; } = null;
 
     
-    [Option("send-logs", HelpText = @"Weather to send the logs to Smokes's logs database", Default = false)]
+    [Option("send-logs", HelpText = @"Whether to send logs to the configured Elasticsearch sink.", Default = false)]
     public bool SendLogs { get; init; } = false;
 
     [Option("elastic-uri", Default = null,
@@ -35,4 +35,8 @@ All available options (not case sensitive) are: {nameof(LogEventLevel.Verbose)},
     [Option("elastic-password", Default = null,
         HelpText = "Optional Elasticsearch password for the logger sink.")]
     public string? ElasticPassword { get; init; } = null;
+
+    [Option("disable-elastic-defaults", Default = false,
+        HelpText = "Disables Elastic defaults registered through the runtime defaults provider for this run.")]
+    public bool DisableElasticDefaults { get; init; } = false;
 }

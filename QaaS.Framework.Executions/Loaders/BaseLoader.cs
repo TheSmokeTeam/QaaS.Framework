@@ -32,15 +32,18 @@ public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptio
 
     private Serilog.ILogger BuildSerilogLogger(TOptions options)
     {
-        var configuredLogLevel =  options.LoggerLevel ?? LogEventLevel.Information;
-        var loggerConfiguration = options.LoggerConfigurationFilePath != null
-            ? CreateLoggerConfigurationFromLoggerConfigurationFile(options.LoggerConfigurationFilePath, options.LoggerLevel)
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(options);
+        var configuredLogLevel = resolvedOptions.LoggerLevel ?? LogEventLevel.Information;
+        var loggerConfiguration = resolvedOptions.LoggerConfigurationFilePath != null
+            ? CreateLoggerConfigurationFromLoggerConfigurationFile(
+                resolvedOptions.LoggerConfigurationFilePath,
+                resolvedOptions.LoggerLevel)
             : new LoggerConfiguration()
-                .MinimumLevel.Is(options.SendLogs ? LogEventLevel.Verbose : configuredLogLevel)
+                .MinimumLevel.Is(resolvedOptions.SendLogs ? LogEventLevel.Verbose : configuredLogLevel)
                 .WriteTo.Console(configuredLogLevel);
 
         var warnings = new List<string>();
-        var serilogLogger = AddElasticSinkIfEnabled(loggerConfiguration, options, warnings).CreateLogger();
+        var serilogLogger = AddElasticSinkIfEnabled(loggerConfiguration, resolvedOptions, warnings).CreateLogger();
         foreach (var warning in warnings)
         {
             serilogLogger.Warning("{WarningMessage}", warning);
@@ -51,7 +54,7 @@ public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptio
 
     private LoggerConfiguration AddElasticSinkIfEnabled(
         LoggerConfiguration config,
-        TOptions options,
+        ResolvedElasticLoggingOptions options,
         ICollection<string> warnings)
         => options.SendLogs
             ? config.AddQaaSElasticSink(options.ElasticUri, options.ElasticUsername, options.ElasticPassword, warnings.Add)

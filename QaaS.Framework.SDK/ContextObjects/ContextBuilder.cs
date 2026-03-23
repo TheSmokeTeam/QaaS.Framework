@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QaaS.Framework.Configurations;
@@ -30,8 +30,12 @@ public class ContextBuilder : IContextBuilder
     private string? _executionId;
 
     /// <summary>
-    /// Builder constructor starts builder with an IConfigurationBuilder loaded with the given configurationFile
+    /// Creates a context builder that starts from a base QaaS configuration file.
     /// </summary>
+    /// <remarks>
+    /// Use this constructor when the context should load its initial configuration from a file path before overwrite sources and reference resolution are applied.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     /// <param name="configurationFile"> The relative/full path to the base `.qaas.yaml` configuration file </param>
     /// <param name="referenceResolutionPaths"> Used in
     /// <see cref="ConfigurationReferencesParser.ResolveReferencesInConfiguration"/> as parameter of the same name </param>
@@ -48,8 +52,12 @@ public class ContextBuilder : IContextBuilder
     }
 
     /// <summary>
-    /// Builder constructor starts builder with given IConfigurationBuilder
+    /// Creates a context builder that starts from an existing configuration builder pipeline.
     /// </summary>
+    /// <remarks>
+    /// Use this constructor when configuration sources are assembled externally and should be handed to the QaaS context pipeline as-is.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     /// <param name="configurationBuilder"> A configuration builder to build the context's configurations with </param>
     /// <param name="referenceResolutionPaths"> Used in
     /// <see cref="ConfigurationReferencesParser.ResolveReferencesInConfiguration"/> as parameter of the same name </param>
@@ -64,14 +72,26 @@ public class ContextBuilder : IContextBuilder
         _uniqueIdPathRegexes = uniqueIdPathRegexes;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Sets the logger stored on the built context.
+    /// </summary>
+    /// <remarks>
+    /// The configured logger becomes the logger used by the context itself and by runtime components resolved from that context.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder SetLogger(ILogger logger)
     {
         _logger = logger;
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Sets the base configuration file used by the context builder.
+    /// </summary>
+    /// <remarks>
+    /// Use this when the base configuration file should be selected or replaced after the builder has been created.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder SetConfigurationFile(string? configurationFile)
     {
         if (configurationFile == null) return this;
@@ -79,7 +99,13 @@ public class ContextBuilder : IContextBuilder
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Adds an overwrite file that should be applied during context construction.
+    /// </summary>
+    /// <remarks>
+    /// Overwrite files are applied after the base configuration and before the final configuration is built.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder WithOverwriteFile(string? overwriteFile)
     {
         if (overwriteFile == null) return this;
@@ -87,7 +113,13 @@ public class ContextBuilder : IContextBuilder
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Adds an overwrite folder whose YAML files should be applied during context construction.
+    /// </summary>
+    /// <remarks>
+    /// Every YAML file discovered in the folder is applied as an overwrite source in the order returned by the file-system enumeration.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder WithOverwriteFolder(string? overwriteFolder)
     {
         if (overwriteFolder == null) return this;
@@ -95,7 +127,13 @@ public class ContextBuilder : IContextBuilder
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Sets the case file used during context construction.
+    /// </summary>
+    /// <remarks>
+    /// The supplied value is also stored as the case name on the built context.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder SetCase(string? caseFile)
     {
         if (caseFile == null) return this;
@@ -105,14 +143,26 @@ public class ContextBuilder : IContextBuilder
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Sets the execution identifier stored on the built context.
+    /// </summary>
+    /// <remarks>
+    /// The execution identifier flows into the built context and can later be used by logging, reports, and storage integrations.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder SetExecutionId(string? executionId)
     {
         _executionId = executionId;
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Adds a command-line style overwrite argument to the context builder.
+    /// </summary>
+    /// <remarks>
+    /// Use this when command-line style overrides should participate in the same configuration pipeline as YAML sources.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder WithOverwriteArgument(string? argument)
     {
         if (argument == null) return this;
@@ -120,28 +170,52 @@ public class ContextBuilder : IContextBuilder
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Adds a reference-resolution rule to the context builder.
+    /// </summary>
+    /// <remarks>
+    /// Reference-resolution rules are applied while building the final configuration so linked configuration values can be expanded consistently.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder WithReferenceResolution(ReferenceConfig referenceConfig)
     {
         _referenceConfigs.Add(referenceConfig);
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Delays case-file application until after reference resolution has completed.
+    /// </summary>
+    /// <remarks>
+    /// This changes resolution order so the case overlay is applied after references are expanded from the base configuration and overwrites.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder ResolveCaseLast()
     {
         _resolveCaseLast = true;
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Enables environment-variable expansion while the context is being built.
+    /// </summary>
+    /// <remarks>
+    /// Enable this when configuration values should resolve environment variables while the context is being built.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder WithEnvironmentVariableResolution()
     {
         _resolveWithEnvironmentVariables = true;
         return this;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Sets the running-session store used by the built context.
+    /// </summary>
+    /// <remarks>
+    /// The running-session store allows runtime components to coordinate and inspect active sessions through the built context.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder SetCurrentRunningSessions(IInternalRunningSessions runningSessions)
     {
         _currentRunningSessions = runningSessions;
@@ -183,7 +257,13 @@ public class ContextBuilder : IContextBuilder
         return configuration;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Builds an internal QaaS context from the current builder state.
+    /// </summary>
+    /// <remarks>
+    /// Call this after all configuration inputs, overwrite sources, and resolution options have been registered on the builder. The returned internal context is used by the runtime bootstrap flow.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public InternalContext BuildInternal()
         => new()
         {
@@ -195,7 +275,13 @@ public class ContextBuilder : IContextBuilder
         };
 
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Builds the obsolete public Context projection from the current builder state.
+    /// </summary>
+    /// <remarks>
+    /// Prefer BuildInternal() for the active runtime path.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     [Obsolete("Function no longer in use, Use BuildInternal instead")]
     public Context Build()
         => new()

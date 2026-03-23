@@ -264,9 +264,9 @@ public class PolicyBehaviorTests
     {
         var builder = new PolicyBuilder();
         var type = typeof(PolicyBuilder);
-        type.GetProperty("Count", BindingFlags.Instance | BindingFlags.NonPublic)!
+        type.GetProperty("Count", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
             .SetValue(builder, new CountPolicyConfig { Count = 1 });
-        type.GetProperty("Timeout", BindingFlags.Instance | BindingFlags.NonPublic)!
+        type.GetProperty("Timeout", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
             .SetValue(builder, new TimeoutPolicyConfig { TimeoutMs = 1 });
 
         Assert.Throws<InvalidOperationException>(() => builder.Build());

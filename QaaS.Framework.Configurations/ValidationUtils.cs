@@ -1,6 +1,8 @@
-﻿using System.Collections;
+using System.Collections;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
 
 namespace QaaS.Framework.Configurations;
 
@@ -23,35 +25,37 @@ public static class ValidationUtils
     public static bool TryValidateObjectRecursive(object? obj, List<ValidationResult> results, string parentPath = "",
         BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.Instance)
     {
-        if (obj == null) return true;
-        
+        if (obj == null)
+            return true;
+
+        if (IsTerminalType(obj.GetType()))
+        {
+            var terminalResults = new List<ValidationResult>();
+            var terminalValid = obj.TryValidateObject(ref terminalResults, bindingFlags);
+            results.AddRange(PrefixValidationResults(terminalResults, parentPath));
+            return terminalValid;
+        }
+
         var localResults = new List<ValidationResult>();
         var isValid = obj.TryValidateObject(ref localResults, bindingFlags);
+        results.AddRange(PrefixValidationResults(localResults, parentPath));
 
-        // Adds validation results to result with the full path to the validation 
-        results.AddRange(localResults.Select(result =>
-        {
-            var trimmedParentPath = parentPath.TrimStart(ConfigurationConstants.PathSeparator.ToCharArray());
-            var parentPathPrefixToErrorMessage =
-                trimmedParentPath == "" ? trimmedParentPath : $"{trimmedParentPath} - ";
-            result.ErrorMessage = $"{parentPathPrefixToErrorMessage}{result.ErrorMessage}";
-            return result;
-        }));
-            
-        // Get all properties of sub object to validate them, If an object has a recursive reference to itself
-        // the function will stackoverflow, so properties with the same type as `obj` are ignored
-        var properties = obj.GetType().GetProperties(bindingFlags).Where(p => p.GetIndexParameters().Length == 0 &&
-                                                                              p.PropertyType != obj.GetType());
+        var properties = GetValidationProperties(obj.GetType(), bindingFlags)
+            .Where(property => property.GetIndexParameters().Length == 0 &&
+                               property.PropertyType != obj.GetType() &&
+                               ShouldTraverseProperty(property, bindingFlags));
         foreach (var property in properties)
         {
             if (!TryGetPropertyValue(obj, property, out var value))
                 continue;
+
+            if (value == null || IsTerminalType(value.GetType()))
+                continue;
+
             var propertyPath = $"{parentPath}{ConfigurationConstants.PathSeparator}{property.Name}";
-                
-            // Handle enumerable properties
-            if (value is IEnumerable enumerableValue && !(value is string))
+
+            if (value is IEnumerable enumerableValue && value is not string)
             {
-                // Handle Dictionary properties
                 if (value is IDictionary dictionary)
                 {
                     foreach (var key in dictionary.Keys)
@@ -62,7 +66,6 @@ public static class ValidationUtils
                             isValid = false;
                     }
                 }
-                // Handle none dictionary enumerable properties
                 else
                 {
                     var itemIndex = 0;
@@ -76,27 +79,26 @@ public static class ValidationUtils
                     }
                 }
             }
-
-            // Handle non enumerable properties
-            else if (value != null && !TryValidateObjectRecursive(value, results, propertyPath, bindingFlags))
+            else if (!TryValidateObjectRecursive(value, results, propertyPath, bindingFlags))
+            {
                 isValid = false;
+            }
         }
 
         return isValid;
     }
-    
+
     /// <summary>
     /// Validate the object or his properties using the DataAnnotations validation attributes
     /// </summary>
     /// <returns>True if the object is valid</returns>
-    private static bool TryValidateObject(this object obj, ref List<ValidationResult> results, 
+    private static bool TryValidateObject(this object obj, ref List<ValidationResult> results,
         BindingFlags bindingFlags)
     {
         var validationResults = new List<ValidationResult>();
         var objType = obj.GetType();
 
-        // Handle primitive types and enums validation
-        if (objType.IsPrimitive || objType == typeof(string) || objType.IsEnum || objType == typeof(DateTime))
+        if (IsTerminalType(objType))
         {
             var validationContext = new ValidationContext(obj, null, null)
             {
@@ -132,13 +134,12 @@ public static class ValidationUtils
                 return !validationResults.Any();
             }
 
-            foreach (var property in objType.GetProperties(bindingFlags)
+            foreach (var property in GetValidationProperties(objType, bindingFlags)
                          .Where(property => property.GetMethod?.IsPublic != true))
             {
-                // Ignore indexed properties
-                if (property.GetIndexParameters().Length > 0) 
+                if (property.GetIndexParameters().Length > 0)
                     continue;
-                
+
                 if (!TryGetPropertyValue(obj, property, out var propertyValue))
                     continue;
 
@@ -156,8 +157,66 @@ public static class ValidationUtils
                 }
             }
         }
+
         results.AddRange(DistinctValidationResults(validationResults));
         return !validationResults.Any();
+    }
+
+    private static IEnumerable<ValidationResult> PrefixValidationResults(IEnumerable<ValidationResult> validationResults,
+        string parentPath)
+    {
+        var trimmedParentPath = parentPath.TrimStart(ConfigurationConstants.PathSeparator.ToCharArray());
+        var parentPrefix = trimmedParentPath.Length == 0 ? string.Empty : $"{trimmedParentPath} - ";
+
+        return validationResults.Select(result =>
+        {
+            result.ErrorMessage = $"{parentPrefix}{result.ErrorMessage}";
+            return result;
+        });
+    }
+
+    private static IEnumerable<PropertyInfo> GetValidationProperties(Type type, BindingFlags bindingFlags)
+    {
+        var includePublic = (bindingFlags & BindingFlags.Public) != 0;
+        var includeNonPublic = (bindingFlags & BindingFlags.NonPublic) != 0;
+        if ((bindingFlags & BindingFlags.Instance) == 0 || (!includePublic && !includeNonPublic))
+            yield break;
+
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        for (var currentType = type; currentType != null && currentType != typeof(object);
+             currentType = currentType.BaseType)
+        {
+            var currentBindingFlags = BindingFlags.Instance | BindingFlags.DeclaredOnly;
+            if (includePublic)
+                currentBindingFlags |= BindingFlags.Public;
+            if (includeNonPublic)
+                currentBindingFlags |= BindingFlags.NonPublic;
+
+            foreach (var property in currentType.GetProperties(currentBindingFlags))
+            {
+                if (seenNames.Add(property.Name))
+                    yield return property;
+            }
+        }
+    }
+
+    private static bool ShouldInspectProperty(PropertyInfo property)
+    {
+        return property.GetCustomAttributes<ValidationAttribute>().Any()
+               || property.GetCustomAttributes<DescriptionAttribute>().Any()
+               || property.GetCustomAttributes<DefaultValueAttribute>().Any();
+    }
+
+    private static bool ShouldTraverseProperty(PropertyInfo property, BindingFlags bindingFlags)
+    {
+        if (property.GetMethod?.IsPublic == true)
+            return true;
+
+        if ((bindingFlags & BindingFlags.NonPublic) == 0)
+            return false;
+
+        return property.GetGetMethod(nonPublic: true) != null &&
+               (ShouldInspectProperty(property) || !IsTerminalType(property.PropertyType));
     }
 
     private static IEnumerable<ValidationResult> DistinctValidationResults(IEnumerable<ValidationResult> validationResults)
@@ -194,5 +253,29 @@ public static class ValidationUtils
             value = getter.Invoke(instance, null);
             return true;
         }
+    }
+
+    private static bool IsTerminalType(Type type)
+    {
+        var effectiveType = Nullable.GetUnderlyingType(type) ?? type;
+
+        return effectiveType.IsPrimitive
+               || effectiveType.IsEnum
+               || effectiveType == typeof(string)
+               || effectiveType == typeof(decimal)
+               || effectiveType == typeof(DateTime)
+               || effectiveType == typeof(DateTimeOffset)
+               || effectiveType == typeof(TimeSpan)
+               || effectiveType == typeof(Guid)
+               || effectiveType == typeof(Uri)
+               || effectiveType == typeof(Type)
+               || typeof(Delegate).IsAssignableFrom(effectiveType)
+               || typeof(MemberInfo).IsAssignableFrom(effectiveType)
+               || typeof(Assembly).IsAssignableFrom(effectiveType)
+               || typeof(IConfiguration).IsAssignableFrom(effectiveType)
+               || effectiveType == typeof(IntPtr)
+               || effectiveType == typeof(UIntPtr)
+               || effectiveType.IsPointer
+               || effectiveType.IsByRef;
     }
 }

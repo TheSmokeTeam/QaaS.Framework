@@ -280,10 +280,10 @@ public class ProtocolCoverageEdgeCaseTests
         SetPrivateField(reader, "_channel", queueReadChannelMock.Object);
 
         var queueRoutingKey = (string)typeof(RabbitMqProtocol)
-            .GetProperty("RoutingKey", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetProperty("RoutingKey", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
             .GetValue(queueSender)!;
         var queueExchangeName = (string)typeof(RabbitMqProtocol)
-            .GetProperty("ExchangeName", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetProperty("ExchangeName", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
             .GetValue(queueSender)!;
         var readerDefaultQueueName = (string)typeof(RabbitMqProtocol)
             .GetField("_defaultQueueName", BindingFlags.Instance | BindingFlags.NonPublic)!

@@ -26,6 +26,13 @@
     </ItemGroup>
 
     <ItemGroup>
+      <InternalsVisibleTo Include="QaaS.Framework.SDK" />
+      <InternalsVisibleTo Include="QaaS.Framework.SDK.Tests" />
+      <InternalsVisibleTo Include="QaaS.Mocker.Stubs" />
+      <InternalsVisibleTo Include="QaaS.Runner.Sessions" />
+    </ItemGroup>
+
+    <ItemGroup>
       <None Include="../README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 </Project>
