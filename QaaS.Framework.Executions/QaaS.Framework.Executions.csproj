@@ -31,6 +31,10 @@
 
     <ItemGroup>
       <InternalsVisibleTo Include="QaaS.Framework.Executions.Tests" />
+      <InternalsVisibleTo Include="QaaS.Mocker" />
+      <InternalsVisibleTo Include="QaaS.Mocker.Tests" />
+      <InternalsVisibleTo Include="QaaS.Runner" />
+      <InternalsVisibleTo Include="QaaS.Runner.Tests" />
     </ItemGroup>
 
 

@@ -9,6 +9,11 @@ namespace QaaS.Framework.Configurations.ConfigurationBindingUtils;
 /// </summary>
 public static class ConfigurationMergeUtils
 {
+    private const System.Reflection.BindingFlags MergePropertyBindingFlags =
+        System.Reflection.BindingFlags.Instance |
+        System.Reflection.BindingFlags.Public |
+        System.Reflection.BindingFlags.NonPublic;
+
     private static readonly BinderOptions MergeBinderOptions = new()
     {
         ErrorOnUnknownConfiguration = true,
@@ -59,7 +64,7 @@ public static class ConfigurationMergeUtils
     private static Dictionary<string, object?> BuildCurrentDictionary(object configurationObject)
     {
         var currentDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
-        foreach (var propertyInfo in configurationObject.GetType().GetProperties())
+        foreach (var propertyInfo in GetConfigurationProperties(configurationObject.GetType()))
         {
             if (!propertyInfo.CanRead || propertyInfo.GetIndexParameters().Length != 0 ||
                 !IsPatchableProperty(propertyInfo) ||
@@ -91,7 +96,7 @@ public static class ConfigurationMergeUtils
         {
             defaultConfiguration = null;
         }
-        foreach (var propertyInfo in configurationObject.GetType().GetProperties())
+        foreach (var propertyInfo in GetConfigurationProperties(configurationObject.GetType()))
         {
             if (!propertyInfo.CanRead || propertyInfo.GetIndexParameters().Length != 0 ||
                 !IsPatchableProperty(propertyInfo))
@@ -332,6 +337,23 @@ public static class ConfigurationMergeUtils
         }
 
         return clonedDictionary;
+    }
+
+    private static IEnumerable<System.Reflection.PropertyInfo> GetConfigurationProperties(Type type)
+    {
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        for (var currentType = type; currentType != null && currentType != typeof(object);
+             currentType = currentType.BaseType)
+        {
+            foreach (var property in currentType.GetProperties(MergePropertyBindingFlags |
+                                                               System.Reflection.BindingFlags.DeclaredOnly))
+            {
+                if (seenNames.Add(property.Name))
+                {
+                    yield return property;
+                }
+            }
+        }
     }
 
     private static bool TryGetPropertyValue(System.Reflection.PropertyInfo propertyInfo, object instance,

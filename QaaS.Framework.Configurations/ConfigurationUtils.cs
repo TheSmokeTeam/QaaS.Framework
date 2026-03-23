@@ -74,11 +74,11 @@ public static class ConfigurationUtils
             throw new ArgumentException(
                 $"Can't parse Object valued - {value} of type {value.GetType()} into a {nameof(inMemoryCollection)} " +
                 $"dictionary. Object must be a serializable class object. Path - {parentKey}");
-        var properties = value.GetType().GetProperties(bindingAttr);
+        var properties = GetInMemoryProperties(value.GetType(), bindingAttr);
 
         foreach (var propertyInfo in properties)
         {
-            if (propertyInfo.GetIndexParameters().Length > 0)
+            if (propertyInfo.GetIndexParameters().Length > 0 || !propertyInfo.CanRead || !ShouldIncludeInMemoryProperty(propertyInfo))
             {
                 continue;
             }
@@ -86,12 +86,30 @@ public static class ConfigurationUtils
             string key = parentKey != null
                 ? $"{parentKey}{ConfigurationConstants.PathSeparator}{propertyInfo.Name}"
                 : propertyInfo.Name;
-            object? nestedValue = propertyInfo.GetValue(value);
+            object? nestedValue;
+            try
+            {
+                nestedValue = propertyInfo.GetValue(value);
+            }
+            catch (Exception ex) when (ex is MethodAccessException or ArgumentException)
+            {
+                var getter = propertyInfo.GetGetMethod(nonPublic: true);
+                if (getter == null)
+                {
+                    continue;
+                }
+
+                nestedValue = getter.Invoke(value, null);
+            }
+
+            if (nestedValue == null || IsInMemoryTerminalType(nestedValue.GetType()))
+            {
+                inMemoryCollection[key] = nestedValue?.ToString();
+                continue;
+            }
 
             switch (nestedValue)
             {
-                case IConvertible or null:
-                    inMemoryCollection[key] = nestedValue?.ToString() ?? null; break;
                 case IConfiguration nestedConfig:
                     nestedConfig.GetDictionaryFromConfiguration()
                         .GetInMemoryCollectionFromDictionary(inMemoryCollection, key); break;
@@ -107,6 +125,66 @@ public static class ConfigurationUtils
         }
 
         return inMemoryCollection;
+    }
+
+    private static IEnumerable<PropertyInfo> GetInMemoryProperties(Type type, BindingFlags bindingAttr)
+    {
+        var includePublic = (bindingAttr & BindingFlags.Public) != 0;
+        var includeNonPublic = (bindingAttr & BindingFlags.NonPublic) != 0;
+        if ((bindingAttr & BindingFlags.Instance) == 0 || (!includePublic && !includeNonPublic))
+            yield break;
+
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        for (var currentType = type; currentType != null && currentType != typeof(object);
+             currentType = currentType.BaseType)
+        {
+            var currentBindingFlags = BindingFlags.Instance | BindingFlags.DeclaredOnly;
+            if (includePublic)
+                currentBindingFlags |= BindingFlags.Public;
+            if (includeNonPublic)
+                currentBindingFlags |= BindingFlags.NonPublic;
+
+            foreach (var property in currentType.GetProperties(currentBindingFlags))
+            {
+                if (seenNames.Add(property.Name))
+                    yield return property;
+            }
+        }
+    }
+
+    private static bool ShouldIncludeInMemoryProperty(PropertyInfo propertyInfo)
+    {
+        return propertyInfo.CanWrite || HasAutoPropertyBackingField(propertyInfo);
+    }
+
+    private static bool HasAutoPropertyBackingField(PropertyInfo propertyInfo)
+    {
+        const BindingFlags backingFieldFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+        return propertyInfo.DeclaringType?.GetField($"<{propertyInfo.Name}>k__BackingField", backingFieldFlags) != null ||
+               propertyInfo.DeclaringType?.GetField($"<{propertyInfo.Name}>i__Field", backingFieldFlags) != null;
+    }
+
+    private static bool IsInMemoryTerminalType(Type type)
+    {
+        var effectiveType = Nullable.GetUnderlyingType(type) ?? type;
+
+        return effectiveType.IsPrimitive
+               || effectiveType.IsEnum
+               || effectiveType == typeof(string)
+               || effectiveType == typeof(decimal)
+               || effectiveType == typeof(DateTime)
+               || effectiveType == typeof(DateTimeOffset)
+               || effectiveType == typeof(TimeSpan)
+               || effectiveType == typeof(Guid)
+               || effectiveType == typeof(Uri)
+               || effectiveType == typeof(Type)
+               || typeof(Delegate).IsAssignableFrom(effectiveType)
+               || typeof(MemberInfo).IsAssignableFrom(effectiveType)
+               || typeof(Assembly).IsAssignableFrom(effectiveType)
+               || effectiveType == typeof(IntPtr)
+               || effectiveType == typeof(UIntPtr)
+               || effectiveType.IsPointer
+               || effectiveType.IsByRef;
     }
 
     /// <summary>
@@ -128,14 +206,18 @@ public static class ConfigurationUtils
         binderOptions ??= new BinderOptions
         {
             ErrorOnUnknownConfiguration = false,
-            BindNonPublicProperties = false
+            BindNonPublicProperties = true
         };
         // Load configuration to c# object, and validate them
         var configurationObject = configuration.BindToObject<TConfiguration>(binderOptions, logger);
 
         // Validate loaded configuration
         var validationResults = new List<ValidationResult>();
-        var valid = ValidationUtils.TryValidateObjectRecursive(configurationObject, validationResults);
+        var validationBindingFlags = binderOptions.BindNonPublicProperties
+            ? BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+            : BindingFlags.Public | BindingFlags.Instance;
+        var valid = ValidationUtils.TryValidateObjectRecursive(configurationObject, validationResults,
+            bindingFlags: validationBindingFlags);
 
         if (!valid)
             throw new InvalidConfigurationsException(

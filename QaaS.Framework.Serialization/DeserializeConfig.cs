@@ -14,5 +14,7 @@ public record DeserializeConfig
     [RequiredIfAny(nameof(Deserializer), SerializationType.ProtobufMessage), 
      Description("Configuration for making deserializer deserialize into a specific C# object, " +
                  "if set to null will deserialize to default deserilizer's C# object"), DefaultValue(null)]
-    public SpecificTypeConfig? SpecificType { get; set; } = null;
+    internal SpecificTypeConfig? SpecificType { get; set; } = null;
+
+    public SpecificTypeConfig? ReadSpecificType() => SpecificType;
 }

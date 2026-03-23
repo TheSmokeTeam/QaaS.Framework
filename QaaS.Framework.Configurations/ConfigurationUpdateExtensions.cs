@@ -134,7 +134,7 @@ public static class ConfigurationUpdateExtensions
 
         return ConfigurationUtils.GetInMemoryCollectionFromObject(
             configurationObject,
-            BindingFlags.Instance | BindingFlags.Public);
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
     }
 
     private static void OverlayPatchValues(Dictionary<string, string?> currentValues, object incomingConfiguration)
@@ -185,8 +185,21 @@ public static class ConfigurationUpdateExtensions
 
     private static IEnumerable<PropertyInfo> GetMergeableProperties(Type type)
     {
-        return type.GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(property => property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0);
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        for (var currentType = type; currentType != null && currentType != typeof(object);
+             currentType = currentType.BaseType)
+        {
+            foreach (var property in currentType.GetProperties(BindingFlags.Instance | BindingFlags.Public |
+                                                               BindingFlags.NonPublic |
+                                                               BindingFlags.DeclaredOnly))
+            {
+                if (!seenNames.Add(property.Name))
+                    continue;
+
+                if (property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)
+                    yield return property;
+            }
+        }
     }
 
     private static bool IsComplexType(Type type)

@@ -10,7 +10,9 @@ public record AdvancedLoadBalancePolicyConfig : IPolicyConfig
     [Required, Description(
          "The stages of publishing information, in each stage the messages will be published" +
          "with a given rate untill 'Amount' messages are generated or untill 'TimeoutMs' is reached")]
-    public StageConfig[]? Stages { get; set; }
+    internal StageConfig[]? Stages { get; set; }
+
+    public IReadOnlyList<StageConfig> ReadStages() => Stages ?? [];
 }
 
 /// <summary>
