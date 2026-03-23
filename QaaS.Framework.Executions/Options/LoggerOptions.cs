@@ -21,7 +21,7 @@ All available options (not case sensitive) are: {nameof(LogEventLevel.Verbose)},
     public string? LoggerConfigurationFilePath { get; init; } = null;
 
     
-    [Option("send-logs", HelpText = @"Whether to send the logs to Smoke's logs database", Default = false)]
+    [Option("send-logs", HelpText = @"Whether to send logs to the configured Elasticsearch sink.", Default = false)]
     public bool SendLogs { get; init; } = false;
 
     [Option("elastic-uri", Default = null,
