@@ -114,7 +114,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         command.CommandTimeout = commandTimeoutSeconds;
         if (DbConnection.State == ConnectionState.Closed)
             DbConnection.Open();
-        using (var reader = command.ExecuteReader()) // Query trigger
+        using (var reader = ExecuteReader(command)) // Query trigger
         {
             while (reader.Read()) // Results rows reader
             {
@@ -175,6 +175,11 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// Creates the db command object used to execute the query on the db
     /// </summary>
     protected virtual IDbCommand CreateDbCommand() => DbConnection.CreateCommand();
+
+    /// <summary>
+    /// Executes a db reader for the given command.
+    /// </summary>
+    protected virtual IDataReader ExecuteReader(IDbCommand command) => command.ExecuteReader();
 
     /// <summary>
     /// Returns a string of an sql query to get the table by from user configurations by the insertion time field asc
