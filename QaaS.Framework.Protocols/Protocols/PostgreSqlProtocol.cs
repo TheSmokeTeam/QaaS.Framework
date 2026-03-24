@@ -12,6 +12,7 @@ namespace QaaS.Framework.Protocols.Protocols;
 [ExcludeFromCodeCoverage]
 public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
 {
+    private sealed record UnknownResultTypeInspection(bool InspectionSucceeded, bool[]? UnknownResultTypeList);
     private sealed record UnknownResultTypeCacheEntry(bool[]? UnknownResultTypeList);
 
     private readonly bool _isInsertionTimeFieldTimeZoneTz;
@@ -80,10 +81,17 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
             return base.ExecuteReader(command);
 
         var queryText = npgsqlCommand.CommandText ?? string.Empty;
-        var cacheEntry = _unknownResultTypeCache.GetOrAdd(queryText,
-            _ => new UnknownResultTypeCacheEntry(BuildUnknownResultTypeList(npgsqlCommand)));
+        if (!_unknownResultTypeCache.TryGetValue(queryText, out var cacheEntry))
+        {
+            var inspection = InspectUnknownResultTypes(npgsqlCommand);
+            if (inspection.InspectionSucceeded)
+            {
+                cacheEntry = new UnknownResultTypeCacheEntry(inspection.UnknownResultTypeList);
+                _unknownResultTypeCache[queryText] = cacheEntry;
+            }
+        }
 
-        if (cacheEntry.UnknownResultTypeList != null)
+        if (cacheEntry?.UnknownResultTypeList != null)
             npgsqlCommand.UnknownResultTypeList = cacheEntry.UnknownResultTypeList;
 
         return ExecutePostgreSqlReader(npgsqlCommand);
@@ -127,13 +135,13 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
     protected virtual IDataReader ExecuteSchemaReader(NpgsqlCommand command) =>
         command.ExecuteReader(CommandBehavior.SchemaOnly);
 
-    private bool[]? BuildUnknownResultTypeList(NpgsqlCommand command)
+    private UnknownResultTypeInspection InspectUnknownResultTypes(NpgsqlCommand command)
     {
         try
         {
             using var schemaReader = ExecuteSchemaReader(command);
             if (schemaReader.FieldCount == 0)
-                return null;
+                return new UnknownResultTypeInspection(true, null);
 
             var unknownResultTypes = new bool[schemaReader.FieldCount];
             var hasUnknownResultTypes = false;
@@ -151,14 +159,14 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
                     schemaReader.GetName(col), dataTypeName);
             }
 
-            return hasUnknownResultTypes ? unknownResultTypes : null;
+            return new UnknownResultTypeInspection(true, hasUnknownResultTypes ? unknownResultTypes : null);
         }
         catch (Exception exception)
         {
             Logger.LogDebug(exception,
                 "Failed to inspect PostgreSQL result types for query {QueryCommand}; using default result mapping",
                 command.CommandText);
-            return null;
+            return new UnknownResultTypeInspection(false, null);
         }
     }
 
