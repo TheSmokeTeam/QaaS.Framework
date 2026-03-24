@@ -241,7 +241,11 @@ public class ExecutionsBehaviorTests
     [Test]
     public void BaseLoader_InvalidOptions_ThrowsInvalidConfigurationsException()
     {
-        Assert.Throws<InvalidConfigurationsException>(() => _ = new InvalidOptionsLoader(new InvalidLoaderOptions()));
+        var exception =
+            Assert.Throws<InvalidConfigurationsException>(() => _ = new InvalidOptionsLoader(new InvalidLoaderOptions()));
+
+        Assert.That(exception!.Message, Does.Contain("Command arguments are invalid for InvalidLoaderOptions."));
+        Assert.That(exception.Message, Does.Contain("The RequiredField field is required."));
     }
 
     [Test]
