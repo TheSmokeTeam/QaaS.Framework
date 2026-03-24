@@ -4,6 +4,7 @@ This file is generated automatically from CI from git history.
 
 ## Unreleased
 
+- fix(postgresql): read extension result columns as text
 - docs(changelog): add automated changelog
 - docs(logging): clarify elastic sink help text
 - refactor(config): expose framework configuration getters
@@ -92,6 +93,13 @@ This file is generated automatically from CI from git history.
 - add GitHub Actions CI workflow for build, test, and NuGet package publishing
 - replace custom HTTP client wrappers with standard HttpClient and update dependencies
 - add macOS system files to .gitignore
+
+## 1.2.8 - 2026-03-23
+
+- docs(changelog): add automated changelog
+- docs(logging): clarify elastic sink help text
+- refactor(config): expose framework configuration getters
+- docs(logging): fix send-logs help text
 
 ## 1.2.7 - 2026-03-23
 
