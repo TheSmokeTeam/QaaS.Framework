@@ -127,12 +127,25 @@ public class ProtocolAdvancedBehaviorTests
         public string Format(DateTime time) => GetTimeFieldSqlFormat(time);
     }
 
-    private sealed class InspectablePostgreSqlProtocol(
-        PostgreSqlReaderConfig config,
-        IDataReader schemaReader,
-        IDataReader resultReader)
-        : PostgreSqlProtocol(config, Globals.Logger, new NpgsqlConnection())
+    private sealed class InspectablePostgreSqlProtocol : PostgreSqlProtocol
     {
+        private readonly Func<int, IDataReader> _schemaReaderFactory;
+        private readonly IDataReader _resultReader;
+
+        public InspectablePostgreSqlProtocol(PostgreSqlReaderConfig config, IDataReader schemaReader,
+            IDataReader resultReader)
+            : this(config, _ => schemaReader, resultReader)
+        {
+        }
+
+        public InspectablePostgreSqlProtocol(PostgreSqlReaderConfig config, Func<int, IDataReader> schemaReaderFactory,
+            IDataReader resultReader)
+            : base(config, Globals.Logger, new NpgsqlConnection())
+        {
+            _schemaReaderFactory = schemaReaderFactory;
+            _resultReader = resultReader;
+        }
+
         public int SchemaReaderCalls { get; private set; }
         public bool[]? LastUnknownResultTypeList { get; private set; }
 
@@ -141,13 +154,13 @@ public class ProtocolAdvancedBehaviorTests
         protected override IDataReader ExecuteSchemaReader(NpgsqlCommand command)
         {
             SchemaReaderCalls++;
-            return schemaReader;
+            return _schemaReaderFactory(SchemaReaderCalls);
         }
 
         protected override IDataReader ExecutePostgreSqlReader(NpgsqlCommand command)
         {
             LastUnknownResultTypeList = command.UnknownResultTypeList;
-            return resultReader;
+            return _resultReader;
         }
     }
 
@@ -1118,6 +1131,90 @@ public class ProtocolAdvancedBehaviorTests
         {
             Assert.That(protocol.LastUnknownResultTypeList, Is.Null);
             Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void PostgreSqlProtocol_RequestsQualifiedNonPgCatalogTypesAsText()
+    {
+        var schemaReaderMock = new Mock<IDataReader>();
+        schemaReaderMock.SetupGet(reader => reader.FieldCount).Returns(2);
+        schemaReaderMock.Setup(reader => reader.GetName(0)).Returns("shape");
+        schemaReaderMock.Setup(reader => reader.GetName(1)).Returns("custom_value");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(0)).Returns("postgis.geometry");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(1)).Returns("custom.my_type");
+
+        var resultReaderMock = new Mock<IDataReader>();
+        var protocol = new InspectablePostgreSqlProtocol(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl"
+        }, schemaReaderMock.Object, resultReaderMock.Object);
+
+        using var firstReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select shape, custom_value from tbl"));
+        using var secondReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select shape, custom_value from tbl"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.LastUnknownResultTypeList, Is.EqualTo(new[] { true, true }));
+            Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void PostgreSqlProtocol_DoesNotDowngradeQualifiedPgCatalogTypesToText()
+    {
+        var schemaReaderMock = new Mock<IDataReader>();
+        schemaReaderMock.SetupGet(reader => reader.FieldCount).Returns(2);
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(0)).Returns("pg_catalog.int4");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(1)).Returns("pg_catalog.timestamptz");
+
+        var resultReaderMock = new Mock<IDataReader>();
+        var protocol = new InspectablePostgreSqlProtocol(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl"
+        }, schemaReaderMock.Object, resultReaderMock.Object);
+
+        using var firstReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, created_at from tbl"));
+        using var secondReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, created_at from tbl"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.LastUnknownResultTypeList, Is.Null);
+            Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void PostgreSqlProtocol_RetriesSchemaInspectionAfterTransientFailure()
+    {
+        var schemaReaderMock = new Mock<IDataReader>();
+        schemaReaderMock.SetupGet(reader => reader.FieldCount).Returns(2);
+        schemaReaderMock.Setup(reader => reader.GetName(0)).Returns("id");
+        schemaReaderMock.Setup(reader => reader.GetName(1)).Returns("shape");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(0)).Returns("integer");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(1)).Returns("public.geometry");
+
+        var resultReaderMock = new Mock<IDataReader>();
+        var protocol = new InspectablePostgreSqlProtocol(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl"
+        }, callNumber => callNumber == 1
+            ? throw new InvalidOperationException("Transient schema inspection failure")
+            : schemaReaderMock.Object, resultReaderMock.Object);
+
+        using var firstReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, shape from tbl"));
+        Assert.That(protocol.LastUnknownResultTypeList, Is.Null);
+
+        using var secondReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, shape from tbl"));
+        using var thirdReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, shape from tbl"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.LastUnknownResultTypeList, Is.EqualTo(new[] { false, true }));
+            Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(2));
         });
     }
 
