@@ -220,9 +220,18 @@ public static class ConfigurationUtils
             bindingFlags: validationBindingFlags);
 
         if (!valid)
-            throw new InvalidConfigurationsException(
-                "Given configurations are not valid. The validation results are: \n- " +
-                $"{string.Join("\n- ", validationResults.Select(result => result.ErrorMessage))}");
+        {
+            var message = DiagnosticMessageFormatter.Format(
+                $"Configuration binding failed for {typeof(TConfiguration).Name}.",
+                [$"Top-level configuration keys: {DescribeTopLevelKeys(configuration)}"],
+                $"Validation issues ({validationResults.Count})",
+                validationResults.Select(result => result.ErrorMessage),
+                [
+                    "Issue paths use QaaS configuration syntax such as Sessions:0:Name when available.",
+                    "Fix the listed entries in the base YAML, overwrite YAML, case YAML, or overwrite arguments and retry."
+                ]);
+            throw new InvalidConfigurationsException(message);
+        }
 
         return configurationObject ?? new TConfiguration();
     }
@@ -615,5 +624,29 @@ public static class ConfigurationUtils
         var separatorIndex = key.IndexOf(ConfigurationConstants.PathSeparator, StringComparison.Ordinal);
         var topLevelKey = separatorIndex >= 0 ? key[..separatorIndex] : key;
         return allowedTopLevelKeys.Contains(topLevelKey);
+    }
+
+    private static string DescribeTopLevelKeys(IConfiguration configuration)
+    {
+        var topLevelKeys = configuration.GetChildren()
+            .Select(child => child.Key)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (topLevelKeys.Count == 0)
+        {
+            return "<none>";
+        }
+
+        const int maxDisplayedKeys = 10;
+        if (topLevelKeys.Count <= maxDisplayedKeys)
+        {
+            return string.Join(", ", topLevelKeys);
+        }
+
+        return string.Join(", ", topLevelKeys.Take(maxDisplayedKeys)) +
+               $" (+{topLevelKeys.Count - maxDisplayedKeys} more)";
     }
 }

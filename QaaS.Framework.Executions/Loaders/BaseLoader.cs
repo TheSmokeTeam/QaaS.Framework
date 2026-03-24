@@ -78,10 +78,18 @@ public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptio
         var commandLineValidationResults = new List<ValidationResult>();
         ValidationUtils.TryValidateObjectRecursive(options, commandLineValidationResults);
         if (commandLineValidationResults.Any())
-            throw new InvalidConfigurationsException(
-                "Given command arguments are not valid. The validation results are: \n- " +
-                string.Join("\n- ", commandLineValidationResults.Select(result =>
-                    result.ErrorMessage)));
+        {
+            var message = DiagnosticMessageFormatter.Format(
+                $"Command arguments are invalid for {typeof(TOptions).Name}.",
+                null,
+                $"Validation issues ({commandLineValidationResults.Count})",
+                commandLineValidationResults.Select(result => result.ErrorMessage),
+                [
+                    "Fix the listed flag values or missing arguments and retry.",
+                    "When a path is shown, it uses the QaaS option object property name."
+                ]);
+            throw new InvalidConfigurationsException(message);
+        }
     }
 
 

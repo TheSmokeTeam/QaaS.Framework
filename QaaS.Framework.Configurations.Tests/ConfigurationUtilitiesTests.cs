@@ -256,8 +256,12 @@ public class ConfigurationUtilitiesTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
 
-        Assert.Throws<InvalidConfigurationsException>(
+        var exception = Assert.Throws<InvalidConfigurationsException>(
             () => configuration.LoadAndValidateConfiguration<RequiredSettings>());
+
+        Assert.That(exception!.Message, Does.Contain("Configuration binding failed for RequiredSettings."));
+        Assert.That(exception.Message, Does.Contain("Top-level configuration keys: <none>"));
+        Assert.That(exception.Message, Does.Contain("The Name field is required."));
     }
 
     [Test]
