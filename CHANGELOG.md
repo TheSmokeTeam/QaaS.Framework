@@ -4,6 +4,7 @@ This file is generated automatically from CI from git history.
 
 ## Unreleased
 
+- test(protocols): strengthen postgis round-trip coverage
 - fix(postgresql): read extension result columns as text
 - docs(changelog): add automated changelog
 - docs(logging): clarify elastic sink help text
