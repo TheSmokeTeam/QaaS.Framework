@@ -4,6 +4,7 @@ This file is generated automatically from CI from git history.
 
 ## Unreleased
 
+- fix: remove unnecessary new from config
 - feat: make kafka max message bytes configurable
 - docs(changelog): add automated changelog
 - docs(logging): clarify elastic sink help text
