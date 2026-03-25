@@ -4,6 +4,7 @@ This file is generated automatically from CI from git history.
 
 ## Unreleased
 
+- fix(config): improve yaml loading diagnostics
 - test(protocols): harden postgresql geometry type inspection
 - fix(config): improve validation failure diagnostics
 - test(protocols): strengthen postgis round-trip coverage
