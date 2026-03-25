@@ -14,4 +14,9 @@ public class InvalidConfigurationsException : Exception
     /// Constructor 
     /// </summary>
     public InvalidConfigurationsException(string message) : base(message) { }
+
+    /// <summary>
+    /// Constructor
+    /// </summary>
+    public InvalidConfigurationsException(string message, Exception innerException) : base(message, innerException) { }
 }

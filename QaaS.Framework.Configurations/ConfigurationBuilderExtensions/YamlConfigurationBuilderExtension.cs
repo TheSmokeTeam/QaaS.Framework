@@ -36,8 +36,7 @@ public static class YamlConfigurationBuilderExtension
         var correctYamlPath = GetYamlCorrectPath(yamlPath);
         return PathUtils.IsPathHttpUrl(correctYamlPath) 
             ? builder.AddYamlFromHttpGet(correctYamlPath)
-            // Configured to `optional: false` so if yaml is not found throws exception
-            : builder.AddYamlFile(correctYamlPath, optional: false);
+            : builder.Add(new LocalYamlConfigurationSource(correctYamlPath));
     }
     
     /// <summary>
@@ -48,5 +47,5 @@ public static class YamlConfigurationBuilderExtension
     private static string GetYamlCorrectPath(string yamlPath) =>
          PathUtils.IsPathHttpUrl(yamlPath)
             ? yamlPath
-            : Path.Combine(Environment.CurrentDirectory, yamlPath);
+            : Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, yamlPath));
 }
