@@ -57,4 +57,9 @@ public record KafkaTopicReaderConfig : BaseKafkaTopicProtocolConfig, IReaderConf
          "Maximum time the broker may wait to fill the Fetch response with `FetchMinBytes` of messages."),
      DefaultValue(2000)]
     public int FetchWaitMaxMs { get; set; } = 2000;
+    
+    [Range(500_000, 4_000_000)]
+    [Description("Maximum allowed Kafka message size in bytes. Must not exceed broker/topic limits.")]
+    [DefaultValue(1_000_000)]
+    public new int MessageMaxBytes { get; set; } = 1_000_000;
 }
