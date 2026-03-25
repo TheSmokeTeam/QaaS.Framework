@@ -98,6 +98,14 @@ jobs:
               fi
             done
           } > CHANGELOG.md
+
+      - name: Upload generated changelog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-changelog
+          path: CHANGELOG.md
+          if-no-files-found: error
+          retention-days: 7
   build-test-deploy:
     name: Build, Test & Deploy
     runs-on: windows-latest
