@@ -60,5 +60,5 @@ public record KafkaTopicSenderConfig : BaseKafkaTopicProtocolConfig, ISenderConf
     [Range(500_000, 4_000_000)]
     [Description("Maximum allowed Kafka message size in bytes. Must not exceed broker/topic limits.")]
     [DefaultValue(1_000_000)]
-    public new int MessageMaxBytes { get; set; } = 1_000_000;
+    public int MessageMaxBytes { get; set; } = 1_000_000;
 }
