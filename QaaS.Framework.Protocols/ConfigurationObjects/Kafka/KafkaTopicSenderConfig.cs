@@ -56,4 +56,9 @@ public record KafkaTopicSenderConfig : BaseKafkaTopicProtocolConfig, ISenderConf
          [-1, -1, -1],
          [9, 12, 0])]
     public int CompressionLevel { get; set; } = -1;
+    
+    [Range(500_000, 4_000_000)]
+    [Description("Maximum allowed Kafka message size in bytes. Must not exceed broker/topic limits.")]
+    [DefaultValue(1_000_000)]
+    public int MessageMaxBytes { get; set; } = 1_000_000;
 }

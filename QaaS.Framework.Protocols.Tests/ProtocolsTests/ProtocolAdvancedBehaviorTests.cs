@@ -10,6 +10,7 @@ using Amazon.S3.Model;
 using IBM.WMQ;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Npgsql;
 using QaaS.Framework.Protocols.ConfigurationObjects;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -124,6 +125,43 @@ public class ProtocolAdvancedBehaviorTests
         public string PlainQuery() => GetTableQueryWithoutRegardToInsertionTimeField();
         public string LatestQuery() => GetLatestTableRowQuery();
         public string Format(DateTime time) => GetTimeFieldSqlFormat(time);
+    }
+
+    private sealed class InspectablePostgreSqlProtocol : PostgreSqlProtocol
+    {
+        private readonly Func<int, IDataReader> _schemaReaderFactory;
+        private readonly IDataReader _resultReader;
+
+        public InspectablePostgreSqlProtocol(PostgreSqlReaderConfig config, IDataReader schemaReader,
+            IDataReader resultReader)
+            : this(config, _ => schemaReader, resultReader)
+        {
+        }
+
+        public InspectablePostgreSqlProtocol(PostgreSqlReaderConfig config, Func<int, IDataReader> schemaReaderFactory,
+            IDataReader resultReader)
+            : base(config, Globals.Logger, new NpgsqlConnection())
+        {
+            _schemaReaderFactory = schemaReaderFactory;
+            _resultReader = resultReader;
+        }
+
+        public int SchemaReaderCalls { get; private set; }
+        public bool[]? LastUnknownResultTypeList { get; private set; }
+
+        public IDataReader InvokeExecuteReader(NpgsqlCommand command) => ExecuteReader(command);
+
+        protected override IDataReader ExecuteSchemaReader(NpgsqlCommand command)
+        {
+            SchemaReaderCalls++;
+            return _schemaReaderFactory(SchemaReaderCalls);
+        }
+
+        protected override IDataReader ExecutePostgreSqlReader(NpgsqlCommand command)
+        {
+            LastUnknownResultTypeList = command.UnknownResultTypeList;
+            return _resultReader;
+        }
     }
 
     private sealed class MsSqlProtocolWrapper(MsSqlReaderConfig config) : MsSqlProtocol(config, Globals.Logger)
@@ -1039,6 +1077,144 @@ public class ProtocolAdvancedBehaviorTests
             Assert.That(trino.AscQuery(), Does.Contain("select * from sch.tbl"));
             Assert.That(trino.LatestQuery(), Does.Contain("limit 1"));
             Assert.That(trino.Format(now), Does.Contain("FROM_ISO8601_TIMESTAMP"));
+        });
+    }
+
+    [Test]
+    public void PostgreSqlProtocol_RequestsUserDefinedResultColumnsAsText()
+    {
+        var schemaReaderMock = new Mock<IDataReader>();
+        schemaReaderMock.SetupGet(reader => reader.FieldCount).Returns(3);
+        schemaReaderMock.Setup(reader => reader.GetName(0)).Returns("id");
+        schemaReaderMock.Setup(reader => reader.GetName(1)).Returns("shape");
+        schemaReaderMock.Setup(reader => reader.GetName(2)).Returns("custom_value");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(0)).Returns("integer");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(1)).Returns("public.geometry");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(2)).Returns("custom.my_type");
+
+        var resultReaderMock = new Mock<IDataReader>();
+        var protocol = new InspectablePostgreSqlProtocol(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl"
+        }, schemaReaderMock.Object, resultReaderMock.Object);
+
+        using var firstReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select * from tbl"));
+        using var secondReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select * from tbl"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.LastUnknownResultTypeList, Is.EqualTo(new[] { false, true, true }));
+            Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void PostgreSqlProtocol_DoesNotDowngradeBuiltInResultColumnsToText()
+    {
+        var schemaReaderMock = new Mock<IDataReader>();
+        schemaReaderMock.SetupGet(reader => reader.FieldCount).Returns(2);
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(0)).Returns("integer");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(1)).Returns("timestamp with time zone");
+
+        var resultReaderMock = new Mock<IDataReader>();
+        var protocol = new InspectablePostgreSqlProtocol(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl"
+        }, schemaReaderMock.Object, resultReaderMock.Object);
+
+        using var firstReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, created_at from tbl"));
+        using var secondReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, created_at from tbl"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.LastUnknownResultTypeList, Is.Null);
+            Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void PostgreSqlProtocol_RequestsQualifiedNonPgCatalogTypesAsText()
+    {
+        var schemaReaderMock = new Mock<IDataReader>();
+        schemaReaderMock.SetupGet(reader => reader.FieldCount).Returns(2);
+        schemaReaderMock.Setup(reader => reader.GetName(0)).Returns("shape");
+        schemaReaderMock.Setup(reader => reader.GetName(1)).Returns("custom_value");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(0)).Returns("postgis.geometry");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(1)).Returns("custom.my_type");
+
+        var resultReaderMock = new Mock<IDataReader>();
+        var protocol = new InspectablePostgreSqlProtocol(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl"
+        }, schemaReaderMock.Object, resultReaderMock.Object);
+
+        using var firstReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select shape, custom_value from tbl"));
+        using var secondReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select shape, custom_value from tbl"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.LastUnknownResultTypeList, Is.EqualTo(new[] { true, true }));
+            Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void PostgreSqlProtocol_DoesNotDowngradeQualifiedPgCatalogTypesToText()
+    {
+        var schemaReaderMock = new Mock<IDataReader>();
+        schemaReaderMock.SetupGet(reader => reader.FieldCount).Returns(2);
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(0)).Returns("pg_catalog.int4");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(1)).Returns("pg_catalog.timestamptz");
+
+        var resultReaderMock = new Mock<IDataReader>();
+        var protocol = new InspectablePostgreSqlProtocol(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl"
+        }, schemaReaderMock.Object, resultReaderMock.Object);
+
+        using var firstReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, created_at from tbl"));
+        using var secondReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, created_at from tbl"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.LastUnknownResultTypeList, Is.Null);
+            Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void PostgreSqlProtocol_RetriesSchemaInspectionAfterTransientFailure()
+    {
+        var schemaReaderMock = new Mock<IDataReader>();
+        schemaReaderMock.SetupGet(reader => reader.FieldCount).Returns(2);
+        schemaReaderMock.Setup(reader => reader.GetName(0)).Returns("id");
+        schemaReaderMock.Setup(reader => reader.GetName(1)).Returns("shape");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(0)).Returns("integer");
+        schemaReaderMock.Setup(reader => reader.GetDataTypeName(1)).Returns("public.geometry");
+
+        var resultReaderMock = new Mock<IDataReader>();
+        var protocol = new InspectablePostgreSqlProtocol(new PostgreSqlReaderConfig
+        {
+            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+            TableName = "tbl"
+        }, callNumber => callNumber == 1
+            ? throw new InvalidOperationException("Transient schema inspection failure")
+            : schemaReaderMock.Object, resultReaderMock.Object);
+
+        using var firstReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, shape from tbl"));
+        Assert.That(protocol.LastUnknownResultTypeList, Is.Null);
+
+        using var secondReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, shape from tbl"));
+        using var thirdReader = protocol.InvokeExecuteReader(new NpgsqlCommand("select id, shape from tbl"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(protocol.LastUnknownResultTypeList, Is.EqualTo(new[] { false, true }));
+            Assert.That(protocol.SchemaReaderCalls, Is.EqualTo(2));
         });
     }
 

@@ -45,7 +45,8 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
             PartitionAssignmentStrategy = configuration.PartitionAssignmentStrategy,
             MaxPollIntervalMs = configuration.MaxPollIntervalMs,
             FetchMinBytes = configuration.FetchMinBytes,
-            FetchWaitMaxMs = configuration.FetchWaitMaxMs
+            FetchWaitMaxMs = configuration.FetchWaitMaxMs,
+            MessageMaxBytes = configuration.MessageMaxBytes
         }).Build();
         _topicName = configuration.TopicName!;
     }
@@ -64,7 +65,8 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
             QueueBufferingMaxMessages = configuration.QueueBufferingMaxMessages,
             QueueBufferingBackpressureThreshold = configuration.QueueBufferingBackpressureThreshold,
             CompressionType = configuration.CompressionType,
-            CompressionLevel = configuration.CompressionLevel
+            CompressionLevel = configuration.CompressionLevel,
+            MessageMaxBytes = configuration.MessageMaxBytes
         }).Build();
         _headers = configuration.Headers;
         _topicName = configuration.TopicName!;

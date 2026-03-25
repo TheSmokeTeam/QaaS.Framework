@@ -61,6 +61,8 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(reader.EnableAutoCommit, Is.True);
             Assert.That(sender.QueueBufferingMaxMessages, Is.EqualTo(100000));
             Assert.That(sender.QueueBufferingBackpressureThreshold, Is.EqualTo(1));
+            Assert.That(sender.MessageMaxBytes, Is.EqualTo(1_000_000));
+            Assert.That(reader.MessageMaxBytes, Is.EqualTo(1_000_000));
             Assert.That(Validate(sender).IsValid, Is.True);
             Assert.That(Validate(invalidSender).IsValid, Is.False);
             Assert.That(Validate(reader).IsValid, Is.True);

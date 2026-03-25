@@ -25,15 +25,35 @@ public static class PathUtils
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
 
         if (IsPathHttpUrl(directoryPath))
-            throw new ArgumentException("Overwrite folders must be local directories.", nameof(directoryPath));
+            throw new ArgumentException(
+                DiagnosticMessageFormatter.Format(
+                    "Overwrite folders must be local directories.",
+                    [$"Configured overwrite folder: {directoryPath}"],
+                    null,
+                    null,
+                    [
+                        "Use --with-folders only with a local directory path.",
+                        "Use --with-files for individual YAML files."
+                    ]),
+                nameof(directoryPath));
 
         var resolvedDirectoryPath = Path.IsPathRooted(directoryPath)
             ? directoryPath
-            : Path.Combine(Environment.CurrentDirectory, directoryPath);
+            : Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, directoryPath));
 
         if (!Directory.Exists(resolvedDirectoryPath))
             throw new DirectoryNotFoundException(
-                $"Overwrite folder '{directoryPath}' was not found. Resolved path: '{resolvedDirectoryPath}'.");
+                DiagnosticMessageFormatter.Format(
+                    "Overwrite folder was not found.",
+                    [
+                        $"Configured overwrite folder: {directoryPath}",
+                        $"Resolved local path: {resolvedDirectoryPath}"
+                    ],
+                    null,
+                    null,
+                    [
+                        "Provide a valid local directory path in --with-folders or remove the value and retry."
+                    ]));
 
         return Directory.EnumerateFiles(resolvedDirectoryPath, "*", SearchOption.TopDirectoryOnly)
             .Where(filePath =>

@@ -1,6 +1,7 @@
-﻿using System.Data;
-using System.Text;
+using System.Collections.Concurrent;
+using System.Data;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
@@ -11,7 +12,12 @@ namespace QaaS.Framework.Protocols.Protocols;
 [ExcludeFromCodeCoverage]
 public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
 {
+    private sealed record UnknownResultTypeInspection(bool InspectionSucceeded, bool[]? UnknownResultTypeList);
+    private sealed record UnknownResultTypeCacheEntry(bool[]? UnknownResultTypeList);
+
     private readonly bool _isInsertionTimeFieldTimeZoneTz;
+    private readonly ConcurrentDictionary<string, UnknownResultTypeCacheEntry> _unknownResultTypeCache =
+        new(StringComparer.Ordinal);
 
     public PostgreSqlProtocol(PostgreSqlReaderConfig configurations, ILogger logger,
         NpgsqlConnection? dbConnection = null) : base(configurations, logger,
@@ -69,6 +75,28 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
         cmd.ExecuteNonQuery();
     }
 
+    protected override IDataReader ExecuteReader(IDbCommand command)
+    {
+        if (command is not NpgsqlCommand npgsqlCommand)
+            return base.ExecuteReader(command);
+
+        var queryText = npgsqlCommand.CommandText ?? string.Empty;
+        if (!_unknownResultTypeCache.TryGetValue(queryText, out var cacheEntry))
+        {
+            var inspection = InspectUnknownResultTypes(npgsqlCommand);
+            if (inspection.InspectionSucceeded)
+            {
+                cacheEntry = new UnknownResultTypeCacheEntry(inspection.UnknownResultTypeList);
+                _unknownResultTypeCache[queryText] = cacheEntry;
+            }
+        }
+
+        if (cacheEntry?.UnknownResultTypeList != null)
+            npgsqlCommand.UnknownResultTypeList = cacheEntry.UnknownResultTypeList;
+
+        return ExecutePostgreSqlReader(npgsqlCommand);
+    }
+
     /// <inheritdoc />
     protected override string GetTableQueryArrangedByInsertionTimeFieldAsc() =>
         $"select * from {TableName} {BuildWhereStatement()} order by \"{InsertionTimeField}\" asc";
@@ -101,6 +129,55 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
     private string BuildInsertionTimeFieldName() => _isInsertionTimeFieldTimeZoneTz
         ? $"\"{InsertionTimeField}\" AT TIME ZONE 'UTC'"
         : $"\"{InsertionTimeField}\"";
+
+    protected virtual IDataReader ExecutePostgreSqlReader(NpgsqlCommand command) => command.ExecuteReader();
+
+    protected virtual IDataReader ExecuteSchemaReader(NpgsqlCommand command) =>
+        command.ExecuteReader(CommandBehavior.SchemaOnly);
+
+    private UnknownResultTypeInspection InspectUnknownResultTypes(NpgsqlCommand command)
+    {
+        try
+        {
+            using var schemaReader = ExecuteSchemaReader(command);
+            if (schemaReader.FieldCount == 0)
+                return new UnknownResultTypeInspection(true, null);
+
+            var unknownResultTypes = new bool[schemaReader.FieldCount];
+            var hasUnknownResultTypes = false;
+
+            for (var col = 0; col < schemaReader.FieldCount; col++)
+            {
+                var dataTypeName = schemaReader.GetDataTypeName(col);
+                if (!ShouldReadResultColumnAsText(dataTypeName))
+                    continue;
+
+                unknownResultTypes[col] = true;
+                hasUnknownResultTypes = true;
+                Logger.LogDebug(
+                    "Requesting PostgreSQL column {ColumnName} with data type {DataTypeName} as text",
+                    schemaReader.GetName(col), dataTypeName);
+            }
+
+            return new UnknownResultTypeInspection(true, hasUnknownResultTypes ? unknownResultTypes : null);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogDebug(exception,
+                "Failed to inspect PostgreSQL result types for query {QueryCommand}; using default result mapping",
+                command.CommandText);
+            return new UnknownResultTypeInspection(false, null);
+        }
+    }
+
+    private static bool ShouldReadResultColumnAsText(string? dataTypeName)
+    {
+        if (string.IsNullOrWhiteSpace(dataTypeName))
+            return false;
+
+        return dataTypeName.Contains('.', StringComparison.Ordinal) &&
+               !dataTypeName.StartsWith("pg_catalog.", StringComparison.OrdinalIgnoreCase);
+    }
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {

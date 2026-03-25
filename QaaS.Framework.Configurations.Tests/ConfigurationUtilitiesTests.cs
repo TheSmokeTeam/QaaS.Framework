@@ -256,8 +256,12 @@ public class ConfigurationUtilitiesTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
 
-        Assert.Throws<InvalidConfigurationsException>(
+        var exception = Assert.Throws<InvalidConfigurationsException>(
             () => configuration.LoadAndValidateConfiguration<RequiredSettings>());
+
+        Assert.That(exception!.Message, Does.Contain("Configuration binding failed for RequiredSettings."));
+        Assert.That(exception.Message, Does.Contain("Top-level configuration keys: <none>"));
+        Assert.That(exception.Message, Does.Contain("The Name field is required."));
     }
 
     [Test]
@@ -529,6 +533,43 @@ public class ConfigurationUtilitiesTests
     }
 
     [Test]
+    public void AddYaml_WithMalformedYaml_ThrowsInvalidConfigurationsExceptionWithParserDetails()
+    {
+        var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
+        File.WriteAllText(filePath,
+            """
+            MetaData:
+              Team: Smoke
+              System: [broken
+            """);
+
+        try
+        {
+            var ex = Assert.Throws<InvalidConfigurationsException>(() => new ConfigurationBuilder().AddYaml(filePath).Build());
+
+            Assert.That(ex!.Message, Does.Contain("YAML configuration file is invalid and QaaS cannot continue."));
+            Assert.That(ex.Message, Does.Contain($"Resolved local path: {filePath}"));
+            Assert.That(ex.Message, Does.Contain("Parser location: line "));
+            Assert.That(ex.Message, Does.Contain("Parser detail: While parsing a flow sequence"));
+        }
+        finally
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    [Test]
+    public void AddYaml_WithMissingFile_ThrowsCouldNotFindConfigurationExceptionWithResolvedPath()
+    {
+        var missingPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
+
+        var ex = Assert.Throws<CouldNotFindConfigurationException>(() => new ConfigurationBuilder().AddYaml(missingPath).Build());
+
+        Assert.That(ex!.Message, Does.Contain("YAML configuration file was not found."));
+        Assert.That(ex.Message, Does.Contain($"Resolved local path: {missingPath}"));
+    }
+
+    [Test]
     public void AddYamlFromHttpGet_WithInvalidUrl_ThrowsCouldNotFindConfigurationException()
     {
         var configurationBuilder = new ConfigurationBuilder()
@@ -546,6 +587,28 @@ public class ConfigurationUtilitiesTests
             Assert.That(PathUtils.IsPathHttpUrl("https://x"), Is.True);
             Assert.That(PathUtils.IsPathHttpUrl("c:\\tmp\\a.yaml"), Is.False);
         });
+    }
+
+    [Test]
+    public void EnumerateYamlFilesInDirectory_WithMissingDirectory_ThrowsIndicativeDirectoryNotFoundException()
+    {
+        var missingDirectory = Path.Combine(Path.GetTempPath(), $"qaas-missing-dir-{Guid.NewGuid():N}");
+
+        var ex = Assert.Throws<DirectoryNotFoundException>(() => PathUtils.EnumerateYamlFilesInDirectory(missingDirectory).ToList());
+
+        Assert.That(ex!.Message, Does.Contain("Overwrite folder was not found."));
+        Assert.That(ex.Message, Does.Contain($"Configured overwrite folder: {missingDirectory}"));
+        Assert.That(ex.Message, Does.Contain($"Resolved local path: {missingDirectory}"));
+    }
+
+    [Test]
+    public void EnumerateYamlFilesInDirectory_WithHttpPath_ThrowsIndicativeArgumentException()
+    {
+        var ex = Assert.Throws<ArgumentException>(() => PathUtils.EnumerateYamlFilesInDirectory("https://example.com/overwrites").ToList());
+
+        Assert.That(ex!.Message, Does.Contain("Overwrite folders must be local directories."));
+        Assert.That(ex.Message, Does.Contain("Configured overwrite folder: https://example.com/overwrites"));
+        Assert.That(ex.Message, Does.Contain("Use --with-files for individual YAML files."));
     }
 
     [Test]
