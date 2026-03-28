@@ -11,7 +11,8 @@ public class TrinoSqlProtocol : BaseSqlProtocol<TrinoConnection>
     public string Schema { get; set; }
 
     public TrinoSqlProtocol(TrinoReaderConfig configurations, ILogger logger,
-        TrinoConnection? dbConnection = null) : base(configurations, logger, dbConnection)
+        TrinoConnection? dbConnection = null,
+        string? timeZoneId = null) : base(configurations, logger, dbConnection, timeZoneId)
     {
         var properties = new TrinoConnectionProperties
         {

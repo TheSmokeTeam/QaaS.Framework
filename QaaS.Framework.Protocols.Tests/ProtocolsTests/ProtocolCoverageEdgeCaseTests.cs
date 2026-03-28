@@ -62,12 +62,15 @@ public class ProtocolCoverageEdgeCaseTests
     }
 
     [Test]
-    public void DateTimeAndFileSystemExtensions_HandleWinterSummerAndInvalidCharacters()
+    public void DateTimeAndFileSystemExtensions_HandleWinterSummerCustomZonesAndInvalidCharacters()
     {
         var localTime = new DateTime(2026, 1, 1, 12, 0, 0);
         var winterUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(3, false);
         var summerUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(3, true);
         var winterLocal = winterUtc.ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(3, false);
+        var londonWinterUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(1, timeZoneId: "Europe/London");
+        var londonSummerLocal = new DateTime(2026, 7, 1, 11, 0, 0, DateTimeKind.Utc)
+            .ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(1, timeZoneId: "Europe/London");
         var invalidCharacter = Path.GetInvalidFileNameChars().First();
         var sanitized = FileSystemExtensions.MakeValidDirectoryName($"bad{invalidCharacter}name");
 
@@ -76,6 +79,8 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(winterUtc, Is.EqualTo(new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc)));
             Assert.That(summerUtc, Is.EqualTo(new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)));
             Assert.That(winterLocal, Is.EqualTo(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Unspecified)));
+            Assert.That(londonWinterUtc, Is.EqualTo(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)));
+            Assert.That(londonSummerLocal, Is.EqualTo(new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Unspecified)));
             Assert.That(sanitized, Is.EqualTo("bad_name"));
             Assert.That(FileSystemExtensions.MakeValidDirectoryName(null), Is.Null);
         });
@@ -359,6 +364,47 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(publishedProperties.Expiration, Is.EqualTo("2000"));
             Assert.That(publishedProperties.ContentType, Is.EqualTo("application/octet-stream"));
             Assert.That(publishedProperties.Type, Is.EqualTo("override-type"));
+        });
+    }
+
+    [Test]
+    public void RabbitMqProtocol_Send_OmitsUnsetMetadataProperties_And_UsesDefaultRoutingKey()
+    {
+        BasicProperties? publishedProperties = null;
+        string? publishedRoutingKey = null;
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        channelMock
+            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
+                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
+                (_, routingKey, _, properties, _, _) =>
+                {
+                    publishedRoutingKey = routingKey;
+                    publishedProperties = properties;
+                })
+            .Returns(ValueTask.CompletedTask);
+
+        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            ExchangeName = "exchange-name"
+        }, NullLogger.Instance);
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        var sent = sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sent.Body, Is.TypeOf<byte[]>());
+            Assert.That(publishedRoutingKey, Is.EqualTo("/"));
+            Assert.That(publishedProperties, Is.Not.Null);
+            Assert.That(publishedProperties!.Headers, Is.Null);
+            Assert.That(publishedProperties.Expiration, Is.Null);
+            Assert.That(publishedProperties.ContentType, Is.Null);
+            Assert.That(publishedProperties.Type, Is.Null);
         });
     }
 

@@ -10,14 +10,16 @@ namespace QaaS.Framework.Protocols.Protocols;
 public class MsSqlProtocol : BaseSqlProtocol<SqlConnection>
 {
     public MsSqlProtocol(MsSqlReaderConfig configurations, ILogger logger,
-        SqlConnection? dbConnection = null) : base(configurations, logger,
-        dbConnection ?? new SqlConnection(configurations.ConnectionString))
+        SqlConnection? dbConnection = null,
+        string? timeZoneId = null) : base(configurations, logger,
+        dbConnection ?? new SqlConnection(configurations.ConnectionString), timeZoneId)
     {
     }
 
     public MsSqlProtocol(MsSqlSenderConfig configurations, ILogger logger,
-        SqlConnection? dbConnection = null) : base(configurations, logger,
-        dbConnection ?? new SqlConnection(configurations.ConnectionString))
+        SqlConnection? dbConnection = null,
+        string? timeZoneId = null) : base(configurations, logger,
+        dbConnection ?? new SqlConnection(configurations.ConnectionString), timeZoneId)
     {
     }
 

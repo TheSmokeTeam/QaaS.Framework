@@ -27,10 +27,16 @@ public static class SenderFactory
     /// <param name="logger">Logger instance for logging operations and errors</param>
     /// <param name="dataFilter">Optional data filter to apply to the sender's data processing.
     /// When omitted, senders keep the full body, timestamp, and metadata.</param>
+    /// <param name="timeZoneId">Optional time zone id used when protocols need daylight-saving rules.</param>
     /// <returns>A tuple containing an ISender (nullable) and an IChunkSender (nullable) configured according to the provided configuration.
     /// The first item will be non-null for singular senders, the second for chunkable senders.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the provided configuration type is not supported or recognized</exception>
-    public static (ISender?, IChunkSender?) CreateSender(bool isChunkable, ISenderConfig type, ILogger logger, DataFilter? dataFilter)
+    public static (ISender?, IChunkSender?) CreateSender(
+        bool isChunkable,
+        ISenderConfig type,
+        ILogger logger,
+        DataFilter? dataFilter,
+        string? timeZoneId = null)
     {
        var effectiveDataFilter = dataFilter ?? new DataFilter();
 
@@ -38,8 +44,8 @@ public static class SenderFactory
        {
            // Singular senders
            RedisSenderConfig config => new RedisProtocol(config, logger),
-           MsSqlSenderConfig config => new MsSqlProtocol(config, logger),
-           OracleSenderConfig config => new OracleSqlProtocol(config, logger),
+           MsSqlSenderConfig config => new MsSqlProtocol(config, logger, timeZoneId: timeZoneId),
+           OracleSenderConfig config => new OracleSqlProtocol(config, logger, timeZoneId: timeZoneId),
            MongoDbCollectionSenderConfig config => new MongoDbProtocol(config, logger),
            ElasticSenderConfig config => new ElasticProtocol(config, effectiveDataFilter, logger),
            
@@ -51,7 +57,7 @@ public static class SenderFactory
            S3BucketSenderConfig config => new S3Protocol(config, logger),
            
            // Senders which support both
-           PostgreSqlSenderConfig config => new PostgreSqlProtocol(config, logger),
+           PostgreSqlSenderConfig config => new PostgreSqlProtocol(config, logger, timeZoneId: timeZoneId),
            
            _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
        };

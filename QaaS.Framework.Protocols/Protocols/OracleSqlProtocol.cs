@@ -11,14 +11,16 @@ namespace QaaS.Framework.Protocols.Protocols;
 public class OracleSqlProtocol : BaseSqlProtocol<OracleConnection>, ISender
 {
     public OracleSqlProtocol(OracleReaderConfig configurations, ILogger logger,
-        OracleConnection? dbConnection = null) : base(configurations, logger,
-        dbConnection ?? new OracleConnection(configurations.ConnectionString))
+        OracleConnection? dbConnection = null,
+        string? timeZoneId = null) : base(configurations, logger,
+        dbConnection ?? new OracleConnection(configurations.ConnectionString), timeZoneId)
     {
     }
 
     public OracleSqlProtocol(OracleSenderConfig configurations, ILogger logger,
-        OracleConnection? dbConnection = null) : base(configurations, logger,
-        dbConnection ?? new OracleConnection(configurations.ConnectionString))
+        OracleConnection? dbConnection = null,
+        string? timeZoneId = null) : base(configurations, logger,
+        dbConnection ?? new OracleConnection(configurations.ConnectionString), timeZoneId)
     {
     }
 

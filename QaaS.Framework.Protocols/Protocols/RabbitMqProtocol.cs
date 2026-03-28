@@ -102,13 +102,20 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        var basicProperties = new BasicProperties
-        {
-            Headers = dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers,
-            Expiration = dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration,
-            ContentType = dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType,
-            Type = dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type,
-        };
+        var basicProperties = new BasicProperties();
+        var headers = dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers;
+        var expiration = dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration;
+        var contentType = dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType;
+        var type = dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type;
+
+        if (headers != null)
+            basicProperties.Headers = headers;
+        if (expiration != null)
+            basicProperties.Expiration = expiration;
+        if (contentType != null)
+            basicProperties.ContentType = contentType;
+        if (type != null)
+            basicProperties.Type = type;
 
         _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter()
             .GetResult(); // Before sending check if exchange exists

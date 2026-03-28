@@ -25,10 +25,15 @@ public static class ReaderFactory
     /// <param name="logger">Logger instance for logging operations and errors</param>
     /// <param name="dataFilter">Optional data filter to apply to the reader's data processing.
     /// When omitted, readers keep the full body, timestamp, and metadata.</param>
+    /// <param name="timeZoneId">Optional time zone id used when protocols need daylight-saving rules.</param>
     /// <returns>A tuple containing an IReader (nullable) and an IChunkReader (nullable) configured according to the provided configuration.
     /// The first item will be non-null for singular readers, the second for chunkable readers.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the provided configuration type is not supported or recognized</exception>
-    public static (IReader?, IChunkReader?) CreateReader(IReaderConfig type, ILogger logger, DataFilter? dataFilter)
+    public static (IReader?, IChunkReader?) CreateReader(
+        IReaderConfig type,
+        ILogger logger,
+        DataFilter? dataFilter,
+        string? timeZoneId = null)
     {
         var effectiveDataFilter = dataFilter ?? new DataFilter();
 
@@ -42,10 +47,10 @@ public static class ReaderFactory
             RedisReaderConfig config => (new RedisReaderProtocol(config, logger), null),
             
             // Chunkable readers
-            PostgreSqlReaderConfig config => (null, new PostgreSqlProtocol(config, logger)),
-            OracleReaderConfig config => (null, new OracleSqlProtocol(config, logger)),
-            MsSqlReaderConfig config => (null, new MsSqlProtocol(config, logger)),
-            TrinoReaderConfig config => (null, new TrinoSqlProtocol(config, logger)),
+            PostgreSqlReaderConfig config => (null, new PostgreSqlProtocol(config, logger, timeZoneId: timeZoneId)),
+            OracleReaderConfig config => (null, new OracleSqlProtocol(config, logger, timeZoneId: timeZoneId)),
+            MsSqlReaderConfig config => (null, new MsSqlProtocol(config, logger, timeZoneId: timeZoneId)),
+            TrinoReaderConfig config => (null, new TrinoSqlProtocol(config, logger, timeZoneId: timeZoneId)),
             ElasticReaderConfig config => (null, new ElasticProtocol(config, effectiveDataFilter, logger)),
             S3BucketReaderConfig config => (null, new S3Protocol(config, effectiveDataFilter, logger)),
             
