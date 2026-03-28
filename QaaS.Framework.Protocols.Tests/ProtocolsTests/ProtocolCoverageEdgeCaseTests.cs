@@ -368,6 +368,47 @@ public class ProtocolCoverageEdgeCaseTests
     }
 
     [Test]
+    public void RabbitMqProtocol_Send_OmitsUnsetMetadataProperties_And_UsesDefaultRoutingKey()
+    {
+        BasicProperties? publishedProperties = null;
+        string? publishedRoutingKey = null;
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        channelMock
+            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
+                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
+                (_, routingKey, _, properties, _, _) =>
+                {
+                    publishedRoutingKey = routingKey;
+                    publishedProperties = properties;
+                })
+            .Returns(ValueTask.CompletedTask);
+
+        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            ExchangeName = "exchange-name"
+        }, NullLogger.Instance);
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        var sent = sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sent.Body, Is.TypeOf<byte[]>());
+            Assert.That(publishedRoutingKey, Is.EqualTo("/"));
+            Assert.That(publishedProperties, Is.Not.Null);
+            Assert.That(publishedProperties!.Headers, Is.Null);
+            Assert.That(publishedProperties.Expiration, Is.Null);
+            Assert.That(publishedProperties.ContentType, Is.Null);
+            Assert.That(publishedProperties.Type, Is.Null);
+        });
+    }
+
+    [Test]
     public void RedisPrivateHelpers_CoverNullAndUnsupportedBranches()
     {
         var senderProtocol = new QaaS.Framework.Protocols.Protocols.RedisProtocol(new RedisSenderConfig
