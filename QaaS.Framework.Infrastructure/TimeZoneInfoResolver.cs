@@ -6,20 +6,37 @@ namespace QaaS.Framework.Infrastructure;
 public static class TimeZoneInfoResolver
 {
     public const string DefaultTimeZoneId = "Asia/Jerusalem";
+    public const string DefaultWindowsTimeZoneId = "Israel Standard Time";
 
     /// <summary>
     /// Resolves the requested time zone id to a <see cref="TimeZoneInfo"/> on the current platform.
     /// </summary>
     public static TimeZoneInfo ResolveTimeZoneInfo(string? timeZoneId = null)
     {
-        var effectiveTimeZoneId = string.IsNullOrWhiteSpace(timeZoneId)
-            ? DefaultTimeZoneId
-            : timeZoneId;
+        if (!string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            if (TryResolve(timeZoneId, out var explicitTimeZoneInfo))
+                return explicitTimeZoneInfo;
 
-        if (TryResolve(effectiveTimeZoneId, out var timeZoneInfo))
-            return timeZoneInfo;
+            throw new TimeZoneNotFoundException($"Could not resolve time zone '{timeZoneId}'.");
+        }
 
-        throw new TimeZoneNotFoundException($"Could not resolve time zone '{effectiveTimeZoneId}'.");
+        foreach (var defaultTimeZoneCandidate in GetDefaultTimeZoneCandidates())
+        {
+            if (TryResolve(defaultTimeZoneCandidate, out var timeZoneInfo))
+                return timeZoneInfo;
+        }
+
+        throw new TimeZoneNotFoundException(
+            $"Could not resolve default time zone '{DefaultTimeZoneId}' or its Windows fallback '{DefaultWindowsTimeZoneId}'.");
+    }
+
+    private static IEnumerable<string> GetDefaultTimeZoneCandidates()
+    {
+        yield return DefaultTimeZoneId;
+
+        if (!string.Equals(DefaultTimeZoneId, DefaultWindowsTimeZoneId, StringComparison.Ordinal))
+            yield return DefaultWindowsTimeZoneId;
     }
 
     private static bool TryResolve(string timeZoneId, out TimeZoneInfo timeZoneInfo)
