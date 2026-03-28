@@ -16,6 +16,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     where TDbConnection : class, IDbConnection
 {
     private readonly int _insertionTimeTimeZoneOffsetSummerTime;
+    private readonly string? _timeZoneId;
     private readonly double _filterSecondsBeforeRunStartTime;
     private protected readonly string TableName;
     protected readonly ILogger Logger;
@@ -32,7 +33,8 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
 
     protected BaseSqlProtocol(SqlReaderConfig configurations, ILogger logger,
-        TDbConnection? dbConnection = null) : this((SqlConfig)configurations, logger, dbConnection)
+        TDbConnection? dbConnection = null,
+        string? timeZoneId = null) : this((SqlConfig)configurations, logger, dbConnection, timeZoneId)
     {
         _insertionTimeTimeZoneOffsetSummerTime = configurations.InsertionTimeTimeZoneOffsetSummerTime;
         ColumnsToFilter = configurations.ColumnsToIgnore;
@@ -44,12 +46,14 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
 
     protected BaseSqlProtocol(SqlConfig configurations, ILogger logger,
-        TDbConnection? dbConnection = null)
+        TDbConnection? dbConnection = null,
+        string? timeZoneId = null)
     {
         if (dbConnection != null) DbConnection = dbConnection;
         CommandTimeoutSeconds = configurations.CommandTimeoutSeconds;
         TableName = configurations.TableName!;
         Logger = logger;
+        _timeZoneId = timeZoneId;
     }
 
     public SerializationType? GetSerializationType() => SerializationType.Json;
@@ -66,7 +70,8 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                 Body = row,
                 MetaData = null,
                 Timestamp = GetDateTimeFromDateTimeField(row)?
-                    .ConvertDateTimeToUtcByTimeZoneOffset(_insertionTimeTimeZoneOffsetSummerTime)
+                    .ConvertDateTimeToUtcByTimeZoneOffset(_insertionTimeTimeZoneOffsetSummerTime,
+                        timeZoneId: _timeZoneId)
             });
         return rowsDetailedDataEnumerable.ToImmutableList();
     }
@@ -86,7 +91,8 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         DbConnection.Open();
         StartTimeDbTimeZone = GetCurrentUtcDateTime()
                                   .ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(
-                                      _insertionTimeTimeZoneOffsetSummerTime)
+                                      _insertionTimeTimeZoneOffsetSummerTime,
+                                      timeZoneId: _timeZoneId)
                               - TimeSpan.FromSeconds(_filterSecondsBeforeRunStartTime);
     }
 
@@ -270,7 +276,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
             return (long)(GetCurrentUtcDateTime() -
                           latestChangeTime.ConvertDateTimeToUtcByTimeZoneOffset
-                              (_insertionTimeTimeZoneOffsetSummerTime)).TotalMilliseconds;
+                              (_insertionTimeTimeZoneOffsetSummerTime, timeZoneId: _timeZoneId)).TotalMilliseconds;
         }
         catch (InvalidOperationException e)
         {

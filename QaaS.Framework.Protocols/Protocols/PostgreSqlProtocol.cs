@@ -20,15 +20,17 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
         new(StringComparer.Ordinal);
 
     public PostgreSqlProtocol(PostgreSqlReaderConfig configurations, ILogger logger,
-        NpgsqlConnection? dbConnection = null) : base(configurations, logger,
-        dbConnection ?? new NpgsqlConnection(configurations.ConnectionString))
+        NpgsqlConnection? dbConnection = null,
+        string? timeZoneId = null) : base(configurations, logger,
+        dbConnection ?? new NpgsqlConnection(configurations.ConnectionString), timeZoneId)
     {
         _isInsertionTimeFieldTimeZoneTz = configurations.IsInsertionTimeFieldTimeZoneTz;
     }
 
     public PostgreSqlProtocol(PostgreSqlSenderConfig configurations, ILogger logger,
-        NpgsqlConnection? dbConnection = null) : base(configurations,
-        logger, dbConnection ?? new NpgsqlConnection(configurations.ConnectionString))
+        NpgsqlConnection? dbConnection = null,
+        string? timeZoneId = null) : base(configurations,
+        logger, dbConnection ?? new NpgsqlConnection(configurations.ConnectionString), timeZoneId)
     {
     }
 

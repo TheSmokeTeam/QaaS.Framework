@@ -62,12 +62,15 @@ public class ProtocolCoverageEdgeCaseTests
     }
 
     [Test]
-    public void DateTimeAndFileSystemExtensions_HandleWinterSummerAndInvalidCharacters()
+    public void DateTimeAndFileSystemExtensions_HandleWinterSummerCustomZonesAndInvalidCharacters()
     {
         var localTime = new DateTime(2026, 1, 1, 12, 0, 0);
         var winterUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(3, false);
         var summerUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(3, true);
         var winterLocal = winterUtc.ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(3, false);
+        var londonWinterUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(1, timeZoneId: "Europe/London");
+        var londonSummerLocal = new DateTime(2026, 7, 1, 11, 0, 0, DateTimeKind.Utc)
+            .ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(1, timeZoneId: "Europe/London");
         var invalidCharacter = Path.GetInvalidFileNameChars().First();
         var sanitized = FileSystemExtensions.MakeValidDirectoryName($"bad{invalidCharacter}name");
 
@@ -76,6 +79,8 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(winterUtc, Is.EqualTo(new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc)));
             Assert.That(summerUtc, Is.EqualTo(new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)));
             Assert.That(winterLocal, Is.EqualTo(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Unspecified)));
+            Assert.That(londonWinterUtc, Is.EqualTo(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)));
+            Assert.That(londonSummerLocal, Is.EqualTo(new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Unspecified)));
             Assert.That(sanitized, Is.EqualTo("bad_name"));
             Assert.That(FileSystemExtensions.MakeValidDirectoryName(null), Is.Null);
         });
