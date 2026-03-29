@@ -27,11 +27,13 @@ public class SerializationEdgeCaseTests
     }
 
     [Test]
-    public void BinaryDeserializer_WithoutSpecificType_ThrowsArgumentException()
+    public void BinaryDeserializer_WithoutSpecificType_ReturnsRuntimePayload()
     {
         var bytes = new BinarySerializer().Serialize("typed");
 
-        Assert.Throws<ArgumentException>(() => new BinaryDeserializer().Deserialize(bytes));
+        var result = new BinaryDeserializer().Deserialize(bytes);
+
+        Assert.That(result, Is.EqualTo("typed"));
     }
 
     [Test]

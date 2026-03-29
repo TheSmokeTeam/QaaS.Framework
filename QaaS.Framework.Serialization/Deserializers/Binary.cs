@@ -14,17 +14,18 @@ public class Binary: IDeserializer
     {
         if (data is null) return null;
 
-        if (deserializeType is null)
-            throw new ArgumentException("Binary deserialization requires an explicit target type.",
-                nameof(deserializeType));
-
         using var stream = new MemoryStream(data);
-        var formatter = new BinaryFormatter
-        {
-            Binder = new AllowedTypesSerializationBinder(deserializeType)
-        };
+        var formatter = deserializeType is null
+            ? new BinaryFormatter()
+            : new BinaryFormatter
+            {
+                Binder = new AllowedTypesSerializationBinder(deserializeType)
+            };
 
         var deserialized = formatter.Deserialize(stream);
+        if (deserializeType is null)
+            return deserialized;
+
         if (!deserializeType.IsInstanceOfType(deserialized))
         {
             throw new SerializationException(

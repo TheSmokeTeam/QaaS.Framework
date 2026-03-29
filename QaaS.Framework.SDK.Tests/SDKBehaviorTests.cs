@@ -538,6 +538,39 @@ public class SDKBehaviorTests
     }
 
     [Test]
+    public void ContextBuilder_BuildInternal_LoadsVariablesSectionIntoContext()
+    {
+        var baseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
+
+        File.WriteAllText(baseYaml, """
+variables:
+  rabbitmq:
+    host: localhost
+    port: 5672
+root:
+  value: test
+""");
+
+        try
+        {
+            var context = new ContextBuilder(baseYaml)
+                .SetLogger(NullLogger.Instance)
+                .BuildInternal();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
+                Assert.That(context.Variables["rabbitmq:host"], Is.EqualTo("localhost"));
+                Assert.That(context.Variables["rabbitmq:port"], Is.EqualTo("5672"));
+            });
+        }
+        finally
+        {
+            File.Delete(baseYaml);
+        }
+    }
+
+    [Test]
     public void Bind_BindsFromContextAndReturnsValidationResults()
     {
         var context = new Context

@@ -377,7 +377,7 @@ public class ProtocolCoverageEdgeCaseTests
             .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         channelMock
-            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
+            .Setup(mock => mock.BasicPublishAsync<BasicProperties>("exchange-name", It.IsAny<string>(), true,
                 It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
             .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
                 (_, routingKey, _, properties, _, _) =>
@@ -400,11 +400,7 @@ public class ProtocolCoverageEdgeCaseTests
         {
             Assert.That(sent.Body, Is.TypeOf<byte[]>());
             Assert.That(publishedRoutingKey, Is.EqualTo("/"));
-            Assert.That(publishedProperties, Is.Not.Null);
-            Assert.That(publishedProperties!.Headers, Is.Null);
-            Assert.That(publishedProperties.Expiration, Is.Null);
-            Assert.That(publishedProperties.ContentType, Is.Null);
-            Assert.That(publishedProperties.Type, Is.Null);
+            Assert.That(publishedProperties, Is.Null);
         });
     }
 

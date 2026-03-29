@@ -298,6 +298,25 @@ public class ProvidersCoverageTests
     }
 
     [Test]
+    public void HookProvider_WhenSimpleNameResolvesInFirstAssembly_DoesNotProbeLaterAssemblies()
+    {
+        var provider = new HookProvider<IHook>(CreateContext(), new ByNameObjectCreator(NullLogger.Instance));
+        var brokenAssembly = new Mock<Assembly>();
+        brokenAssembly.SetupGet(assembly => assembly.FullName).Returns("BrokenAssembly");
+        brokenAssembly.Setup(assembly => assembly.GetTypes())
+            .Throws(new InvalidOperationException("should-not-be-visited"));
+
+        typeof(HookProvider<IHook>)
+            .GetField("_hookAssemblies", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(provider, new[] { typeof(ModuleHook).Assembly, brokenAssembly.Object });
+
+        var hook = provider.GetSupportedInstanceByName(nameof(ModuleHook));
+
+        Assert.That(hook, Is.InstanceOf<ModuleHook>());
+        brokenAssembly.Verify(assembly => assembly.GetTypes(), Times.Never);
+    }
+
+    [Test]
     public void ByNameObjectCreator_DefaultAssemblyLookupAndNullAssemblyEnumeration_AreCovered()
     {
         var creator = new ByNameObjectCreator(NullLogger.Instance);

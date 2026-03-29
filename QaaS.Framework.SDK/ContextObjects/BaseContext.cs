@@ -7,6 +7,7 @@ namespace QaaS.Framework.SDK.ContextObjects;
 public abstract class BaseContext<TExecutionData> where TExecutionData : class, IExecutionData, new()
 {
     private IConfiguration _rootConfiguration = null!;
+    private IConfiguration _variables = new ConfigurationBuilder().Build();
     // GlobalDict is shared mutable state across execution components, so nested reads/writes
     // must be serialized to avoid races while creating or traversing intermediate dictionaries.
     private readonly Lock _globalDictLock = new();
@@ -27,7 +28,20 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
     public IConfiguration RootConfiguration
     {
         get => _rootConfiguration;
-        init => _rootConfiguration = value;
+        init
+        {
+            _rootConfiguration = value;
+            _variables = ResolveVariablesConfiguration(value);
+        }
+    }
+
+    /// <summary>
+    /// The configuration subtree loaded from the root <c>variables</c> section.
+    /// </summary>
+    public IConfiguration Variables
+    {
+        get => _variables;
+        init => _variables = value;
     }
 
     /// <summary>
@@ -116,5 +130,13 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
 
 
     internal void SetRootConfiguration(IConfiguration updatedConfiguration) =>
-        _rootConfiguration = updatedConfiguration;
+        (_rootConfiguration, _variables) = (updatedConfiguration, ResolveVariablesConfiguration(updatedConfiguration));
+
+    private static IConfiguration ResolveVariablesConfiguration(IConfiguration configuration)
+    {
+        var variablesSection = configuration.GetSection("variables");
+        return variablesSection.Exists()
+            ? variablesSection
+            : new ConfigurationBuilder().Build();
+    }
 }

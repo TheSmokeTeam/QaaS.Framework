@@ -102,25 +102,32 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        var basicProperties = new BasicProperties();
         var headers = dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers;
         var expiration = dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration;
         var contentType = dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType;
         var type = dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type;
 
-        if (headers != null)
-            basicProperties.Headers = headers;
-        if (expiration != null)
-            basicProperties.Expiration = expiration;
-        if (contentType != null)
-            basicProperties.ContentType = contentType;
-        if (type != null)
-            basicProperties.Type = type;
+        BasicProperties? basicProperties = null;
+        if (headers != null || expiration != null || contentType != null || type != null)
+        {
+            var configuredProperties = new BasicProperties();
+            if (headers != null)
+                configuredProperties.Headers = headers;
+            if (expiration != null)
+                configuredProperties.Expiration = expiration;
+            if (contentType != null)
+                configuredProperties.ContentType = contentType;
+            if (type != null)
+                configuredProperties.Type = type;
+
+            basicProperties = configuredProperties;
+        }
 
         _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter()
             .GetResult(); // Before sending check if exchange exists
-        _channel.BasicPublishAsync(ExchangeName, dataToSend.MetaData?.RabbitMq?.RoutingKey ?? RoutingKey, true,
-                basicProperties, dataToSend.CastObjectData<byte[]>().Body).GetAwaiter()
+        _channel.BasicPublishAsync<BasicProperties>(ExchangeName,
+                dataToSend.MetaData?.RabbitMq?.RoutingKey ?? RoutingKey, true,
+                basicProperties!, dataToSend.CastObjectData<byte[]>().Body).GetAwaiter()
             .GetResult(); // Assumes data is byte[]
         _logger.LogDebug("Sent message in bytes to Exchange {ExchangeName}, Queue {QueueName}", ExchangeName,
             _queueName);
