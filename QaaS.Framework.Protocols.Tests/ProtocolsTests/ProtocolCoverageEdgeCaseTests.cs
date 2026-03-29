@@ -370,22 +370,10 @@ public class ProtocolCoverageEdgeCaseTests
     [Test]
     public void RabbitMqProtocol_Send_OmitsUnsetMetadataProperties_And_UsesDefaultRoutingKey()
     {
-        BasicProperties? publishedProperties = null;
-        string? publishedRoutingKey = null;
         var channelMock = new Mock<IChannel>();
         channelMock
             .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        channelMock
-            .Setup(mock => mock.BasicPublishAsync<BasicProperties>("exchange-name", It.IsAny<string>(), true,
-                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
-                (_, routingKey, _, properties, _, _) =>
-                {
-                    publishedRoutingKey = routingKey;
-                    publishedProperties = properties;
-                })
-            .Returns(ValueTask.CompletedTask);
 
         var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
         {
@@ -395,29 +383,27 @@ public class ProtocolCoverageEdgeCaseTests
         SetPrivateField(sender, "_channel", channelMock.Object);
 
         var sent = sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+        var publishInvocation = channelMock.Invocations.Single(invocation =>
+            invocation.Method.Name == nameof(IChannel.BasicPublishAsync));
 
         Assert.Multiple(() =>
         {
             Assert.That(sent.Body, Is.TypeOf<byte[]>());
-            Assert.That(publishedRoutingKey, Is.EqualTo("/"));
-            Assert.That(publishedProperties, Is.Null);
+            Assert.That((string)publishInvocation.Arguments[1], Is.EqualTo("/"));
+            Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
+                Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+            Assert.That(publishInvocation.Arguments[3].GetType().FullName,
+                Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
         });
     }
 
     [Test]
     public void RabbitMqProtocol_Send_OmitsWhitespaceAndEmptyMetadataProperties()
     {
-        BasicProperties? publishedProperties = null;
         var channelMock = new Mock<IChannel>();
         channelMock
             .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        channelMock
-            .Setup(mock => mock.BasicPublishAsync<BasicProperties>("exchange-name", It.IsAny<string>(), true,
-                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
-                (_, _, _, properties, _, _) => publishedProperties = properties)
-            .Returns(ValueTask.CompletedTask);
 
         var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
         {
@@ -431,8 +417,13 @@ public class ProtocolCoverageEdgeCaseTests
         SetPrivateField(sender, "_channel", channelMock.Object);
 
         sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+        var publishInvocation = channelMock.Invocations.Single(invocation =>
+            invocation.Method.Name == nameof(IChannel.BasicPublishAsync));
 
-        Assert.That(publishedProperties, Is.Null);
+        Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
+            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+        Assert.That(publishInvocation.Arguments[3].GetType().FullName,
+            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
     }
 
     [Test]

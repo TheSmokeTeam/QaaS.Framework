@@ -15,6 +15,8 @@ public class Binary: IDeserializer
         if (data is null) return null;
 
         using var stream = new MemoryStream(data);
+        // Legacy runner/mocker flows rely on targetless binary payloads resolving to the runtime type embedded
+        // in the payload, so only the typed branch uses the allow-list binder.
         var formatter = deserializeType is null
             ? new BinaryFormatter()
             : new BinaryFormatter

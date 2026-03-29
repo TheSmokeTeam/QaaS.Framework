@@ -391,8 +391,10 @@ public class ProtocolIntegrationCoverageTests
             Assert.That(sent.Body, Is.TypeOf<byte[]>());
         });
 
-        channelMock.Verify(mock => mock.BasicPublishAsync(It.IsAny<string>(), It.IsAny<string>(), true,
-            It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()), Times.Once);
+        var publishInvocation = channelMock.Invocations.Single(invocation =>
+            invocation.Method.Name == nameof(IChannel.BasicPublishAsync));
+        Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
+            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
         channelMock.Verify(mock => mock.QueueDeleteAsync(It.IsAny<string>(), false, false, false,
             It.IsAny<CancellationToken>()), Times.Once);
         channelMock.Verify(mock => mock.Dispose(), Times.Once);
