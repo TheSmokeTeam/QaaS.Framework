@@ -405,6 +405,82 @@ public class ProtocolCoverageEdgeCaseTests
     }
 
     [Test]
+    public void RabbitMqProtocol_Send_OmitsWhitespaceAndEmptyMetadataProperties()
+    {
+        BasicProperties? publishedProperties = null;
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        channelMock
+            .Setup(mock => mock.BasicPublishAsync<BasicProperties>("exchange-name", It.IsAny<string>(), true,
+                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
+                (_, _, _, properties, _, _) => publishedProperties = properties)
+            .Returns(ValueTask.CompletedTask);
+
+        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            ExchangeName = "exchange-name",
+            Headers = [],
+            Expiration = "",
+            ContentType = "   ",
+            Type = string.Empty
+        }, NullLogger.Instance);
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+
+        Assert.That(publishedProperties, Is.Null);
+    }
+
+    [Test]
+    public void RabbitMqProtocol_Send_UsesConfiguredDefaultMetadata_WhenMessageMetadataIsNull()
+    {
+        BasicProperties? publishedProperties = null;
+        string? publishedRoutingKey = null;
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        channelMock
+            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
+                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
+                (_, routingKey, _, properties, _, _) =>
+                {
+                    publishedRoutingKey = routingKey;
+                    publishedProperties = properties;
+                })
+            .Returns(ValueTask.CompletedTask);
+
+        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            ExchangeName = "exchange-name",
+            RoutingKey = "default-route",
+            Headers = new Dictionary<string, object?> { ["default"] = "value" },
+            Expiration = "1500",
+            ContentType = "application/json",
+            Type = "default-type"
+        }, NullLogger.Instance);
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(publishedRoutingKey, Is.EqualTo("default-route"));
+            Assert.That(publishedProperties, Is.Not.Null);
+            Assert.That(publishedProperties!.Headers, Contains.Key("default"));
+            Assert.That(publishedProperties.Expiration, Is.EqualTo("1500"));
+            Assert.That(publishedProperties.ContentType, Is.EqualTo("application/json"));
+            Assert.That(publishedProperties.Type, Is.EqualTo("default-type"));
+        });
+    }
+
+    [Test]
     public void RedisPrivateHelpers_CoverNullAndUnsupportedBranches()
     {
         var senderProtocol = new QaaS.Framework.Protocols.Protocols.RedisProtocol(new RedisSenderConfig

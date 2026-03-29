@@ -317,6 +317,30 @@ public class ProvidersCoverageTests
     }
 
     [Test]
+    public void HookProvider_WhenExactTypeNameTargetsLaterAssembly_UsesLazyFullNameResolution()
+    {
+        var logger = new RecordingLogger();
+        var provider = new HookProvider<IHook>(CreateContext(logger), new ByNameObjectCreator(NullLogger.Instance));
+        var firstType = CreateDynamicHookType("GeneratedHooks7", "Hooks.First.SharedHook");
+        var secondType = CreateDynamicHookType("GeneratedHooks8", "Hooks.Second.SharedHook");
+
+        typeof(HookProvider<IHook>)
+            .GetField("_hookAssemblies", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(provider, new[] { firstType.Assembly, secondType.Assembly });
+
+        var hook = provider.GetSupportedInstanceByName(secondType.FullName!);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(hook.GetType(), Is.EqualTo(secondType));
+            Assert.That(hook.Context, Is.Not.Null);
+            Assert.That(logger.Entries.Any(entry =>
+                entry.Level == LogLevel.Warning &&
+                entry.Message.Contains("appears first in hook discovery order", StringComparison.Ordinal)), Is.False);
+        });
+    }
+
+    [Test]
     public void ByNameObjectCreator_DefaultAssemblyLookupAndNullAssemblyEnumeration_AreCovered()
     {
         var creator = new ByNameObjectCreator(NullLogger.Instance);

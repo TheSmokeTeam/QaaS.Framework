@@ -46,6 +46,18 @@ public class SerializationEdgeCaseTests
     }
 
     [Test]
+    public void BinaryDeserializer_WithInterfaceTargetType_AllowsCompatibleGenericPayload()
+    {
+        var payload = new List<string> { "alpha", "beta" };
+        var bytes = new BinarySerializer().Serialize(payload);
+
+        var result = new BinaryDeserializer().Deserialize(bytes, typeof(IEnumerable<string>));
+
+        Assert.That(result, Is.AssignableTo<IEnumerable<string>>());
+        Assert.That(((IEnumerable<string>)result!).ToArray(), Is.EqualTo(payload));
+    }
+
+    [Test]
     public void SerializerAndDeserializerFactories_InvalidEnum_ThrowArgumentOutOfRangeException()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>

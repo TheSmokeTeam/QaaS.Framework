@@ -165,6 +165,43 @@ public class SDKCoverageEdgeCaseTests
     }
 
     [Test]
+    public void Context_Variables_AreEmptyWhenMissingAndRefreshWhenRootConfigurationChanges()
+    {
+        var context = new Context
+        {
+            Logger = NullLogger.Instance,
+            RootConfiguration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["root:value"] = "base"
+                })
+                .Build(),
+            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+        };
+
+        var setRootConfiguration = typeof(Context).BaseType!
+            .GetMethod("SetRootConfiguration", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var updatedConfiguration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["variables:rabbitmq:host"] = "localhost",
+                ["variables:rabbitmq:port"] = "5672"
+            })
+            .Build();
+
+        Assert.That(context.Variables.GetChildren(), Is.Empty);
+
+        setRootConfiguration.Invoke(context, [updatedConfiguration]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
+            Assert.That(context.Variables["rabbitmq:host"], Is.EqualTo("localhost"));
+            Assert.That(context.Variables["rabbitmq:port"], Is.EqualTo("5672"));
+        });
+    }
+
+    [Test]
     public void StatusCodeTransactionProcessor_UsesConfiguredStatusCode()
     {
         var processor = new StatusCodeTransactionProcessor

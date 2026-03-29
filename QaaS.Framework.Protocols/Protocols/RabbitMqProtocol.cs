@@ -102,10 +102,10 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        var headers = dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers;
-        var expiration = dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration;
-        var contentType = dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType;
-        var type = dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type;
+        var headers = NormalizeHeaders(dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers);
+        var expiration = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration);
+        var contentType = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType);
+        var type = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type);
 
         BasicProperties? basicProperties = null;
         if (headers != null || expiration != null || contentType != null || type != null)
@@ -133,6 +133,12 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
             _queueName);
         return dataToSend.CloneDetailed();
     }
+
+    private static IDictionary<string, object?>? NormalizeHeaders(IDictionary<string, object?>? headers) =>
+        headers is { Count: > 0 } ? headers : null;
+
+    private static string? NormalizeOptionalString(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 
     public void Dispose()
     {
