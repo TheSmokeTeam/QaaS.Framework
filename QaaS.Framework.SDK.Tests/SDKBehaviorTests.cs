@@ -557,11 +557,14 @@ root:
                 .SetLogger(NullLogger.Instance)
                 .BuildInternal();
 
+            context.Variables["rabbitmq"]["host"] = "127.0.0.1";
+
             Assert.Multiple(() =>
             {
-                Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
-                Assert.That(context.Variables["rabbitmq:host"], Is.EqualTo("localhost"));
-                Assert.That(context.Variables["rabbitmq:port"], Is.EqualTo("5672"));
+                Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("127.0.0.1"));
+                Assert.That(context.Variables["rabbitmq:host"], Is.EqualTo("127.0.0.1"));
+                Assert.That(context.Variables["rabbitmq"]["host"], Is.EqualTo("127.0.0.1"));
+                Assert.That(context.Variables["rabbitmq"]["port"], Is.EqualTo("5672"));
             });
         }
         finally

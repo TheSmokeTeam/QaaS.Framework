@@ -197,7 +197,30 @@ public class SDKCoverageEdgeCaseTests
         {
             Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
             Assert.That(context.Variables["rabbitmq:host"], Is.EqualTo("localhost"));
+            Assert.That(context.Variables["rabbitmq"]["host"], Is.EqualTo("localhost"));
             Assert.That(context.Variables["rabbitmq:port"], Is.EqualTo("5672"));
+        });
+    }
+
+    [Test]
+    public void Context_Variables_CanCreateNestedValues_WhenVariablesSectionIsMissing()
+    {
+        var context = new Context
+        {
+            Logger = NullLogger.Instance,
+            RootConfiguration = new ConfigurationBuilder().Build(),
+            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+        };
+
+        context.Variables["rabbitmq"]["host"] = "localhost";
+        context.Variables["rabbitmq"]["port"] = "5672";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
+            Assert.That(context.RootConfiguration["variables:rabbitmq:port"], Is.EqualTo("5672"));
+            Assert.That(context.Variables["rabbitmq"]["host"], Is.EqualTo("localhost"));
+            Assert.That(context.Variables["rabbitmq"]["port"], Is.EqualTo("5672"));
         });
     }
 

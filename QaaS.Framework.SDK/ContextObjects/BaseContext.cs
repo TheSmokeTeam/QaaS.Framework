@@ -6,8 +6,8 @@ namespace QaaS.Framework.SDK.ContextObjects;
 
 public abstract class BaseContext<TExecutionData> where TExecutionData : class, IExecutionData, new()
 {
-    private IConfiguration _rootConfiguration = null!;
-    private IConfiguration _variables = new ConfigurationBuilder().Build();
+    private IConfiguration _rootConfiguration = CreateMutableConfiguration();
+    private VariablesConfiguration _variables = new(CreateMutableConfiguration());
     // GlobalDict is shared mutable state across execution components, so nested reads/writes
     // must be serialized to avoid races while creating or traversing intermediate dictionaries.
     private readonly Lock _globalDictLock = new();
@@ -28,21 +28,13 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
     public IConfiguration RootConfiguration
     {
         get => _rootConfiguration;
-        init
-        {
-            _rootConfiguration = value;
-            _variables = ResolveVariablesConfiguration(value);
-        }
+        init => SetMutableRootConfiguration(value);
     }
 
     /// <summary>
-    /// The configuration subtree loaded from the root <c>variables</c> section.
+    /// The nested variable accessor loaded from the root <c>variables</c> section.
     /// </summary>
-    public IConfiguration Variables
-    {
-        get => _variables;
-        init => _variables = value;
-    }
+    public dynamic Variables => _variables;
 
     /// <summary>
     /// Global dictionary that can be used throughout all QaaS` executions
@@ -130,13 +122,25 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
 
 
     internal void SetRootConfiguration(IConfiguration updatedConfiguration) =>
-        (_rootConfiguration, _variables) = (updatedConfiguration, ResolveVariablesConfiguration(updatedConfiguration));
+        SetMutableRootConfiguration(updatedConfiguration);
 
-    private static IConfiguration ResolveVariablesConfiguration(IConfiguration configuration)
+    private void SetMutableRootConfiguration(IConfiguration configuration)
     {
-        var variablesSection = configuration.GetSection("variables");
-        return variablesSection.Exists()
-            ? variablesSection
-            : new ConfigurationBuilder().Build();
+        _rootConfiguration = CreateMutableConfiguration(configuration);
+        _variables = ResolveVariablesConfiguration(_rootConfiguration);
+    }
+
+    private static VariablesConfiguration ResolveVariablesConfiguration(IConfiguration configuration) =>
+        new(configuration);
+
+    private static IConfiguration CreateMutableConfiguration(IConfiguration? configuration = null)
+    {
+        var builder = new ConfigurationBuilder();
+        if (configuration != null)
+            builder.AddInMemoryCollection(configuration.AsEnumerable());
+        else
+            builder.AddInMemoryCollection();
+
+        return builder.Build();
     }
 }
