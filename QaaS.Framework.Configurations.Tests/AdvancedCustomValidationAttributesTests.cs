@@ -478,6 +478,22 @@ public class AdvancedCustomValidationAttributesTests
     }
 
     [Test]
+    public void UniquePropertyInEnumerable_ReturnsValidationFailure_ForNullItems()
+    {
+        var invalid = Validate(new UniqueEnumerableSample
+        {
+            Items = [new UniqueItem { Id = "a" }, null!]
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(invalid.IsValid, Is.False);
+            Assert.That(invalid.ValidationResults.Single().ErrorMessage,
+                Does.Contain("Null item found at index 1 while validating unique field `Id`"));
+        });
+    }
+
+    [Test]
     public void AllItemsInEnumerablePropertyInEnumerableExistAsPropertyInEnumerable_ValidatesReferences()
     {
         var valid = Validate(new GraphSample
