@@ -29,7 +29,7 @@ public abstract class BaseProbe<TConfiguration> : IProbe where TConfiguration : 
     };
     
     /// <inheritdoc />
-    public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
+    public virtual List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
     {
         // Load configuration to c# object
         Configuration = configuration.BindToObject<TConfiguration>(GetConfigurationBinderOptions(), Context.Logger);
