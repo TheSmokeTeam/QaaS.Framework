@@ -44,6 +44,11 @@ public class DataSourceBuilder : IYamlConvertible
     [Description("Implementation configuration for the generator, " +
                  "the configuration given here is loaded into the provided generator dynamically.")]
     public IConfiguration GeneratorConfiguration { get; internal set; } = new ConfigurationBuilder().Build();
+    public IConfiguration Configuration
+    {
+        get => GeneratorConfiguration;
+        internal set => GeneratorConfiguration = value ?? new ConfigurationBuilder().Build();
+    }
     [Description("Serialize to use on the generated data"), DefaultValue(null)]
     [NullUnlessAll(new[] { nameof(Deserialize) }, [null])]
     public SerializeConfig? Serialize { get; internal set; } = null;
@@ -261,18 +266,6 @@ public class DataSourceBuilder : IYamlConvertible
     /// </summary>
     /// <remarks>
     /// Use this method when working with the documented Framework data source builder API surface in code. Use it to inspect the current configured state without rebuilding the surrounding collection or runtime object graph.
-    /// </remarks>
-    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public IConfiguration ReadConfiguration()
-    {
-        return GeneratorConfiguration;
-    }
-
-    /// <summary>
-    /// Merges the supplied object into the current generator configuration.
-    /// </summary>
-    /// <remarks>
-    /// Use this when only part of the generator configuration should change and existing values should be preserved where possible.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public DataSourceBuilder UpdateConfiguration(object configuration)

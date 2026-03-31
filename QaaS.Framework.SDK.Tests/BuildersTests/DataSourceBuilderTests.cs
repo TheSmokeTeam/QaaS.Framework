@@ -206,7 +206,7 @@ public class DataSourceBuilderTests
                 }
             });
 
-        var initialConfiguration = builder.ReadConfiguration();
+        var initialConfiguration = builder.Configuration;
         builder.UpdateConfiguration(new
         {
             Nested = new
@@ -214,7 +214,7 @@ public class DataSourceBuilderTests
                 Added = "new"
             }
         });
-        var updatedConfiguration = builder.ReadConfiguration();
+        var updatedConfiguration = builder.Configuration;
         builder.DeleteConfiguration();
 
         Assert.Multiple(() =>
@@ -224,7 +224,7 @@ public class DataSourceBuilderTests
             Assert.That(updatedConfiguration["Existing"], Is.EqualTo("value"));
             Assert.That(updatedConfiguration["Nested:Before"], Is.EqualTo("keep"));
             Assert.That(updatedConfiguration["Nested:Added"], Is.EqualTo("new"));
-            Assert.That(builder.ReadConfiguration().GetChildren(), Is.Empty);
+            Assert.That(builder.Configuration.GetChildren(), Is.Empty);
         });
     }
 
