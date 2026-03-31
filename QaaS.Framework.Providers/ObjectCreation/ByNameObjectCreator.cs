@@ -89,8 +89,11 @@ public class ByNameObjectCreator(ILogger logger): IByNameObjectCreator
     private static string CreateAmbiguousTypeMessage(Type requestedBaseType, string classManifestationName,
         IEnumerable<Type> matchingTypes)
         => $"Found multiple subclasses of {requestedBaseType.Name} matching '{classManifestationName}'. " +
-           $"Use the hook's full type name instead. Candidates:{Environment.NewLine}- " +
-           string.Join($"{Environment.NewLine}- ", matchingTypes.Select(type => type.FullName));
+           "Use the hook's full type name instead. If the same full type name exists in multiple assemblies, " +
+           $"use the assembly-qualified name instead. Candidates:{Environment.NewLine}- " +
+           string.Join(
+               $"{Environment.NewLine}- ",
+               matchingTypes.Select(type => $"{type.FullName} ({type.Assembly.FullName})"));
 
     private IEnumerable<(Assembly Assembly, IReadOnlyCollection<Type> Types)> GetCandidateTypesByAssembly<T>(
         IEnumerable<Assembly>? assemblies)

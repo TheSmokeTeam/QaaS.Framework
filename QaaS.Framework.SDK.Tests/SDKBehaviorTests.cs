@@ -538,7 +538,7 @@ public class SDKBehaviorTests
     }
 
     [Test]
-    public void ContextBuilder_BuildInternal_LoadsVariablesSectionIntoContext()
+    public void ContextBuilder_BuildInternal_LoadsVariablesSectionIntoGlobalDictionary()
     {
         var baseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
 
@@ -557,14 +557,15 @@ root:
                 .SetLogger(NullLogger.Instance)
                 .BuildInternal();
 
-            context.Variables["rabbitmq"]["host"] = "127.0.0.1";
+            context.LoadConfigurationSectionIntoGlobalDictionary("variables");
+            context.InsertValueIntoGlobalDictionary(["runtime", "rabbitmq", "host"], "127.0.0.1");
 
             Assert.Multiple(() =>
             {
-                Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("127.0.0.1"));
-                Assert.That(context.Variables["rabbitmq:host"], Is.EqualTo("127.0.0.1"));
-                Assert.That(context.Variables["rabbitmq"]["host"], Is.EqualTo("127.0.0.1"));
-                Assert.That(context.Variables["rabbitmq"]["port"], Is.EqualTo("5672"));
+                Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
+                Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "host"]), Is.EqualTo("localhost"));
+                Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "port"]), Is.EqualTo("5672"));
+                Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "host"]), Is.EqualTo("127.0.0.1"));
             });
         }
         finally

@@ -240,7 +240,7 @@ public class ProvidersBehaviorTests
         var exception = Assert.Throws<ArgumentException>(() =>
             provider.GetSupportedInstanceByName(duplicateTypeName));
 
-        Assert.That(exception!.Message, Does.Contain("exact type name"));
+        Assert.That(exception!.Message, Does.Contain("assembly-qualified name"));
         Assert.That(exception.Message, Does.Contain(firstType.Assembly.FullName));
         Assert.That(exception.Message, Does.Contain(secondType.Assembly.FullName));
     }

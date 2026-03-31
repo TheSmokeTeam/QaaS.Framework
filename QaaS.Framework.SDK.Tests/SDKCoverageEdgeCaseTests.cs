@@ -98,9 +98,9 @@ public class SDKCoverageEdgeCaseTests
         var builder = new DataSourceBuilder()
             .Named("source-a")
             .HookNamed("generator-a")
-            .AddDataSourcePattern("^dep-")
+            .CreateDataSourcePattern("^dep-")
             .Configure(new { Existing = "value" })
-            .UpsertConfiguration(new { Added = "new" })
+            .UpdateConfiguration(new { Added = "new" })
             .WithSerializer(new SerializeConfig { Serializer = SerializationType.Json });
         var registered = builder.Register();
         var generators = new Dictionary<string, IGenerator>
@@ -165,7 +165,7 @@ public class SDKCoverageEdgeCaseTests
     }
 
     [Test]
-    public void Context_Variables_AreEmptyWhenMissingAndRefreshWhenRootConfigurationChanges()
+    public void Context_LoadConfigurationSectionIntoGlobalDictionary_RefreshesWhenRootConfigurationChanges()
     {
         var context = new Context
         {
@@ -189,38 +189,42 @@ public class SDKCoverageEdgeCaseTests
             })
             .Build();
 
-        Assert.That(context.Variables.GetChildren(), Is.Empty);
+        Assert.Throws<KeyNotFoundException>(() => context.LoadConfigurationSectionIntoGlobalDictionary("variables"));
 
         setRootConfiguration.Invoke(context, [updatedConfiguration]);
+        context.LoadConfigurationSectionIntoGlobalDictionary("variables");
 
         Assert.Multiple(() =>
         {
             Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
-            Assert.That(context.Variables["rabbitmq:host"], Is.EqualTo("localhost"));
-            Assert.That(context.Variables["rabbitmq"]["host"], Is.EqualTo("localhost"));
-            Assert.That(context.Variables["rabbitmq:port"], Is.EqualTo("5672"));
+            Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "host"]), Is.EqualTo("localhost"));
+            Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "port"]), Is.EqualTo("5672"));
         });
     }
 
     [Test]
-    public void Context_Variables_CanCreateNestedValues_WhenVariablesSectionIsMissing()
+    public void Context_LoadConfigurationSectionIntoGlobalDictionary_UsesCustomDestinationPath()
     {
         var context = new Context
         {
             Logger = NullLogger.Instance,
-            RootConfiguration = new ConfigurationBuilder().Build(),
+            RootConfiguration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["variables:rabbitmq:host"] = "localhost",
+                    ["variables:rabbitmq:port"] = "5672"
+                })
+                .Build(),
             CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
         };
 
-        context.Variables["rabbitmq"]["host"] = "localhost";
-        context.Variables["rabbitmq"]["port"] = "5672";
+        context.LoadConfigurationSectionIntoGlobalDictionary("variables:rabbitmq", ["runtime", "rabbitmq"]);
 
         Assert.Multiple(() =>
         {
             Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
-            Assert.That(context.RootConfiguration["variables:rabbitmq:port"], Is.EqualTo("5672"));
-            Assert.That(context.Variables["rabbitmq"]["host"], Is.EqualTo("localhost"));
-            Assert.That(context.Variables["rabbitmq"]["port"], Is.EqualTo("5672"));
+            Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "host"]), Is.EqualTo("localhost"));
+            Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "port"]), Is.EqualTo("5672"));
         });
     }
 
