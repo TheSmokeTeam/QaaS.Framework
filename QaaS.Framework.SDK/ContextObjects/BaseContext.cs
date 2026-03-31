@@ -6,7 +6,7 @@ namespace QaaS.Framework.SDK.ContextObjects;
 
 public abstract class BaseContext<TExecutionData> where TExecutionData : class, IExecutionData, new()
 {
-    private IConfiguration _rootConfiguration = null!;
+    private IConfiguration _rootConfiguration = CreateMutableConfiguration();
     // GlobalDict is shared mutable state across execution components, so nested reads/writes
     // must be serialized to avoid races while creating or traversing intermediate dictionaries.
     private readonly Lock _globalDictLock = new();
@@ -27,11 +27,13 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
     public IConfiguration RootConfiguration
     {
         get => _rootConfiguration;
-        init => _rootConfiguration = value;
+        init => SetMutableRootConfiguration(value);
     }
 
     /// <summary>
-    /// Global dictionary that can be used throughout all QaaS` executions
+    /// Global dictionary that can be used throughout all QaaS executions.
+    /// Configuration sections such as <c>variables</c> can be projected into this
+    /// dictionary through <see cref="Extensions.ContextGlobalDictionaryExtensions"/>.
     /// </summary>
     protected Dictionary<string, object?> GlobalDict { get; set; } = new();
     
@@ -116,5 +118,21 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
 
 
     internal void SetRootConfiguration(IConfiguration updatedConfiguration) =>
-        _rootConfiguration = updatedConfiguration;
+        SetMutableRootConfiguration(updatedConfiguration);
+
+    private void SetMutableRootConfiguration(IConfiguration configuration)
+    {
+        _rootConfiguration = CreateMutableConfiguration(configuration);
+    }
+
+    private static IConfiguration CreateMutableConfiguration(IConfiguration? configuration = null)
+    {
+        var builder = new ConfigurationBuilder();
+        if (configuration != null)
+            builder.AddInMemoryCollection(configuration.AsEnumerable());
+        else
+            builder.AddInMemoryCollection();
+
+        return builder.Build();
+    }
 }

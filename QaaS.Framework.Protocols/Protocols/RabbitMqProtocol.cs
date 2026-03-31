@@ -102,30 +102,47 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        var basicProperties = new BasicProperties();
-        var headers = dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers;
-        var expiration = dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration;
-        var contentType = dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType;
-        var type = dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type;
-
-        if (headers != null)
-            basicProperties.Headers = headers;
-        if (expiration != null)
-            basicProperties.Expiration = expiration;
-        if (contentType != null)
-            basicProperties.ContentType = contentType;
-        if (type != null)
-            basicProperties.Type = type;
+        var routingKey = dataToSend.MetaData?.RabbitMq?.RoutingKey ?? RoutingKey;
+        var body = dataToSend.CastObjectData<byte[]>().Body;
+        var headers = NormalizeHeaders(dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers);
+        var expiration = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration);
+        var contentType = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType);
+        var type = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type);
 
         _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter()
             .GetResult(); // Before sending check if exchange exists
-        _channel.BasicPublishAsync(ExchangeName, dataToSend.MetaData?.RabbitMq?.RoutingKey ?? RoutingKey, true,
-                basicProperties, dataToSend.CastObjectData<byte[]>().Body).GetAwaiter()
-            .GetResult(); // Assumes data is byte[]
+
+        if (headers == null && expiration == null && contentType == null && type == null)
+        {
+            _channel.BasicPublishAsync(ExchangeName, routingKey, true, body).GetAwaiter()
+                .GetResult();
+        }
+        else
+        {
+            var basicProperties = new BasicProperties();
+            if (headers != null)
+                basicProperties.Headers = headers;
+            if (expiration != null)
+                basicProperties.Expiration = expiration;
+            if (contentType != null)
+                basicProperties.ContentType = contentType;
+            if (type != null)
+                basicProperties.Type = type;
+
+            _channel.BasicPublishAsync(ExchangeName, routingKey, true, basicProperties, body).GetAwaiter()
+                .GetResult(); // Assumes data is byte[]
+        }
+
         _logger.LogDebug("Sent message in bytes to Exchange {ExchangeName}, Queue {QueueName}", ExchangeName,
             _queueName);
         return dataToSend.CloneDetailed();
     }
+
+    private static IDictionary<string, object?>? NormalizeHeaders(IDictionary<string, object?>? headers) =>
+        headers is { Count: > 0 } ? headers : null;
+
+    private static string? NormalizeOptionalString(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 
     public void Dispose()
     {

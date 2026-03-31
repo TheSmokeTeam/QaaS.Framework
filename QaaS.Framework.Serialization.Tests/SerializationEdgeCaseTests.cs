@@ -2,7 +2,6 @@ using BinaryDeserializer = QaaS.Framework.Serialization.Deserializers.Binary;
 using BinarySerializer = QaaS.Framework.Serialization.Serializers.Binary;
 using MessagePackDeserializer = QaaS.Framework.Serialization.Deserializers.MessagePack;
 using ProtobufDeserializer = QaaS.Framework.Serialization.Deserializers.ProtobufMessage;
-using System.Runtime.Serialization;
 using XmlDeserializer = QaaS.Framework.Serialization.Deserializers.Xml;
 using XmlElementDeserializer = QaaS.Framework.Serialization.Deserializers.XmlElement;
 using YamlDeserializer = QaaS.Framework.Serialization.Deserializers.Yaml;
@@ -13,6 +12,13 @@ namespace QaaS.Framework.Serialization.Tests;
 [TestFixture]
 public class SerializationEdgeCaseTests
 {
+    [Serializable]
+    private sealed class LegacyBinaryPayload
+    {
+        public string Name { get; init; } = string.Empty;
+        public int Count { get; init; }
+    }
+
     [Test]
     public void BinaryDeserializer_WithSpecificType_ReturnsTypedPayload()
     {
@@ -27,20 +33,38 @@ public class SerializationEdgeCaseTests
     }
 
     [Test]
-    public void BinaryDeserializer_WithoutSpecificType_ThrowsArgumentException()
+    public void BinaryDeserializer_WithoutSpecificType_ReturnsRuntimePayload()
     {
         var bytes = new BinarySerializer().Serialize("typed");
 
-        Assert.Throws<ArgumentException>(() => new BinaryDeserializer().Deserialize(bytes));
+        var result = new BinaryDeserializer().Deserialize(bytes);
+
+        Assert.That(result, Is.EqualTo("typed"));
     }
 
     [Test]
-    public void BinaryDeserializer_WithUnexpectedRuntimeType_ThrowsSerializationException()
+    public void BinaryDeserializer_WithoutSpecificType_RoundTripsSerializableContractType()
+    {
+        var payload = new LegacyBinaryPayload
+        {
+            Name = "alpha",
+            Count = 2
+        };
+        var bytes = new BinarySerializer().Serialize(payload);
+
+        var result = new BinaryDeserializer().Deserialize(bytes);
+
+        Assert.That(result, Is.TypeOf<LegacyBinaryPayload>());
+        Assert.That(((LegacyBinaryPayload)result!).Name, Is.EqualTo("alpha"));
+        Assert.That(((LegacyBinaryPayload)result).Count, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void BinaryDeserializer_IgnoresRequestedTypeHint_AndReturnsPayloadRuntimeType()
     {
         var bytes = new BinarySerializer().Serialize("typed");
 
-        Assert.Throws<SerializationException>(() =>
-            new BinaryDeserializer().Deserialize(bytes, typeof(int)));
+        Assert.That(new BinaryDeserializer().Deserialize(bytes, typeof(int)), Is.EqualTo("typed"));
     }
 
     [Test]

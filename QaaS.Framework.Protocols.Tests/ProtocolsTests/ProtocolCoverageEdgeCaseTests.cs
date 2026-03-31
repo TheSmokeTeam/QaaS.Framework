@@ -370,6 +370,65 @@ public class ProtocolCoverageEdgeCaseTests
     [Test]
     public void RabbitMqProtocol_Send_OmitsUnsetMetadataProperties_And_UsesDefaultRoutingKey()
     {
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            ExchangeName = "exchange-name"
+        }, NullLogger.Instance);
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        var sent = sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+        var publishInvocation = channelMock.Invocations.Single(invocation =>
+            invocation.Method.Name == nameof(IChannel.BasicPublishAsync));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sent.Body, Is.TypeOf<byte[]>());
+            Assert.That((string)publishInvocation.Arguments[1], Is.EqualTo("/"));
+            Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
+                Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+            Assert.That(publishInvocation.Arguments[3].GetType().FullName,
+                Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+        });
+    }
+
+    [Test]
+    public void RabbitMqProtocol_Send_OmitsWhitespaceAndEmptyMetadataProperties()
+    {
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            ExchangeName = "exchange-name",
+            Headers = [],
+            Expiration = "",
+            ContentType = "   ",
+            Type = string.Empty
+        }, NullLogger.Instance);
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+        var publishInvocation = channelMock.Invocations.Single(invocation =>
+            invocation.Method.Name == nameof(IChannel.BasicPublishAsync));
+
+        Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
+            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+        Assert.That(publishInvocation.Arguments[3].GetType().FullName,
+            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+    }
+
+    [Test]
+    public void RabbitMqProtocol_Send_UsesConfiguredDefaultMetadata_WhenMessageMetadataIsNull()
+    {
         BasicProperties? publishedProperties = null;
         string? publishedRoutingKey = null;
         var channelMock = new Mock<IChannel>();
@@ -390,21 +449,25 @@ public class ProtocolCoverageEdgeCaseTests
         var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
         {
             Host = "localhost",
-            ExchangeName = "exchange-name"
+            ExchangeName = "exchange-name",
+            RoutingKey = "default-route",
+            Headers = new Dictionary<string, object?> { ["default"] = "value" },
+            Expiration = "1500",
+            ContentType = "application/json",
+            Type = "default-type"
         }, NullLogger.Instance);
         SetPrivateField(sender, "_channel", channelMock.Object);
 
-        var sent = sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+        sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
 
         Assert.Multiple(() =>
         {
-            Assert.That(sent.Body, Is.TypeOf<byte[]>());
-            Assert.That(publishedRoutingKey, Is.EqualTo("/"));
+            Assert.That(publishedRoutingKey, Is.EqualTo("default-route"));
             Assert.That(publishedProperties, Is.Not.Null);
-            Assert.That(publishedProperties!.Headers, Is.Null);
-            Assert.That(publishedProperties.Expiration, Is.Null);
-            Assert.That(publishedProperties.ContentType, Is.Null);
-            Assert.That(publishedProperties.Type, Is.Null);
+            Assert.That(publishedProperties!.Headers, Contains.Key("default"));
+            Assert.That(publishedProperties.Expiration, Is.EqualTo("1500"));
+            Assert.That(publishedProperties.ContentType, Is.EqualTo("application/json"));
+            Assert.That(publishedProperties.Type, Is.EqualTo("default-type"));
         });
     }
 

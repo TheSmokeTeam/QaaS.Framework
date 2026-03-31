@@ -538,6 +538,43 @@ public class SDKBehaviorTests
     }
 
     [Test]
+    public void ContextBuilder_BuildInternal_LoadsVariablesSectionIntoGlobalDictionary()
+    {
+        var baseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
+
+        File.WriteAllText(baseYaml, """
+variables:
+  rabbitmq:
+    host: localhost
+    port: 5672
+root:
+  value: test
+""");
+
+        try
+        {
+            var context = new ContextBuilder(baseYaml)
+                .SetLogger(NullLogger.Instance)
+                .BuildInternal();
+
+            context.LoadConfigurationSectionIntoGlobalDictionary("variables");
+            context.InsertValueIntoGlobalDictionary(["runtime", "rabbitmq", "host"], "127.0.0.1");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
+                Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "host"]), Is.EqualTo("localhost"));
+                Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "port"]), Is.EqualTo("5672"));
+                Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "host"]), Is.EqualTo("127.0.0.1"));
+            });
+        }
+        finally
+        {
+            File.Delete(baseYaml);
+        }
+    }
+
+    [Test]
     public void Bind_BindsFromContextAndReturnsValidationResults()
     {
         var context = new Context

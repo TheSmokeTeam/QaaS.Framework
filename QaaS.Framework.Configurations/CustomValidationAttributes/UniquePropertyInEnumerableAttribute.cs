@@ -28,8 +28,15 @@ public class UniquePropertyInEnumerableAttribute : ValidationAttribute
         if (value is not IEnumerable enumerable) return ValidationResult.Success;
             
         var uniqueValues = new HashSet<object?>();
+        var itemIndex = 0;
         foreach (var item in enumerable)
         {
+            if (item == null)
+            {
+                return new ValidationResult(
+                    $"Null item found at index {itemIndex} while validating unique field `{_fieldName}`.");
+            }
+
             var propertyInfo = item.GetType().GetProperty(_fieldName,BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
             if (propertyInfo == null)
                 throw new NotSupportedException(
@@ -41,6 +48,7 @@ public class UniquePropertyInEnumerableAttribute : ValidationAttribute
                     $"Duplicate value found for field `{_fieldName}` in {item.GetType().Name} enumerable");
             }
             uniqueValues.Add(fieldValue);
+            itemIndex++;
         }
         return ValidationResult.Success;
     }

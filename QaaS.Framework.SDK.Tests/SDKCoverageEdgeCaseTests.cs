@@ -98,9 +98,9 @@ public class SDKCoverageEdgeCaseTests
         var builder = new DataSourceBuilder()
             .Named("source-a")
             .HookNamed("generator-a")
-            .AddDataSourcePattern("^dep-")
+            .CreateDataSourcePattern("^dep-")
             .Configure(new { Existing = "value" })
-            .UpsertConfiguration(new { Added = "new" })
+            .UpdateConfiguration(new { Added = "new" })
             .WithSerializer(new SerializeConfig { Serializer = SerializationType.Json });
         var registered = builder.Register();
         var generators = new Dictionary<string, IGenerator>
@@ -121,8 +121,8 @@ public class SDKCoverageEdgeCaseTests
         {
             Assert.That(built.Generator, Is.SameAs(generators["generator-a"]));
             Assert.That(built.DataSourceList.Select(source => source.Name), Is.EqualTo(new[] { "dep-1" }));
-            Assert.That(builder.ReadConfiguration()["Existing"], Is.EqualTo("value"));
-            Assert.That(builder.ReadConfiguration()["Added"], Is.EqualTo("new"));
+            Assert.That(builder.Configuration["Existing"], Is.EqualTo("value"));
+            Assert.That(builder.Configuration["Added"], Is.EqualTo("new"));
             Assert.That(yaml, Does.Contain("DataSourcePatterns"));
             Assert.That(yaml, Does.Contain("^dep-"));
             Assert.Throws<NotSupportedException>(() => builder.Read(null!, typeof(object), null!));
@@ -162,6 +162,70 @@ public class SDKCoverageEdgeCaseTests
             {
                 CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
             });
+    }
+
+    [Test]
+    public void Context_LoadConfigurationSectionIntoGlobalDictionary_RefreshesWhenRootConfigurationChanges()
+    {
+        var context = new Context
+        {
+            Logger = NullLogger.Instance,
+            RootConfiguration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["root:value"] = "base"
+                })
+                .Build(),
+            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+        };
+
+        var setRootConfiguration = typeof(Context).BaseType!
+            .GetMethod("SetRootConfiguration", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var updatedConfiguration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["variables:rabbitmq:host"] = "localhost",
+                ["variables:rabbitmq:port"] = "5672"
+            })
+            .Build();
+
+        Assert.Throws<KeyNotFoundException>(() => context.LoadConfigurationSectionIntoGlobalDictionary("variables"));
+
+        setRootConfiguration.Invoke(context, [updatedConfiguration]);
+        context.LoadConfigurationSectionIntoGlobalDictionary("variables");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
+            Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "host"]), Is.EqualTo("localhost"));
+            Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "port"]), Is.EqualTo("5672"));
+        });
+    }
+
+    [Test]
+    public void Context_LoadConfigurationSectionIntoGlobalDictionary_UsesCustomDestinationPath()
+    {
+        var context = new Context
+        {
+            Logger = NullLogger.Instance,
+            RootConfiguration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["variables:rabbitmq:host"] = "localhost",
+                    ["variables:rabbitmq:port"] = "5672"
+                })
+                .Build(),
+            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+        };
+
+        context.LoadConfigurationSectionIntoGlobalDictionary("variables:rabbitmq", ["runtime", "rabbitmq"]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
+            Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "host"]), Is.EqualTo("localhost"));
+            Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "port"]), Is.EqualTo("5672"));
+        });
     }
 
     [Test]

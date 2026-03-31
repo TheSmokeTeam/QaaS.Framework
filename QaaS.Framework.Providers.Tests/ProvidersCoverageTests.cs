@@ -131,7 +131,7 @@ public class ProvidersCoverageTests
     }
 
     [Test]
-    public void HookProvider_WhenDuplicateSimpleNamesExistAcrossAssemblies_ResolvesFirstAssemblyAndWarns()
+    public void HookProvider_WhenDuplicateSimpleNamesExistAcrossAssemblies_ResolvesFirstAssemblyAndLogsInformation()
     {
         var logger = new RecordingLogger();
         var provider = new HookProvider<IHook>(CreateContext(logger), new ByNameObjectCreator(NullLogger.Instance));
@@ -146,8 +146,10 @@ public class ProvidersCoverageTests
         {
             Assert.That(resolvedHook.GetType().Assembly, Is.EqualTo(firstType.Assembly));
             Assert.That(logger.Entries.Any(entry =>
-                entry.Level == LogLevel.Warning &&
-                entry.Message.Contains("Found multiple IHook hook instances named SharedHook")), Is.True);
+                entry.Level == LogLevel.Information &&
+                entry.Message.Contains("Found multiple IHook hook instances named SharedHook") &&
+                entry.Message.Contains(firstType.Assembly.FullName!) &&
+                entry.Message.Contains(secondType.Assembly.FullName!)), Is.True);
         });
     }
 
@@ -294,6 +296,49 @@ public class ProvidersCoverageTests
             Assert.That(logger.Entries.Any(entry =>
                 entry.Level == LogLevel.Debug &&
                 entry.Message.Contains("Partially loaded assembly")), Is.True);
+        });
+    }
+
+    [Test]
+    public void HookProvider_WhenSimpleNameResolvesInFirstAssembly_StillReturnsFirstHookWhenLaterAssembliesAreBroken()
+    {
+        var provider = new HookProvider<IHook>(CreateContext(), new ByNameObjectCreator(NullLogger.Instance));
+        var brokenAssembly = new Mock<Assembly>();
+        brokenAssembly.SetupGet(assembly => assembly.FullName).Returns("BrokenAssembly");
+        brokenAssembly.Setup(assembly => assembly.GetTypes())
+            .Throws(new InvalidOperationException("should-not-be-visited"));
+
+        typeof(HookProvider<IHook>)
+            .GetField("_hookAssemblies", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(provider, new[] { typeof(ModuleHook).Assembly, brokenAssembly.Object });
+
+        var hook = provider.GetSupportedInstanceByName(nameof(ModuleHook));
+
+        Assert.That(hook, Is.InstanceOf<ModuleHook>());
+        brokenAssembly.Verify(assembly => assembly.GetTypes(), Times.Once);
+    }
+
+    [Test]
+    public void HookProvider_WhenExactTypeNameTargetsLaterAssembly_UsesLazyFullNameResolution()
+    {
+        var logger = new RecordingLogger();
+        var provider = new HookProvider<IHook>(CreateContext(logger), new ByNameObjectCreator(NullLogger.Instance));
+        var firstType = CreateDynamicHookType("GeneratedHooks7", "Hooks.First.SharedHook");
+        var secondType = CreateDynamicHookType("GeneratedHooks8", "Hooks.Second.SharedHook");
+
+        typeof(HookProvider<IHook>)
+            .GetField("_hookAssemblies", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(provider, new[] { firstType.Assembly, secondType.Assembly });
+
+        var hook = provider.GetSupportedInstanceByName(secondType.FullName!);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(hook.GetType(), Is.EqualTo(secondType));
+            Assert.That(hook.Context, Is.Not.Null);
+            Assert.That(logger.Entries.Any(entry =>
+                entry.Level == LogLevel.Information &&
+                entry.Message.Contains("appears first in hook discovery order", StringComparison.Ordinal)), Is.False);
         });
     }
 

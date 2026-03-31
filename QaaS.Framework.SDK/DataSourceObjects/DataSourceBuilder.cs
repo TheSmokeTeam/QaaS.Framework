@@ -44,6 +44,11 @@ public class DataSourceBuilder : IYamlConvertible
     [Description("Implementation configuration for the generator, " +
                  "the configuration given here is loaded into the provided generator dynamically.")]
     public IConfiguration GeneratorConfiguration { get; internal set; } = new ConfigurationBuilder().Build();
+    public IConfiguration Configuration
+    {
+        get => GeneratorConfiguration;
+        internal set => GeneratorConfiguration = value ?? new ConfigurationBuilder().Build();
+    }
     [Description("Serialize to use on the generated data"), DefaultValue(null)]
     [NullUnlessAll(new[] { nameof(Deserialize) }, [null])]
     public SerializeConfig? Serialize { get; internal set; } = null;
@@ -77,28 +82,116 @@ public class DataSourceBuilder : IYamlConvertible
     }
 
     /// <summary>
-    /// Adds the supplied data source name to the current Framework data source builder instance.
+    /// Creates or adds the configured data source name entry on the current Framework data source builder instance.
     /// </summary>
     /// <remarks>
     /// Use this method when working with the documented Framework data source builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public DataSourceBuilder AddDataSourceName(string dataSourceName)
+    public DataSourceBuilder CreateDataSourceName(string dataSourceName)
     {
-        DataSourceNames = DataSourceNames.Append(dataSourceName).ToArray();
+        DataSourceNames = (DataSourceNames ?? []).Append(dataSourceName).ToArray();
         return this;
     }
 
     /// <summary>
-    /// Adds the supplied data source pattern to the current Framework data source builder instance.
+    /// Returns the configured data source names currently stored on the Framework data source builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework data source builder API surface in code. Use it to inspect the current configured state without rebuilding the surrounding collection or runtime object graph.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
+    public IReadOnlyList<string> ReadDataSourceNames()
+    {
+        return DataSourceNames ?? [];
+    }
+
+    /// <summary>
+    /// Updates the configured data source name stored on the current Framework data source builder instance.
     /// </summary>
     /// <remarks>
     /// Use this method when working with the documented Framework data source builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public DataSourceBuilder AddDataSourcePattern(string dataSourcePattern)
+    public DataSourceBuilder UpdateDataSourceName(string existingValue, string newValue)
     {
-        DataSourcePatterns = DataSourcePatterns.Append(dataSourcePattern).ToArray();
+        if (DataSourceNames == null)
+            return this;
+
+        var index = Array.IndexOf(DataSourceNames, existingValue);
+        if (index >= 0)
+            DataSourceNames[index] = newValue;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Removes the configured data source name from the current Framework data source builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework data source builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
+    public DataSourceBuilder DeleteDataSourceName(string dataSourceName)
+    {
+        DataSourceNames = (DataSourceNames ?? []).Where(value => value != dataSourceName).ToArray();
+        return this;
+    }
+
+    /// <summary>
+    /// Creates or adds the configured data source pattern entry on the current Framework data source builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework data source builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
+    public DataSourceBuilder CreateDataSourcePattern(string dataSourcePattern)
+    {
+        DataSourcePatterns = (DataSourcePatterns ?? []).Append(dataSourcePattern).ToArray();
+        return this;
+    }
+
+    /// <summary>
+    /// Returns the configured data source patterns currently stored on the Framework data source builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework data source builder API surface in code. Use it to inspect the current configured state without rebuilding the surrounding collection or runtime object graph.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
+    public IReadOnlyList<string> ReadDataSourcePatterns()
+    {
+        return DataSourcePatterns ?? [];
+    }
+
+    /// <summary>
+    /// Updates the configured data source pattern stored on the current Framework data source builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework data source builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
+    public DataSourceBuilder UpdateDataSourcePattern(string existingValue, string newValue)
+    {
+        if (DataSourcePatterns == null)
+            return this;
+
+        var index = Array.IndexOf(DataSourcePatterns, existingValue);
+        if (index >= 0)
+            DataSourcePatterns[index] = newValue;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Removes the configured data source pattern from the current Framework data source builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework data source builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
+    public DataSourceBuilder DeleteDataSourcePattern(string dataSourcePattern)
+    {
+        DataSourcePatterns = (DataSourcePatterns ?? []).Where(value => value != dataSourcePattern).ToArray();
         return this;
     }
 
@@ -156,27 +249,16 @@ public class DataSourceBuilder : IYamlConvertible
     }
 
     /// <summary>
-    /// Creates the generator configuration from the supplied object.
+     /// Clears the current generator configuration.
     /// </summary>
     /// <remarks>
-    /// This is an alias for Configure and replaces any existing generator configuration.
+    /// After this call, the builder holds an empty configuration until a new one is supplied.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public DataSourceBuilder CreateConfiguration(object configuration)
+    public DataSourceBuilder DeleteConfiguration()
     {
-        return Configure(configuration);
-    }
-
-    /// <summary>
-    /// Creates the generator configuration from the supplied object.
-    /// </summary>
-    /// <remarks>
-    /// This is a shorthand alias for CreateConfiguration.
-    /// </remarks>
-    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public DataSourceBuilder Create(object configuration)
-    {
-        return CreateConfiguration(configuration);
+        GeneratorConfiguration = new ConfigurationBuilder().Build();
+        return this;
     }
 
     /// <summary>
@@ -186,46 +268,9 @@ public class DataSourceBuilder : IYamlConvertible
     /// Use this method when working with the documented Framework data source builder API surface in code. Use it to inspect the current configured state without rebuilding the surrounding collection or runtime object graph.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public IConfiguration ReadConfiguration()
-    {
-        return GeneratorConfiguration;
-    }
-
-    /// <summary>
-    /// Merges the supplied object into the current generator configuration.
-    /// </summary>
-    /// <remarks>
-    /// Use this when only part of the generator configuration should change and existing values should be preserved where possible.
-    /// </remarks>
-    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public DataSourceBuilder UpdateConfiguration(object configuration)
     {
         GeneratorConfiguration = GeneratorConfiguration.UpdateConfiguration(configuration);
-        return this;
-    }
-
-    /// <summary>
-    /// Updates or creates the generator configuration from the supplied object.
-    /// </summary>
-    /// <remarks>
-    /// This is an alias for UpdateConfiguration.
-    /// </remarks>
-    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public DataSourceBuilder UpsertConfiguration(object configuration)
-    {
-        return UpdateConfiguration(configuration);
-    }
-
-    /// <summary>
-    /// Clears the current generator configuration.
-    /// </summary>
-    /// <remarks>
-    /// After this call, the builder holds an empty configuration until a new one is supplied.
-    /// </remarks>
-    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public DataSourceBuilder DeleteConfiguration()
-    {
-        GeneratorConfiguration = new ConfigurationBuilder().Build();
         return this;
     }
 
