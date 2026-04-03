@@ -98,7 +98,7 @@ public class SDKCoverageEdgeCaseTests
         var builder = new DataSourceBuilder()
             .Named("source-a")
             .HookNamed("generator-a")
-            .CreateDataSourcePattern("^dep-")
+            .AddDataSourcePattern("^dep-")
             .Configure(new { Existing = "value" })
             .UpdateConfiguration(new { Added = "new" })
             .WithSerializer(new SerializeConfig { Serializer = SerializationType.Json });
