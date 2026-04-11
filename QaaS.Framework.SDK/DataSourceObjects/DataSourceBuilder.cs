@@ -44,11 +44,6 @@ public class DataSourceBuilder : IYamlConvertible
     [Description("Implementation configuration for the generator, " +
                  "the configuration given here is loaded into the provided generator dynamically.")]
     public IConfiguration GeneratorConfiguration { get; internal set; } = new ConfigurationBuilder().Build();
-    public IConfiguration Configuration
-    {
-        get => GeneratorConfiguration;
-        internal set => GeneratorConfiguration = value ?? new ConfigurationBuilder().Build();
-    }
     [Description("Serialize to use on the generated data"), DefaultValue(null)]
     [NullUnlessAll(new[] { nameof(Deserialize) }, [null])]
     public SerializeConfig? Serialize { get; internal set; } = null;

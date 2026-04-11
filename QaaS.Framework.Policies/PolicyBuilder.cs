@@ -19,27 +19,6 @@ public class PolicyBuilder
          " the actions included in it and a count or timeout to know after how many actions or after" +
          " how much time to end the stage and move to the next.")]
     public AdvancedLoadBalancePolicyConfig? AdvancedLoadBalance { get; internal set; }
-    public IPolicyConfig? Configuration
-    {
-        get
-        {
-            if (Count != null) return Count;
-            if (Timeout != null) return Timeout;
-            if (LoadBalance != null) return LoadBalance;
-            if (IncreasingLoadBalance != null) return IncreasingLoadBalance;
-            return AdvancedLoadBalance;
-        }
-        internal set
-        {
-            if (value == null)
-            {
-                Reset();
-                return;
-            }
-
-            Configure(value);
-        }
-    }
 
     private PolicyBuilder Reset()
     {
@@ -143,7 +122,7 @@ public class PolicyBuilder
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var currentConfig = Configuration;
+        var currentConfig = GetConfiguredPolicy();
         if (configuration is IPolicyConfig typedConfiguration)
         {
             return Configure(currentConfig == null
@@ -155,6 +134,15 @@ public class PolicyBuilder
             throw new InvalidOperationException(
                 "Policy configuration is not set and cannot be inferred from an object patch. Configure a concrete policy configuration first.");
         return Configure(currentConfig.UpdateConfiguration(configuration));
+    }
+
+    private IPolicyConfig? GetConfiguredPolicy()
+    {
+        if (Count != null) return Count;
+        if (Timeout != null) return Timeout;
+        if (LoadBalance != null) return LoadBalance;
+        if (IncreasingLoadBalance != null) return IncreasingLoadBalance;
+        return AdvancedLoadBalance;
     }
 
     /// <summary>

@@ -171,16 +171,16 @@ public class PolicyBehaviorTests
         var builder = new PolicyBuilder()
             .WithCount(countConfig);
 
-        Assert.That(builder.Configuration, Is.SameAs(countConfig));
+        Assert.That(builder.Count, Is.SameAs(countConfig));
 
         builder.UpdateConfiguration(new CountPolicyConfig { Count = 7 });
-        Assert.That(((CountPolicyConfig)builder.Configuration!).Count, Is.EqualTo(7));
+        Assert.That(builder.Count!.Count, Is.EqualTo(7));
 
         builder.UpdateConfiguration(new TimeoutPolicyConfig { TimeoutMs = 10 });
-        Assert.That(builder.Configuration, Is.TypeOf<TimeoutPolicyConfig>());
+        Assert.That(builder.Timeout, Is.TypeOf<TimeoutPolicyConfig>());
 
         builder.WithLoadBalance(new LoadBalancePolicyConfig { Rate = 5, TimeIntervalMs = 1000 });
-        Assert.That(builder.Configuration, Is.TypeOf<LoadBalancePolicyConfig>());
+        Assert.That(builder.LoadBalance, Is.TypeOf<LoadBalancePolicyConfig>());
     }
 
     [Test]
