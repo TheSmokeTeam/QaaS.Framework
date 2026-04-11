@@ -139,50 +139,21 @@ public class PolicyBuilder
     /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Policies" />
-    public PolicyBuilder UpdateConfiguration(Func<IPolicyConfig, IPolicyConfig> update)
-    {
-        var currentConfig = Configuration ??
-                            throw new InvalidOperationException(
-                                "Policy configuration is not set and cannot be inferred from an update function.");
-        return UpdateConfiguration(update(currentConfig));
-    }
-
-    /// <summary>
-    /// Updates the configuration currently stored on the Framework policy builder instance.
-    /// </summary>
-    /// <remarks>
-    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
-    /// </remarks>
-    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
-    public PolicyBuilder UpdateConfiguration(IPolicyConfig config)
-    {
-        ArgumentNullException.ThrowIfNull(config);
-
-        var currentConfig = Configuration;
-        return Configure(currentConfig == null
-            ? config
-            : currentConfig.UpdateConfiguration(config));
-    }
-
-    /// <summary>
-    /// Updates the configuration currently stored on the Framework policy builder instance.
-    /// </summary>
-    /// <remarks>
-    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
-    /// </remarks>
-    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
     public PolicyBuilder UpdateConfiguration(object configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
+        var currentConfig = Configuration;
         if (configuration is IPolicyConfig typedConfiguration)
         {
-            return UpdateConfiguration(typedConfiguration);
+            return Configure(currentConfig == null
+                ? typedConfiguration
+                : currentConfig.UpdateConfiguration(typedConfiguration));
         }
 
-        var currentConfig = Configuration ??
-                            throw new InvalidOperationException(
-                                "Policy configuration is not set and cannot be inferred from an object patch. Configure a concrete policy configuration first.");
+        if (currentConfig == null)
+            throw new InvalidOperationException(
+                "Policy configuration is not set and cannot be inferred from an object patch. Configure a concrete policy configuration first.");
         return Configure(currentConfig.UpdateConfiguration(configuration));
     }
 

@@ -127,25 +127,122 @@ public static class ConfigurationUpdateExtensions
     {
         if (configurationObject is IConfiguration configuration)
         {
-            return configuration.AsEnumerable()
-                .Where(pair => pair.Value != null)
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+            var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in configuration.AsEnumerable().Where(pair => pair.Value != null))
+            {
+                values[pair.Key] = pair.Value;
+            }
+
+            return NormalizeConfigurationValues(values);
         }
 
-        return ConfigurationUtils.GetInMemoryCollectionFromObject(
+        return NormalizeConfigurationValues(ConfigurationUtils.GetInMemoryCollectionFromObject(
             configurationObject,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
     }
 
     private static void OverlayPatchValues(Dictionary<string, string?> currentValues, object incomingConfiguration)
     {
-        foreach (var patchEntry in BuildFlatConfigurationValues(incomingConfiguration))
+        var patchValues = BuildFlatConfigurationValues(incomingConfiguration);
+        foreach (var replacementPrefix in GetIndexedReplacementPrefixes(patchValues.Keys))
+        {
+            RemoveConflictingPathValues(currentValues, replacementPrefix);
+        }
+
+        foreach (var patchEntry in patchValues)
         {
             if (patchEntry.Value == null)
                 continue;
 
+            RemoveAncestorPathValues(currentValues, patchEntry.Key);
+            RemoveDescendantPathValues(currentValues, patchEntry.Key);
             currentValues[patchEntry.Key] = patchEntry.Value;
         }
+
+        NormalizeConfigurationValues(currentValues);
+    }
+
+    private static Dictionary<string, string?> NormalizeConfigurationValues(Dictionary<string, string?> values)
+    {
+        foreach (var key in values.Keys.ToArray())
+        {
+            if (HasDescendantKey(values, key))
+            {
+                values.Remove(key);
+            }
+        }
+
+        return values;
+    }
+
+    private static IEnumerable<string> GetIndexedReplacementPrefixes(IEnumerable<string> keys)
+    {
+        var indexSetsByPrefix = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in keys)
+        {
+            var segments = key.Split(ConfigurationConstants.PathSeparator);
+            for (var segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
+            {
+                if (!int.TryParse(segments[segmentIndex], out var listIndex))
+                {
+                    continue;
+                }
+
+                var prefix = string.Join(ConfigurationConstants.PathSeparator, segments.Take(segmentIndex));
+                if (string.IsNullOrWhiteSpace(prefix))
+                {
+                    continue;
+                }
+
+                if (!indexSetsByPrefix.TryGetValue(prefix, out var indexes))
+                {
+                    indexes = [];
+                    indexSetsByPrefix[prefix] = indexes;
+                }
+
+                indexes.Add(listIndex);
+                break;
+            }
+        }
+
+        return indexSetsByPrefix
+            .Where(pair => pair.Value.Contains(0))
+            .Select(pair => pair.Key);
+    }
+
+    private static void RemoveConflictingPathValues(Dictionary<string, string?> values, string path)
+    {
+        RemoveAncestorPathValues(values, path);
+        RemoveDescendantPathValues(values, path);
+        values.Remove(path);
+    }
+
+    private static void RemoveAncestorPathValues(Dictionary<string, string?> values, string path)
+    {
+        var separator = ConfigurationConstants.PathSeparator;
+        var ancestorLength = path.IndexOf(separator, StringComparison.Ordinal);
+        while (ancestorLength >= 0)
+        {
+            values.Remove(path[..ancestorLength]);
+            ancestorLength = path.IndexOf(separator, ancestorLength + separator.Length, StringComparison.Ordinal);
+        }
+    }
+
+    private static void RemoveDescendantPathValues(Dictionary<string, string?> values, string path)
+    {
+        var descendantPrefix = $"{path}{ConfigurationConstants.PathSeparator}";
+        foreach (var key in values.Keys
+                     .Where(key => key.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            values.Remove(key);
+        }
+    }
+
+    private static bool HasDescendantKey(Dictionary<string, string?> values, string path)
+    {
+        var descendantPrefix = $"{path}{ConfigurationConstants.PathSeparator}";
+        return values.Keys.Any(key => key.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase));
     }
 
     private static IConfigurationRoot BuildConfigurationRoot(Dictionary<string, string?> values)
