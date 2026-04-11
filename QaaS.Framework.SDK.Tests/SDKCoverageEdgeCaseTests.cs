@@ -98,7 +98,7 @@ public class SDKCoverageEdgeCaseTests
         var builder = new DataSourceBuilder()
             .Named("source-a")
             .HookNamed("generator-a")
-            .CreateDataSourcePattern("^dep-")
+            .AddDataSourcePattern("^dep-")
             .Configure(new { Existing = "value" })
             .UpdateConfiguration(new { Added = "new" })
             .WithSerializer(new SerializeConfig { Serializer = SerializationType.Json });
@@ -121,8 +121,8 @@ public class SDKCoverageEdgeCaseTests
         {
             Assert.That(built.Generator, Is.SameAs(generators["generator-a"]));
             Assert.That(built.DataSourceList.Select(source => source.Name), Is.EqualTo(new[] { "dep-1" }));
-            Assert.That(builder.Configuration["Existing"], Is.EqualTo("value"));
-            Assert.That(builder.Configuration["Added"], Is.EqualTo("new"));
+            Assert.That(builder.GeneratorConfiguration["Existing"], Is.EqualTo("value"));
+            Assert.That(builder.GeneratorConfiguration["Added"], Is.EqualTo("new"));
             Assert.That(yaml, Does.Contain("DataSourcePatterns"));
             Assert.That(yaml, Does.Contain("^dep-"));
             Assert.Throws<NotSupportedException>(() => builder.Read(null!, typeof(object), null!));

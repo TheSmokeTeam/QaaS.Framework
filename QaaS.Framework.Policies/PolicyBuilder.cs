@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using QaaS.Framework.Configurations;
 using QaaS.Framework.Policies.AdvancedLoadBalance;
 using QaaS.Framework.Policies.ConfigurationObjects;
 
@@ -18,6 +19,7 @@ public class PolicyBuilder
          " the actions included in it and a count or timeout to know after how many actions or after" +
          " how much time to end the stage and move to the next.")]
     public AdvancedLoadBalancePolicyConfig? AdvancedLoadBalance { get; internal set; }
+
     private PolicyBuilder Reset()
     {
         Count = null;
@@ -37,6 +39,8 @@ public class PolicyBuilder
     /// <qaas-docs group="Framework APIs" subgroup="Policies" />
     public PolicyBuilder Configure(IPolicyConfig config)
     {
+        ArgumentNullException.ThrowIfNull(config);
+
         Reset();
         switch (config)
         {
@@ -60,6 +64,85 @@ public class PolicyBuilder
         }
 
         return this;
+    }
+
+    /// <summary>
+    /// Sets the count policy configuration on the current Framework policy builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
+    public PolicyBuilder WithCount(CountPolicyConfig config) => Configure(config);
+
+    /// <summary>
+    /// Sets the timeout policy configuration on the current Framework policy builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
+    public PolicyBuilder WithTimeout(TimeoutPolicyConfig config) => Configure(config);
+
+    /// <summary>
+    /// Sets the load-balance policy configuration on the current Framework policy builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
+    public PolicyBuilder WithLoadBalance(LoadBalancePolicyConfig config) => Configure(config);
+
+    /// <summary>
+    /// Sets the increasing load-balance policy configuration on the current Framework policy builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
+    public PolicyBuilder WithIncreasingLoadBalance(IncreasingLoadBalancePolicyConfig config) => Configure(config);
+
+    /// <summary>
+    /// Sets the advanced load-balance policy configuration on the current Framework policy builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
+    public PolicyBuilder WithAdvancedLoadBalance(AdvancedLoadBalancePolicyConfig config) => Configure(config);
+
+    /// <summary>
+    /// Updates the configuration currently stored on the Framework policy builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework policy builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Policies" />
+    public PolicyBuilder UpdateConfiguration(object configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        var currentConfig = GetConfiguredPolicy();
+        if (configuration is IPolicyConfig typedConfiguration)
+        {
+            return Configure(currentConfig == null
+                ? typedConfiguration
+                : currentConfig.UpdateConfiguration(typedConfiguration));
+        }
+
+        if (currentConfig == null)
+            throw new InvalidOperationException(
+                "Policy configuration is not set and cannot be inferred from an object patch. Configure a concrete policy configuration first.");
+        return Configure(currentConfig.UpdateConfiguration(configuration));
+    }
+
+    private IPolicyConfig? GetConfiguredPolicy()
+    {
+        if (Count != null) return Count;
+        if (Timeout != null) return Timeout;
+        if (LoadBalance != null) return LoadBalance;
+        if (IncreasingLoadBalance != null) return IncreasingLoadBalance;
+        return AdvancedLoadBalance;
     }
 
     /// <summary>

@@ -155,6 +155,50 @@ public class ConfigurationUpdateExtensionsTests
     }
 
     [Test]
+    public void UpdateConfiguration_ForRawConfiguration_WithIndexedListPatch_ReplacesExistingListIndexes()
+    {
+        var current = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["InputNames"] = "scalar-that-should-not-survive",
+                ["InputNames:0"] = "Name1",
+                ["InputNames:1"] = "StaleName"
+            })
+            .Build();
+
+        var updated = current.UpdateConfiguration(new
+        {
+            InputNames = new[] { "Name2" }
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated["InputNames:0"], Is.EqualTo("Name2"));
+            Assert.That(updated["InputNames:1"], Is.Null);
+            Assert.That(updated["InputNames"], Is.Null);
+            Assert.That(updated.AsEnumerable().Count(pair =>
+                pair.Key.StartsWith("InputNames:", StringComparison.OrdinalIgnoreCase) &&
+                pair.Value != null), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void UpdateConfiguration_WithObjectPatchAndIndexedList_ReplacesExistingListValues()
+    {
+        var current = new IndexedConfig
+        {
+            InputNames = ["Name1", "StaleName"]
+        };
+
+        var updated = current.UpdateConfiguration(new
+        {
+            InputNames = new[] { "Name2" }
+        });
+
+        Assert.That(updated.InputNames, Is.EqualTo(new[] { "Name2" }));
+    }
+
+    [Test]
     public void UpdateConfiguration_ForRawConfiguration_WithNullCurrentConfiguration_CreatesNewTree()
     {
         IConfiguration? current = null;
@@ -209,5 +253,10 @@ public class ConfigurationUpdateExtensionsTests
     {
         public string Label { get; set; } = label;
         public int Count { get; set; }
+    }
+
+    private sealed class IndexedConfig
+    {
+        public string[] InputNames { get; set; } = [];
     }
 }
