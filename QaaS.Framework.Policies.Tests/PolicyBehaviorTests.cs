@@ -165,6 +165,25 @@ public class PolicyBehaviorTests
     }
 
     [Test]
+    public void PolicyBuilder_ConfigurationSettersAndUpdates_ReplaceOrMergePolicyConfiguration()
+    {
+        var countConfig = new CountPolicyConfig { Count = 3 };
+        var builder = new PolicyBuilder()
+            .WithCount(countConfig);
+
+        Assert.That(builder.Configuration, Is.SameAs(countConfig));
+
+        builder.UpdateConfiguration(new CountPolicyConfig { Count = 7 });
+        Assert.That(((CountPolicyConfig)builder.Configuration!).Count, Is.EqualTo(7));
+
+        builder.UpdateConfiguration(new TimeoutPolicyConfig { TimeoutMs = 10 });
+        Assert.That(builder.Configuration, Is.TypeOf<TimeoutPolicyConfig>());
+
+        builder.WithLoadBalance(new LoadBalancePolicyConfig { Rate = 5, TimeIntervalMs = 1000 });
+        Assert.That(builder.Configuration, Is.TypeOf<LoadBalancePolicyConfig>());
+    }
+
+    [Test]
     public void PolicyBuilder_Build_ReturnsLoadBalancePolicies()
     {
         var builder = new PolicyBuilder();

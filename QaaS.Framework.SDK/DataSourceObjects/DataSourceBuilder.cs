@@ -108,6 +108,19 @@ public class DataSourceBuilder : IYamlConvertible
     }
 
     /// <summary>
+    /// Removes the configured data source name at the specified index from the current Framework data source builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework data source builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
+    public DataSourceBuilder RemoveDataSourceNameAt(int index)
+    {
+        DataSourceNames = RemoveAt(DataSourceNames, index);
+        return this;
+    }
+
+    /// <summary>
     /// Adds the supplied data source pattern to the current Framework data source builder instance.
     /// </summary>
     /// <remarks>
@@ -130,6 +143,19 @@ public class DataSourceBuilder : IYamlConvertible
     public DataSourceBuilder RemoveDataSourcePattern(string dataSourcePattern)
     {
         DataSourcePatterns = (DataSourcePatterns ?? []).Where(value => value != dataSourcePattern).ToArray();
+        return this;
+    }
+
+    /// <summary>
+    /// Removes the configured data source pattern at the specified index from the current Framework data source builder instance.
+    /// </summary>
+    /// <remarks>
+    /// Use this method when working with the documented Framework data source builder API surface in code. The change is stored on the current builder instance and is consumed by later build, validation, or execution steps.
+    /// </remarks>
+    /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
+    public DataSourceBuilder RemoveDataSourcePatternAt(int index)
+    {
+        DataSourcePatterns = RemoveAt(DataSourcePatterns, index);
         return this;
     }
 
@@ -208,8 +234,24 @@ public class DataSourceBuilder : IYamlConvertible
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public DataSourceBuilder UpdateConfiguration(object configuration)
     {
-        GeneratorConfiguration = GeneratorConfiguration.UpdateConfiguration(configuration);
+        GeneratorConfiguration = (GeneratorConfiguration ?? new ConfigurationBuilder().Build())
+            .UpdateConfiguration(configuration);
         return this;
+    }
+
+    private static T[] RemoveAt<T>(T[]? values, int index)
+    {
+        if (values == null)
+        {
+            return [];
+        }
+
+        if (index < 0 || index >= values.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        return values.Where((_, i) => i != index).ToArray();
     }
 
     /// <summary>

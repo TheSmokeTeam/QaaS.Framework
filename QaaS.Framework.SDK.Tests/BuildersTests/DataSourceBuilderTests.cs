@@ -257,6 +257,27 @@ public class DataSourceBuilderTests
     }
 
     [Test]
+    public void ReferencedDataSourceCrud_RemoveAt_RemovesConfiguredEntryByIndex()
+    {
+        var builder = new DataSourceBuilder()
+            .AddDataSourceName("source-a")
+            .AddDataSourceName("source-b")
+            .AddDataSourcePattern("^source-a$")
+            .AddDataSourcePattern("^source-b$");
+
+        builder.RemoveDataSourceNameAt(0)
+            .RemoveDataSourcePatternAt(1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(builder.DataSourceNames, Is.EqualTo(new[] { "source-b" }));
+            Assert.That(builder.DataSourcePatterns, Is.EqualTo(new[] { "^source-a$" }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => builder.RemoveDataSourceNameAt(1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => builder.RemoveDataSourcePatternAt(-1));
+        });
+    }
+
+    [Test]
     public void Register_SetsSerializerDeserializerAndSpecificTypeMetadata()
     {
         var deserializerBuilder = new DataSourceBuilder()
