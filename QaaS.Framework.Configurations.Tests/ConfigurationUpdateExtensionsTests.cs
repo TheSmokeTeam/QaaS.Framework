@@ -155,6 +155,154 @@ public class ConfigurationUpdateExtensionsTests
     }
 
     [Test]
+    public void UpdateConfiguration_ForRawConfiguration_WithIndexedListPatch_ReplacesExistingListIndexes()
+    {
+        var current = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["InputNames"] = "scalar-that-should-not-survive",
+                ["InputNames:0"] = "Name1",
+                ["InputNames:1"] = "StaleName"
+            })
+            .Build();
+
+        var updated = current.UpdateConfiguration(new
+        {
+            InputNames = new[] { "Name2" }
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated["InputNames:0"], Is.EqualTo("Name2"));
+            Assert.That(updated["InputNames:1"], Is.Null);
+            Assert.That(updated["InputNames"], Is.Null);
+            Assert.That(updated.AsEnumerable().Count(pair =>
+                pair.Key.StartsWith("InputNames:", StringComparison.OrdinalIgnoreCase) &&
+                pair.Value != null), Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void UpdateConfiguration_ForRawConfiguration_WithNestedIndexedPatch_ReplacesExistingListWithoutDuplicateKeys()
+    {
+        var current = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataSources"] = "scalar-that-should-not-survive",
+                ["DataSources:0:Name"] = "SourceA",
+                ["DataSources:0:Generator"] = "OldGenerator",
+                ["DataSources:1:Name"] = "StaleSource",
+                ["DataSources:1:Generator"] = "StaleGenerator"
+            })
+            .Build();
+
+        var updated = current.UpdateConfiguration(new
+        {
+            DataSources = new[]
+            {
+                new
+                {
+                    Name = "SourceA",
+                    Generator = "NewGenerator"
+                }
+            }
+        });
+
+        var nonNullEntries = updated.AsEnumerable()
+            .Where(pair => pair.Value != null)
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated["DataSources"], Is.Null);
+            Assert.That(updated["DataSources:0:Name"], Is.EqualTo("SourceA"));
+            Assert.That(updated["DataSources:0:Generator"], Is.EqualTo("NewGenerator"));
+            Assert.That(updated["DataSources:1:Name"], Is.Null);
+            Assert.That(updated["DataSources:1:Generator"], Is.Null);
+            Assert.That(nonNullEntries.Keys.Count(key => key.StartsWith("DataSources:", StringComparison.OrdinalIgnoreCase)),
+                Is.EqualTo(2));
+            Assert.That(nonNullEntries.ContainsKey("DataSources:0:Name"), Is.True);
+            Assert.That(nonNullEntries.ContainsKey("DataSources:0:Generator"), Is.True);
+        });
+    }
+
+    [Test]
+    public void UpdateConfiguration_WithObjectPatchAndIndexedList_ReplacesExistingListValues()
+    {
+        var current = new IndexedConfig
+        {
+            InputNames = ["Name1", "StaleName"]
+        };
+
+        var updated = current.UpdateConfiguration(new
+        {
+            InputNames = new[] { "Name2" }
+        });
+
+        Assert.That(updated.InputNames, Is.EqualTo(new[] { "Name2" }));
+    }
+
+    [Test]
+    public void UpdateConfiguration_WithObjectPatchAndExplicitNull_ClearsExistingValue()
+    {
+        var current = new NullableConfig
+        {
+            Name = "existing",
+            Nested = new NullableNestedConfig
+            {
+                Marker = "marker"
+            }
+        };
+
+        var updated = current.UpdateConfiguration(new
+        {
+            Name = (string?)null,
+            Nested = new
+            {
+                Marker = (string?)null
+            }
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated.Name, Is.Null);
+            Assert.That(updated.Nested, Is.Null);
+        });
+    }
+
+    [Test]
+    public void UpdateConfiguration_ForRawConfiguration_WithExplicitNull_RemovesExistingLeafAndPreservesNeighbors()
+    {
+        var current = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Feature:Name"] = "existing",
+                ["Feature:Enabled"] = "true",
+                ["Feature:Nested:Marker"] = "marker"
+            })
+            .Build();
+
+        var updated = current.UpdateConfiguration(new
+        {
+            Feature = new
+            {
+                Name = (string?)null,
+                Nested = new
+                {
+                    Marker = (string?)null
+                }
+            }
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated["Feature:Name"], Is.Null);
+            Assert.That(updated["Feature:Enabled"], Is.EqualTo("true"));
+            Assert.That(updated["Feature:Nested:Marker"], Is.Null);
+        });
+    }
+
+    [Test]
     public void UpdateConfiguration_ForRawConfiguration_WithNullCurrentConfiguration_CreatesNewTree()
     {
         IConfiguration? current = null;
@@ -209,5 +357,21 @@ public class ConfigurationUpdateExtensionsTests
     {
         public string Label { get; set; } = label;
         public int Count { get; set; }
+    }
+
+    private sealed class IndexedConfig
+    {
+        public string[] InputNames { get; set; } = [];
+    }
+
+    private sealed class NullableConfig
+    {
+        public string? Name { get; set; }
+        public NullableNestedConfig? Nested { get; set; }
+    }
+
+    private sealed class NullableNestedConfig
+    {
+        public string? Marker { get; set; }
     }
 }

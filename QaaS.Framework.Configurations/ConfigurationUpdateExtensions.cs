@@ -21,6 +21,18 @@ public static class ConfigurationUpdateExtensions
     /// When both configurations share the same runtime type, omitted fields are preserved from the current value.
     /// When the runtime type changes, the incoming configuration replaces the current one.
     /// </summary>
+    /// <remarks>
+    /// Use this helper when a partially populated typed configuration object should override only the supplied fields
+    /// while preserving the rest of the existing configuration state.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="Updates" />
+    /// <param name="currentConfiguration">The existing configuration instance that should receive the patch.</param>
+    /// <param name="incomingConfiguration">The typed patch to merge into the current configuration.</param>
+    /// <typeparam name="TConfiguration">The configuration contract being updated.</typeparam>
+    /// <returns>
+    /// The merged configuration instance. This is either the incoming configuration, the current configuration mutated
+    /// in place, or a newly materialized merged instance depending on the runtime type and constructor availability.
+    /// </returns>
     public static TConfiguration UpdateConfiguration<TConfiguration>(
         this TConfiguration? currentConfiguration,
         TConfiguration incomingConfiguration)
@@ -53,9 +65,26 @@ public static class ConfigurationUpdateExtensions
     /// <summary>
     /// Merges an object-shaped configuration patch into the current typed configuration.
     /// Fields omitted from <paramref name="incomingConfiguration"/> are preserved from the current configuration.
+    /// Fields explicitly set to <see langword="null"/> in the patch clear the existing value.
     /// When the current configuration is missing, the incoming object is bound to <typeparamref name="TConfiguration"/>
     /// when possible.
     /// </summary>
+    /// <remarks>
+    /// Use this overload when the patch comes from an anonymous object, JSON-like payload, or any other object whose
+    /// shape matches part of the target configuration contract.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="Updates" />
+    /// <param name="currentConfiguration">The existing typed configuration instance that should receive the patch.</param>
+    /// <param name="incomingConfiguration">The object-shaped patch to merge into the current configuration.</param>
+    /// <typeparam name="TConfiguration">The configuration contract being updated.</typeparam>
+    /// <returns>
+    /// The merged typed configuration instance. When no current instance exists, the patch is bound to
+    /// <typeparamref name="TConfiguration"/> when that is supported.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when an object-shaped patch cannot be materialized because the target runtime type is an interface or
+    /// does not expose a public parameterless constructor.
+    /// </exception>
     public static TConfiguration UpdateConfiguration<TConfiguration>(
         this TConfiguration? currentConfiguration,
         object incomingConfiguration)
@@ -102,7 +131,16 @@ public static class ConfigurationUpdateExtensions
     /// <summary>
     /// Merges an object-shaped configuration patch into the current <see cref="IConfiguration"/> tree.
     /// Fields omitted from <paramref name="incomingConfiguration"/> are preserved from the current configuration.
+    /// Fields explicitly set to <see langword="null"/> in the patch clear the existing value.
     /// </summary>
+    /// <remarks>
+    /// Use this overload when configuration is already represented as an <see cref="IConfiguration"/> tree and should
+    /// be updated without first binding it to a typed configuration object.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="Updates" />
+    /// <param name="currentConfiguration">The existing configuration tree that should receive the patch.</param>
+    /// <param name="incomingConfiguration">The object-shaped patch to overlay onto the configuration tree.</param>
+    /// <returns>A new configuration tree that contains the merged values.</returns>
     public static IConfiguration UpdateConfiguration(
         this IConfiguration? currentConfiguration,
         object incomingConfiguration)
@@ -127,25 +165,126 @@ public static class ConfigurationUpdateExtensions
     {
         if (configurationObject is IConfiguration configuration)
         {
-            return configuration.AsEnumerable()
-                .Where(pair => pair.Value != null)
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+            var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in configuration.AsEnumerable().Where(pair => pair.Value != null))
+            {
+                values[pair.Key] = pair.Value;
+            }
+
+            return NormalizeConfigurationValues(values);
         }
 
-        return ConfigurationUtils.GetInMemoryCollectionFromObject(
+        return NormalizeConfigurationValues(ConfigurationUtils.GetInMemoryCollectionFromObject(
             configurationObject,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
     }
 
     private static void OverlayPatchValues(Dictionary<string, string?> currentValues, object incomingConfiguration)
     {
-        foreach (var patchEntry in BuildFlatConfigurationValues(incomingConfiguration))
+        var patchValues = BuildFlatConfigurationValues(incomingConfiguration);
+        foreach (var replacementPrefix in GetIndexedReplacementPrefixes(patchValues.Keys))
         {
+            RemoveConflictingPathValues(currentValues, replacementPrefix);
+        }
+
+        foreach (var patchEntry in patchValues)
+        {
+            RemoveAncestorPathValues(currentValues, patchEntry.Key);
+            RemoveDescendantPathValues(currentValues, patchEntry.Key);
+
             if (patchEntry.Value == null)
+            {
+                currentValues.Remove(patchEntry.Key);
                 continue;
+            }
 
             currentValues[patchEntry.Key] = patchEntry.Value;
         }
+
+        NormalizeConfigurationValues(currentValues);
+    }
+
+    private static Dictionary<string, string?> NormalizeConfigurationValues(Dictionary<string, string?> values)
+    {
+        foreach (var key in values.Keys.ToArray())
+        {
+            if (HasDescendantKey(values, key))
+            {
+                values.Remove(key);
+            }
+        }
+
+        return values;
+    }
+
+    private static IEnumerable<string> GetIndexedReplacementPrefixes(IEnumerable<string> keys)
+    {
+        var indexSetsByPrefix = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in keys)
+        {
+            var segments = key.Split(ConfigurationConstants.PathSeparator);
+            for (var segmentIndex = 0; segmentIndex < segments.Length; segmentIndex++)
+            {
+                if (!int.TryParse(segments[segmentIndex], out var listIndex))
+                {
+                    continue;
+                }
+
+                var prefix = string.Join(ConfigurationConstants.PathSeparator, segments.Take(segmentIndex));
+                if (string.IsNullOrWhiteSpace(prefix))
+                {
+                    continue;
+                }
+
+                if (!indexSetsByPrefix.TryGetValue(prefix, out var indexes))
+                {
+                    indexes = [];
+                    indexSetsByPrefix[prefix] = indexes;
+                }
+
+                indexes.Add(listIndex);
+                break;
+            }
+        }
+
+        return indexSetsByPrefix
+            .Where(pair => pair.Value.Contains(0))
+            .Select(pair => pair.Key);
+    }
+
+    private static void RemoveConflictingPathValues(Dictionary<string, string?> values, string path)
+    {
+        RemoveAncestorPathValues(values, path);
+        RemoveDescendantPathValues(values, path);
+        values.Remove(path);
+    }
+
+    private static void RemoveAncestorPathValues(Dictionary<string, string?> values, string path)
+    {
+        var separator = ConfigurationConstants.PathSeparator;
+        var ancestorLength = path.IndexOf(separator, StringComparison.Ordinal);
+        while (ancestorLength >= 0)
+        {
+            values.Remove(path[..ancestorLength]);
+            ancestorLength = path.IndexOf(separator, ancestorLength + separator.Length, StringComparison.Ordinal);
+        }
+    }
+
+    private static void RemoveDescendantPathValues(Dictionary<string, string?> values, string path)
+    {
+        var descendantPrefix = $"{path}{ConfigurationConstants.PathSeparator}";
+        foreach (var key in values.Keys
+                     .Where(key => key.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            values.Remove(key);
+        }
+    }
+
+    private static bool HasDescendantKey(Dictionary<string, string?> values, string path)
+    {
+        var descendantPrefix = $"{path}{ConfigurationConstants.PathSeparator}";
+        return values.Keys.Any(key => key.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase));
     }
 
     private static IConfigurationRoot BuildConfigurationRoot(Dictionary<string, string?> values)

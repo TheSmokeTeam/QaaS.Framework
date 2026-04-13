@@ -24,18 +24,18 @@ public class DataSourceBuilderTests
             .HookNamed("TestGenerator")
             .IsLazy()
             .WithSerializer(jsonSerializerConfig)
-            .CreateDataSourceName("dependent-source-2");
+            .AddDataSourceName("dependent-source-2");
 
         var builder2 = new DataSourceBuilder()
             .Named("dependent-source-2")
             .HookNamed("TestGenerator")
-            .CreateDataSourceName("dependent-source-3");
+            .AddDataSourceName("dependent-source-3");
 
         var builder3 = new DataSourceBuilder()
             .Named("dependent-source-3")
             .HookNamed("TestGenerator")
             .WithSerializer(jsonSerializerConfig)
-            .CreateDataSourceName("dependent-source-1");
+            .AddDataSourceName("dependent-source-1");
 
         yield return new TestCaseData(
             new List<DataSourceBuilder> { builder1, builder2, builder3 },
@@ -66,7 +66,7 @@ public class DataSourceBuilderTests
         var builder7 = new DataSourceBuilder()
             .Named("non-existing-reference")
             .HookNamed("TestGenerator")
-            .CreateDataSourceName("non-existing-source");
+            .AddDataSourceName("non-existing-source");
 
         var builder8 = new DataSourceBuilder()
             .Named("existing-source-1")
@@ -180,8 +180,8 @@ public class DataSourceBuilderTests
         var builder = new DataSourceBuilder()
             .Named("test-source")
             .HookNamed("test-generator")
-            .CreateDataSourceName("source-a")
-            .CreateDataSourceName("source-b");
+            .AddDataSourceName("source-a")
+            .AddDataSourceName("source-b");
 
         var dataSource = builder.Register();
         var builtDataSource = builder.Build(Globals.GetContextWithMetadata(), dataSources, generators);
@@ -206,7 +206,7 @@ public class DataSourceBuilderTests
                 }
             });
 
-        var initialConfiguration = builder.Configuration;
+        var initialConfiguration = builder.GeneratorConfiguration;
         builder.UpdateConfiguration(new
         {
             Nested = new
@@ -214,8 +214,8 @@ public class DataSourceBuilderTests
                 Added = "new"
             }
         });
-        var updatedConfiguration = builder.Configuration;
-        builder.DeleteConfiguration();
+        var updatedConfiguration = builder.GeneratorConfiguration;
+        builder.RemoveConfiguration();
 
         Assert.Multiple(() =>
         {
@@ -224,7 +224,7 @@ public class DataSourceBuilderTests
             Assert.That(updatedConfiguration["Existing"], Is.EqualTo("value"));
             Assert.That(updatedConfiguration["Nested:Before"], Is.EqualTo("keep"));
             Assert.That(updatedConfiguration["Nested:Added"], Is.EqualTo("new"));
-            Assert.That(builder.Configuration.GetChildren(), Is.Empty);
+            Assert.That(builder.GeneratorConfiguration.GetChildren(), Is.Empty);
         });
     }
 
@@ -232,25 +232,48 @@ public class DataSourceBuilderTests
     public void ReferencedDataSourceCrud_ReadUpdateAndDelete_WorkAsExpected()
     {
         var builder = new DataSourceBuilder()
-            .CreateDataSourceName("source-a")
-            .CreateDataSourcePattern("^source-.*$");
-
-        builder.UpdateDataSourceName("source-a", "source-updated");
-        builder.UpdateDataSourcePattern("^source-.*$", "^updated-.*$");
+            .AddDataSourceName("source-a")
+            .AddDataSourcePattern("^source-.*$");
+        builder
+            .RemoveDataSourceName("source-a")
+            .AddDataSourceName("source-updated")
+            .RemoveDataSourcePattern("^source-.*$")
+            .AddDataSourcePattern("^updated-.*$");
 
         Assert.Multiple(() =>
         {
-            Assert.That(builder.ReadDataSourceNames(), Is.EqualTo(new[] { "source-updated" }));
-            Assert.That(builder.ReadDataSourcePatterns(), Is.EqualTo(new[] { "^updated-.*$" }));
+            Assert.That(builder.DataSourceNames, Is.EqualTo(new[] { "source-updated" }));
+            Assert.That(builder.DataSourcePatterns, Is.EqualTo(new[] { "^updated-.*$" }));
         });
 
-        builder.DeleteDataSourceName("source-updated");
-        builder.DeleteDataSourcePattern("^updated-.*$");
+        builder.RemoveDataSourceName("source-updated");
+        builder.RemoveDataSourcePattern("^updated-.*$");
 
         Assert.Multiple(() =>
         {
-            Assert.That(builder.ReadDataSourceNames(), Is.Empty);
-            Assert.That(builder.ReadDataSourcePatterns(), Is.Empty);
+            Assert.That(builder.DataSourceNames, Is.Empty);
+            Assert.That(builder.DataSourcePatterns, Is.Empty);
+        });
+    }
+
+    [Test]
+    public void ReferencedDataSourceCrud_RemoveAt_RemovesConfiguredEntryByIndex()
+    {
+        var builder = new DataSourceBuilder()
+            .AddDataSourceName("source-a")
+            .AddDataSourceName("source-b")
+            .AddDataSourcePattern("^source-a$")
+            .AddDataSourcePattern("^source-b$");
+
+        builder.RemoveDataSourceNameAt(0)
+            .RemoveDataSourcePatternAt(1);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(builder.DataSourceNames, Is.EqualTo(new[] { "source-b" }));
+            Assert.That(builder.DataSourcePatterns, Is.EqualTo(new[] { "^source-a$" }));
+            Assert.Throws<ArgumentOutOfRangeException>(() => builder.RemoveDataSourceNameAt(1));
+            Assert.Throws<ArgumentOutOfRangeException>(() => builder.RemoveDataSourcePatternAt(-1));
         });
     }
 

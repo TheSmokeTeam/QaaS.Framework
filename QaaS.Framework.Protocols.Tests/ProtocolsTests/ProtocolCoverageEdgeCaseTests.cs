@@ -32,6 +32,13 @@ public class ProtocolCoverageEdgeCaseTests
             .SetValue(instance, value);
     }
 
+    private static bool? TryGetRabbitMqBasicPropertyPresenceFlag(BasicProperties properties, string propertyName)
+    {
+        var method = properties.GetType()
+            .GetMethod($"Is{propertyName}Present", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        return method == null ? null : (bool)method.Invoke(properties, null)!;
+    }
+
     [Test]
     public void RowInsertIntoTable_UsesSqlSpecificDateFormatting()
     {
@@ -424,6 +431,46 @@ public class ProtocolCoverageEdgeCaseTests
             Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
         Assert.That(publishInvocation.Arguments[3].GetType().FullName,
             Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+    }
+
+    [Test]
+    public void RabbitMqProtocol_Send_WithHeadersButNoContentTypeOrType_DoesNotMarkContentTypeOrTypePresent()
+    {
+        BasicProperties? publishedProperties = null;
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        channelMock
+            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
+                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
+                (_, _, _, properties, _, _) => publishedProperties = properties)
+            .Returns(ValueTask.CompletedTask);
+
+        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            ExchangeName = "exchange-name",
+            Headers = new Dictionary<string, object?> { ["correlation-id"] = "abc" },
+            ContentType = null,
+            Type = null
+        }, NullLogger.Instance);
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+
+        Assert.That(publishedProperties, Is.Not.Null);
+        var contentTypePresence = TryGetRabbitMqBasicPropertyPresenceFlag(publishedProperties!, "ContentType");
+        var typePresence = TryGetRabbitMqBasicPropertyPresenceFlag(publishedProperties!, "Type");
+        Assert.Multiple(() =>
+        {
+            Assert.That(publishedProperties!.Headers, Contains.Key("correlation-id"));
+            Assert.That(publishedProperties.ContentType, Is.Null);
+            Assert.That(publishedProperties.Type, Is.Null);
+            Assert.That(contentTypePresence, Is.Not.True);
+            Assert.That(typePresence, Is.Not.True);
+        });
     }
 
     [Test]

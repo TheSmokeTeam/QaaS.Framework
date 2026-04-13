@@ -13,6 +13,8 @@ public static class ContextGlobalDictionaryExtensions
     /// Loads the requested configuration section into the context global dictionary.
     /// Use <c>"variables"</c> as the section path to project the root variables section
     /// into runtime state without relying on a dedicated Variables API.
+    /// Numeric child sections are normalized to lists so YAML list sections do not appear
+    /// as dictionaries with stringified indexes such as <c>"0"</c> and <c>"1"</c>.
     /// </summary>
     public static void LoadConfigurationSectionIntoGlobalDictionary<TExecutionData>(
         this BaseContext<TExecutionData> context,
@@ -45,6 +47,14 @@ public static class ContextGlobalDictionaryExtensions
         var children = section.GetChildren().ToList();
         if (children.Count == 0)
             return section.Value;
+
+        if (children.All(child => int.TryParse(child.Key, out _)))
+        {
+            return children
+                .OrderBy(child => int.Parse(child.Key))
+                .Select(ConvertConfigurationSectionToObject)
+                .ToList();
+        }
 
         var dictionary = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var child in children)
