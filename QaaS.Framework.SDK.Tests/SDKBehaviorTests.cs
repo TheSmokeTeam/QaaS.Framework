@@ -575,6 +575,43 @@ root:
     }
 
     [Test]
+    public void Context_LoadConfigurationSectionIntoGlobalDictionary_NormalizesIndexedChildrenToLists()
+    {
+        var context = new Context
+        {
+            Logger = NullLogger.Instance,
+            RootConfiguration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["variables:connections:0:name"] = "primary",
+                    ["variables:connections:0:host"] = "localhost",
+                    ["variables:connections:1:name"] = "secondary",
+                    ["variables:connections:1:host"] = "remote"
+                })
+                .Build(),
+            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+        };
+
+        context.LoadConfigurationSectionIntoGlobalDictionary("variables");
+
+        var variables = context.GetValueFromGlobalDictionary(["variables"]) as Dictionary<string, object?>;
+        var connections = variables?["connections"] as List<object?>;
+        var firstConnection = connections?[0] as Dictionary<string, object?>;
+        var secondConnection = connections?[1] as Dictionary<string, object?>;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(variables, Is.Not.Null);
+            Assert.That(connections, Is.Not.Null);
+            Assert.That(connections, Has.Count.EqualTo(2));
+            Assert.That(firstConnection?["name"], Is.EqualTo("primary"));
+            Assert.That(firstConnection?["host"], Is.EqualTo("localhost"));
+            Assert.That(secondConnection?["name"], Is.EqualTo("secondary"));
+            Assert.That(secondConnection?["host"], Is.EqualTo("remote"));
+        });
+    }
+
+    [Test]
     public void Bind_BindsFromContextAndReturnsValidationResults()
     {
         var context = new Context

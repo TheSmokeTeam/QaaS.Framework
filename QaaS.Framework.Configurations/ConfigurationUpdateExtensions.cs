@@ -65,6 +65,7 @@ public static class ConfigurationUpdateExtensions
     /// <summary>
     /// Merges an object-shaped configuration patch into the current typed configuration.
     /// Fields omitted from <paramref name="incomingConfiguration"/> are preserved from the current configuration.
+    /// Fields explicitly set to <see langword="null"/> in the patch clear the existing value.
     /// When the current configuration is missing, the incoming object is bound to <typeparamref name="TConfiguration"/>
     /// when possible.
     /// </summary>
@@ -130,6 +131,7 @@ public static class ConfigurationUpdateExtensions
     /// <summary>
     /// Merges an object-shaped configuration patch into the current <see cref="IConfiguration"/> tree.
     /// Fields omitted from <paramref name="incomingConfiguration"/> are preserved from the current configuration.
+    /// Fields explicitly set to <see langword="null"/> in the patch clear the existing value.
     /// </summary>
     /// <remarks>
     /// Use this overload when configuration is already represented as an <see cref="IConfiguration"/> tree and should
@@ -187,11 +189,15 @@ public static class ConfigurationUpdateExtensions
 
         foreach (var patchEntry in patchValues)
         {
-            if (patchEntry.Value == null)
-                continue;
-
             RemoveAncestorPathValues(currentValues, patchEntry.Key);
             RemoveDescendantPathValues(currentValues, patchEntry.Key);
+
+            if (patchEntry.Value == null)
+            {
+                currentValues.Remove(patchEntry.Key);
+                continue;
+            }
+
             currentValues[patchEntry.Key] = patchEntry.Value;
         }
 
