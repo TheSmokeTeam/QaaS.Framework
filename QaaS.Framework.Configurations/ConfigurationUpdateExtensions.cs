@@ -21,6 +21,18 @@ public static class ConfigurationUpdateExtensions
     /// When both configurations share the same runtime type, omitted fields are preserved from the current value.
     /// When the runtime type changes, the incoming configuration replaces the current one.
     /// </summary>
+    /// <remarks>
+    /// Use this helper when a partially populated typed configuration object should override only the supplied fields
+    /// while preserving the rest of the existing configuration state.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="Updates" />
+    /// <param name="currentConfiguration">The existing configuration instance that should receive the patch.</param>
+    /// <param name="incomingConfiguration">The typed patch to merge into the current configuration.</param>
+    /// <typeparam name="TConfiguration">The configuration contract being updated.</typeparam>
+    /// <returns>
+    /// The merged configuration instance. This is either the incoming configuration, the current configuration mutated
+    /// in place, or a newly materialized merged instance depending on the runtime type and constructor availability.
+    /// </returns>
     public static TConfiguration UpdateConfiguration<TConfiguration>(
         this TConfiguration? currentConfiguration,
         TConfiguration incomingConfiguration)
@@ -56,6 +68,22 @@ public static class ConfigurationUpdateExtensions
     /// When the current configuration is missing, the incoming object is bound to <typeparamref name="TConfiguration"/>
     /// when possible.
     /// </summary>
+    /// <remarks>
+    /// Use this overload when the patch comes from an anonymous object, JSON-like payload, or any other object whose
+    /// shape matches part of the target configuration contract.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="Updates" />
+    /// <param name="currentConfiguration">The existing typed configuration instance that should receive the patch.</param>
+    /// <param name="incomingConfiguration">The object-shaped patch to merge into the current configuration.</param>
+    /// <typeparam name="TConfiguration">The configuration contract being updated.</typeparam>
+    /// <returns>
+    /// The merged typed configuration instance. When no current instance exists, the patch is bound to
+    /// <typeparamref name="TConfiguration"/> when that is supported.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when an object-shaped patch cannot be materialized because the target runtime type is an interface or
+    /// does not expose a public parameterless constructor.
+    /// </exception>
     public static TConfiguration UpdateConfiguration<TConfiguration>(
         this TConfiguration? currentConfiguration,
         object incomingConfiguration)
@@ -103,6 +131,14 @@ public static class ConfigurationUpdateExtensions
     /// Merges an object-shaped configuration patch into the current <see cref="IConfiguration"/> tree.
     /// Fields omitted from <paramref name="incomingConfiguration"/> are preserved from the current configuration.
     /// </summary>
+    /// <remarks>
+    /// Use this overload when configuration is already represented as an <see cref="IConfiguration"/> tree and should
+    /// be updated without first binding it to a typed configuration object.
+    /// </remarks>
+    /// <qaas-docs group="Configuration" subgroup="Updates" />
+    /// <param name="currentConfiguration">The existing configuration tree that should receive the patch.</param>
+    /// <param name="incomingConfiguration">The object-shaped patch to overlay onto the configuration tree.</param>
+    /// <returns>A new configuration tree that contains the merged values.</returns>
     public static IConfiguration UpdateConfiguration(
         this IConfiguration? currentConfiguration,
         object incomingConfiguration)

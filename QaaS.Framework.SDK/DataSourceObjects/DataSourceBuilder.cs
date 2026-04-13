@@ -221,10 +221,11 @@ public class DataSourceBuilder : IYamlConvertible
     }
 
     /// <summary>
-    /// Returns the configuration currently stored on the Framework data source builder instance.
+    /// Merges the supplied patch into the generator configuration stored on the current Framework data source builder instance.
     /// </summary>
     /// <remarks>
-    /// Use this method when working with the documented Framework data source builder API surface in code. Use it to inspect the current configured state without rebuilding the surrounding collection or runtime object graph.
+    /// Use this method when only part of the generator configuration should change. Fields omitted from the patch are
+    /// preserved from the current <see cref="GeneratorConfiguration"/> tree.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public DataSourceBuilder UpdateConfiguration(object configuration)
