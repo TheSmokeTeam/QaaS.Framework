@@ -1,12 +1,15 @@
 using System.ComponentModel;
 using QaaS.Framework.Configurations;
+using QaaS.Framework.Infrastructure;
 using QaaS.Framework.Policies.AdvancedLoadBalance;
 using QaaS.Framework.Policies.ConfigurationObjects;
 
 namespace QaaS.Framework.Policies;
 
-public class PolicyBuilder
+public class PolicyBuilder : ICloneable<PolicyBuilder>
 {
+    public PolicyBuilder Clone() => BuilderCloner.DeepClone(this);
+
     public CountPolicyConfig? Count { get; internal set; }
     public TimeoutPolicyConfig? Timeout { get; internal set; }
     [Description("This policy is in charge of controlling the rate in which the action is repeatedly executed")]

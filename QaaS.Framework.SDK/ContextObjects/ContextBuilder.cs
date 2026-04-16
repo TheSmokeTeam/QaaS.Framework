@@ -4,13 +4,16 @@ using Microsoft.Extensions.Logging.Abstractions;
 using QaaS.Framework.Configurations;
 using QaaS.Framework.Configurations.ConfigurationBuilderExtensions;
 using QaaS.Framework.Configurations.References;
+using QaaS.Framework.Infrastructure;
 using QaaS.Framework.SDK.Session.SessionDataObjects.RunningSessionsObjects;
 
 namespace QaaS.Framework.SDK.ContextObjects;
 
 /// <inheritdoc />
-public class ContextBuilder : IContextBuilder
+public class ContextBuilder : IContextBuilder, ICloneable<ContextBuilder>
 {
+    public ContextBuilder Clone() => BuilderCloner.DeepClone(this);
+
     private readonly List<string> _configurationOverwriteFiles = new();
     private readonly List<string> _configurationOverwriteFolders = new();
     private readonly List<string> _configurationOverwriteArguments = new();
