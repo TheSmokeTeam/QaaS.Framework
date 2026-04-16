@@ -4,21 +4,23 @@ using System.Reflection;
 namespace QaaS.Framework.Infrastructure;
 
 /// <summary>
-/// Reflection-based helper that produces independent builder copies.
+/// Reflection-based helper that produces independent builder copies by recursively
+/// deep-cloning every mutable reference reachable from the source.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The algorithm starts from a shallow <c>MemberwiseClone</c> of the source (copying every public,
-/// internal, and private field), then walks the instance fields and replaces mutable containers that
-/// the builder owns — <c>T[]</c>, <c>List&lt;T&gt;</c> and <c>Dictionary&lt;K,V&gt;</c> — with fresh
-/// copies so the clone can be mutated without affecting the original. Elements that themselves
-/// implement <c>ICloneable&lt;&gt;</c> (from any namespace) are cloned recursively via
-/// their own <c>Clone()</c> method; other references are shared.
+/// The algorithm walks the source's object graph, MemberwiseCloning each non-immutable
+/// reference and then recursing into its fields. Arrays, <see cref="List{T}"/>,
+/// <see cref="Dictionary{TKey,TValue}"/>, and <see cref="HashSet{T}"/> are rebuilt
+/// with cloned elements. A reference-equality visited map preserves shared-subgraph
+/// identity and prevents cycles. Primitives, enums, strings, and well-known opaque
+/// system types (Type, MemberInfo, Assembly, Delegate, ...) are treated as values
+/// and shared as-is.
 /// </para>
 /// <para>
-/// This is a best-effort helper for typical builder shapes. Builders with unusual state (captured
-/// delegates, non-generic collections, custom init-once fields) should implement <c>Clone()</c>
-/// manually instead of delegating here.
+/// Builders whose state is intentionally shared with external owners (for example a
+/// user-supplied <c>ILogger</c> that must remain the same instance) should implement
+/// <c>Clone()</c> manually instead of delegating here.
 /// </para>
 /// </remarks>
 public static class BuilderCloner
@@ -31,100 +33,114 @@ public static class BuilderCloner
     public static T DeepClone<T>(T source) where T : class
     {
         ArgumentNullException.ThrowIfNull(source);
-        var clone = (T)MemberwiseCloneMethod.Invoke(source, null)!;
-        RebuildOwnedContainers(clone);
-        return clone;
+        var visited = new Dictionary<object, object>(ReferenceEqualityComparer.Instance);
+        return (T)DeepCloneInternal(source, visited)!;
     }
 
-    private static void RebuildOwnedContainers(object obj)
+    private static object? DeepCloneInternal(object? value, Dictionary<object, object> visited)
     {
-        var type = obj.GetType();
-        while (type != null && type != typeof(object))
+        if (value is null) return null;
+
+        var type = value.GetType();
+        if (IsImmutableOrOpaque(type)) return value;
+
+        if (visited.TryGetValue(value, out var existing)) return existing;
+
+        if (value is Array array && type.GetArrayRank() == 1)
         {
-            foreach (var field in type.GetFields(
+            var elementType = type.GetElementType()!;
+            var copy = Array.CreateInstance(elementType, array.Length);
+            visited[value] = copy;
+            for (var i = 0; i < array.Length; i++)
+            {
+                copy.SetValue(DeepCloneInternal(array.GetValue(i), visited), i);
+            }
+            return copy;
+        }
+
+        if (type.IsGenericType)
+        {
+            var genericDefinition = type.GetGenericTypeDefinition();
+
+            if (genericDefinition == typeof(List<>))
+            {
+                var list = (IList)Activator.CreateInstance(type)!;
+                visited[value] = list;
+                foreach (var element in (IEnumerable)value)
+                {
+                    list.Add(DeepCloneInternal(element, visited));
+                }
+                return list;
+            }
+
+            if (genericDefinition == typeof(Dictionary<,>))
+            {
+                var dictionary = (IDictionary)Activator.CreateInstance(type)!;
+                visited[value] = dictionary;
+                foreach (DictionaryEntry entry in (IDictionary)value)
+                {
+                    dictionary[entry.Key] = DeepCloneInternal(entry.Value, visited);
+                }
+                return dictionary;
+            }
+
+            if (genericDefinition == typeof(HashSet<>))
+            {
+                var set = Activator.CreateInstance(type)!;
+                var addMethod = type.GetMethod("Add", [type.GetGenericArguments()[0]])!;
+                visited[value] = set;
+                foreach (var element in (IEnumerable)value)
+                {
+                    addMethod.Invoke(set, [DeepCloneInternal(element, visited)]);
+                }
+                return set;
+            }
+        }
+
+        var clone = MemberwiseCloneMethod.Invoke(value, null)!;
+        visited[value] = clone;
+
+        var currentType = type;
+        while (currentType != null && currentType != typeof(object))
+        {
+            foreach (var field in currentType.GetFields(
                          BindingFlags.Instance |
                          BindingFlags.Public |
                          BindingFlags.NonPublic |
                          BindingFlags.DeclaredOnly))
             {
-                var value = field.GetValue(obj);
-                if (value is null) continue;
+                if (IsImmutableOrOpaque(field.FieldType)) continue;
 
-                if (TryRebuildContainer(value, out var rebuilt))
-                {
-                    field.SetValue(obj, rebuilt);
-                }
+                var fieldValue = field.GetValue(value);
+                if (fieldValue is null) continue;
+
+                var clonedFieldValue = DeepCloneInternal(fieldValue, visited);
+                field.SetValue(clone, clonedFieldValue);
             }
-            type = type.BaseType;
+            currentType = currentType.BaseType;
         }
+
+        return clone;
     }
 
-    private static bool TryRebuildContainer(object value, out object? rebuilt)
+    private static bool IsImmutableOrOpaque(Type type)
     {
-        var valueType = value.GetType();
+        var effectiveType = Nullable.GetUnderlyingType(type) ?? type;
 
-        if (value is Array array && valueType.GetArrayRank() == 1)
-        {
-            var elementType = valueType.GetElementType()!;
-            var copy = Array.CreateInstance(elementType, array.Length);
-            for (var i = 0; i < array.Length; i++)
-            {
-                var element = array.GetValue(i);
-                copy.SetValue(CloneElement(element), i);
-            }
-            rebuilt = copy;
-            return true;
-        }
-
-        if (valueType.IsGenericType &&
-            valueType.GetGenericTypeDefinition() == typeof(List<>))
-        {
-            var list = (IList)Activator.CreateInstance(valueType)!;
-            foreach (var element in (IEnumerable)value)
-            {
-                list.Add(CloneElement(element));
-            }
-            rebuilt = list;
-            return true;
-        }
-
-        if (valueType.IsGenericType &&
-            valueType.GetGenericTypeDefinition() == typeof(Dictionary<,>))
-        {
-            var dict = (IDictionary)Activator.CreateInstance(valueType)!;
-            foreach (DictionaryEntry entry in (IDictionary)value)
-            {
-                dict[entry.Key] = CloneElement(entry.Value);
-            }
-            rebuilt = dict;
-            return true;
-        }
-
-        rebuilt = null;
-        return false;
-    }
-
-    private static object? CloneElement(object? element)
-    {
-        if (element is null) return null;
-
-        var cloneable = element.GetType().GetInterfaces()
-            .FirstOrDefault(IsGenericCloneable);
-        if (cloneable != null)
-        {
-            var cloneMethod = cloneable.GetMethod("Clone", Type.EmptyTypes);
-            if (cloneMethod != null)
-            {
-                return cloneMethod.Invoke(element, null);
-            }
-        }
-        return element;
-    }
-
-    private static bool IsGenericCloneable(Type iface)
-    {
-        if (!iface.IsGenericType) return false;
-        var def = iface.GetGenericTypeDefinition();
-        return def.Name == "ICloneable`1";
+        return effectiveType.IsPrimitive
+               || effectiveType.IsEnum
+               || effectiveType == typeof(string)
+               || effectiveType == typeof(decimal)
+               || effectiveType == typeof(DateTime)
+               || effectiveType == typeof(DateTimeOffset)
+               || effectiveType == typeof(TimeSpan)
+               || effectiveType == typeof(Guid)
+               || effectiveType == typeof(Uri)
+               || effectiveType == typeof(IntPtr)
+               || effectiveType == typeof(UIntPtr)
+               || typeof(Type).IsAssignableFrom(effectiveType)
+               || typeof(MemberInfo).IsAssignableFrom(effectiveType)
+               || typeof(Assembly).IsAssignableFrom(effectiveType)
+               || typeof(Delegate).IsAssignableFrom(effectiveType);
     }
 }
