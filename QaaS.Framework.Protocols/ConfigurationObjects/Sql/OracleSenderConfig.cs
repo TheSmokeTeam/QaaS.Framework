@@ -1,6 +1,3 @@
 namespace QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
-public record OracleSenderConfig : SqlConfig, ISenderConfig
-{
-    
-}
+public record OracleSenderConfig : SqlConfig, ISenderConfig { }

@@ -9,5 +9,4 @@ public interface IInternalRunningSessions : IRunningSessions
     /// Dictionary containing all the running sessions
     /// </summary>
     public IDictionary<string, RunningSessionData<object, object>> RunningSessionsDict { get; set; }
-
 }

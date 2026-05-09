@@ -9,8 +9,8 @@ namespace QaaS.Framework.Providers.Tests.NamespaceA
     {
         public Context Context { get; set; } = null!;
 
-        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
-            => [];
+        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration) =>
+            [];
     }
 }
 
@@ -20,7 +20,7 @@ namespace QaaS.Framework.Providers.Tests.NamespaceB
     {
         public Context Context { get; set; } = null!;
 
-        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
-            => [];
+        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration) =>
+            [];
     }
 }

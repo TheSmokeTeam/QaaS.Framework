@@ -5,7 +5,8 @@ namespace QaaS.Framework.Providers.Providers;
 /// <summary>
 /// Represents a hook provider which is a class that provides hooks that inherit from the interface IHook
 /// </summary>
-public interface IHookProvider<out THook> where THook : IHook
+public interface IHookProvider<out THook>
+    where THook : IHook
 {
     /// <summary>
     /// Get an item by its name from an enumerable of providers

@@ -1,8 +1,8 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using System.Net;
-using System.Net.Sockets;
 using Confluent.Kafka;
 using Google.Protobuf;
 using Grpc.Core;
@@ -49,7 +49,7 @@ public class ProtocolIntegrationCoverageTests
             MessageSendMaxRetries = 2,
             MessageSendRetriesIntervalMs = 0,
             Headers = new Dictionary<string, object?> { ["h1"] = "v1" },
-            DefaultKafkaKey = "default-key"
+            DefaultKafkaKey = "default-key",
         };
 
         var sender = new KafkaTopicProtocol(senderConfig, Globals.Logger);
@@ -57,8 +57,13 @@ public class ProtocolIntegrationCoverageTests
 
         var produceAttempts = 0;
         producerMock
-            .Setup(mock => mock.Produce(It.IsAny<TopicPartition>(), It.IsAny<Message<byte[]?, byte[]?>>(),
-                It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()))
+            .Setup(mock =>
+                mock.Produce(
+                    It.IsAny<TopicPartition>(),
+                    It.IsAny<Message<byte[]?, byte[]?>>(),
+                    It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()
+                )
+            )
             .Callback(() =>
             {
                 produceAttempts++;
@@ -68,18 +73,20 @@ public class ProtocolIntegrationCoverageTests
 
         SetPrivateField(sender, "_producer", producerMock.Object);
 
-        var sent = sender.Send(new Data<object>
-        {
-            Body = "payload"u8.ToArray(),
-            MetaData = new MetaData
+        var sent = sender.Send(
+            new Data<object>
             {
-                Kafka = new Kafka
+                Body = "payload"u8.ToArray(),
+                MetaData = new MetaData
                 {
-                    TopicName = "topic-override",
-                    Headers = new Dictionary<string, object?> { ["h2"] = "v2" }
-                }
+                    Kafka = new Kafka
+                    {
+                        TopicName = "topic-override",
+                        Headers = new Dictionary<string, object?> { ["h2"] = "v2" },
+                    },
+                },
             }
-        });
+        );
 
         sender.Disconnect();
         sender.Dispose();
@@ -95,7 +102,7 @@ public class ProtocolIntegrationCoverageTests
             Username = "user",
             Password = "pass",
             TopicName = "topic-default",
-            GroupId = "group"
+            GroupId = "group",
         };
 
         var reader = new KafkaTopicProtocol(readerConfig, Globals.Logger);
@@ -107,12 +114,17 @@ public class ProtocolIntegrationCoverageTests
             {
                 Key = "key"u8.ToArray(),
                 Value = "value"u8.ToArray(),
-                Timestamp = new Timestamp(DateTime.UtcNow)
+                Timestamp = new Timestamp(DateTime.UtcNow),
             },
-            TopicPartitionOffset = new TopicPartitionOffset("topic-default", new Partition(0), new Offset(1))
+            TopicPartitionOffset = new TopicPartitionOffset(
+                "topic-default",
+                new Partition(0),
+                new Offset(1)
+            ),
         };
 
-        consumerMock.SetupSequence(mock => mock.Consume(It.IsAny<TimeSpan>()))
+        consumerMock
+            .SetupSequence(mock => mock.Consume(It.IsAny<TimeSpan>()))
             .Returns((ConsumeResult<byte[]?, byte[]?>)null!)
             .Returns(consumed);
 
@@ -141,30 +153,43 @@ public class ProtocolIntegrationCoverageTests
     [Test]
     public void KafkaTopicProtocol_Send_UsesDefaultTopicAndNullHeaders_WhenNoMetadataHeaders()
     {
-        var sender = new KafkaTopicProtocol(new KafkaTopicSenderConfig
-        {
-            HostNames = ["localhost:9092"],
-            Username = "user",
-            Password = "pass",
-            TopicName = "topic-default",
-            Partition = 0,
-            MessageSendMaxRetries = 1,
-            MessageSendRetriesIntervalMs = 0,
-            DefaultKafkaKey = "fallback-key",
-        }, Globals.Logger);
+        var sender = new KafkaTopicProtocol(
+            new KafkaTopicSenderConfig
+            {
+                HostNames = ["localhost:9092"],
+                Username = "user",
+                Password = "pass",
+                TopicName = "topic-default",
+                Partition = 0,
+                MessageSendMaxRetries = 1,
+                MessageSendRetriesIntervalMs = 0,
+                DefaultKafkaKey = "fallback-key",
+            },
+            Globals.Logger
+        );
 
         var producerMock = new Mock<IProducer<byte[]?, byte[]?>>();
         TopicPartition? sentPartition = null;
         Message<byte[]?, byte[]?>? sentMessage = null;
         producerMock
-            .Setup(mock => mock.Produce(It.IsAny<TopicPartition>(), It.IsAny<Message<byte[]?, byte[]?>>(),
-                It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()))
-            .Callback<TopicPartition, Message<byte[]?, byte[]?>, Action<DeliveryReport<byte[]?, byte[]?>>?>((
-                topicPartition, message, _) =>
-            {
-                sentPartition = topicPartition;
-                sentMessage = message;
-            });
+            .Setup(mock =>
+                mock.Produce(
+                    It.IsAny<TopicPartition>(),
+                    It.IsAny<Message<byte[]?, byte[]?>>(),
+                    It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()
+                )
+            )
+            .Callback<
+                TopicPartition,
+                Message<byte[]?, byte[]?>,
+                Action<DeliveryReport<byte[]?, byte[]?>>?
+            >(
+                (topicPartition, message, _) =>
+                {
+                    sentPartition = topicPartition;
+                    sentMessage = message;
+                }
+            );
         SetPrivateField(sender, "_producer", producerMock.Object);
 
         sender.Connect(); // sender has no consumer, should be no-op branch
@@ -184,32 +209,46 @@ public class ProtocolIntegrationCoverageTests
     [Test]
     public void KafkaTopicProtocol_Send_WhenRetriesExhausted_ThrowsKafkaException()
     {
-        var sender = new KafkaTopicProtocol(new KafkaTopicSenderConfig
-        {
-            HostNames = ["localhost:9092"],
-            Username = "user",
-            Password = "pass",
-            TopicName = "topic-default",
-            Partition = 0,
-            MessageSendMaxRetries = 2,
-            MessageSendRetriesIntervalMs = 0
-        }, Globals.Logger);
+        var sender = new KafkaTopicProtocol(
+            new KafkaTopicSenderConfig
+            {
+                HostNames = ["localhost:9092"],
+                Username = "user",
+                Password = "pass",
+                TopicName = "topic-default",
+                Partition = 0,
+                MessageSendMaxRetries = 2,
+                MessageSendRetriesIntervalMs = 0,
+            },
+            Globals.Logger
+        );
 
         var producerMock = new Mock<IProducer<byte[]?, byte[]?>>();
         producerMock
-            .Setup(mock => mock.Produce(It.IsAny<TopicPartition>(), It.IsAny<Message<byte[]?, byte[]?>>(),
-                It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()))
+            .Setup(mock =>
+                mock.Produce(
+                    It.IsAny<TopicPartition>(),
+                    It.IsAny<Message<byte[]?, byte[]?>>(),
+                    It.IsAny<Action<DeliveryReport<byte[]?, byte[]?>>?>()
+                )
+            )
             .Throws(new KafkaException(new Error(ErrorCode.Local_MsgTimedOut)));
         SetPrivateField(sender, "_producer", producerMock.Object);
 
         Assert.Throws<KafkaException>(() =>
-            sender.Send(new Data<object> { Body = "payload"u8.ToArray(), MetaData = null }));
+            sender.Send(new Data<object> { Body = "payload"u8.ToArray(), MetaData = null })
+        );
     }
+
     [TestCase("test-key:test-value", 1, "test-key", "test-value")]
     [TestCase("trace:old,trace:new", 1, "trace", "new")]
     [TestCase("auth:secret,id:1,id:2", 2, "id", "2")]
-    public void KafkaTopicProtocol_Read_HeaderScenarios(string headerInput, int expectedCount, string keyToVerify,
-        string expectedValue)
+    public void KafkaTopicProtocol_Read_HeaderScenarios(
+        string headerInput,
+        int expectedCount,
+        string keyToVerify,
+        string expectedValue
+    )
     {
         var readerConfig = new KafkaTopicReaderConfig
         {
@@ -217,7 +256,7 @@ public class ProtocolIntegrationCoverageTests
             Username = "user",
             Password = "pass",
             TopicName = "topic-default",
-            GroupId = "group"
+            GroupId = "group",
         };
         var reader = new KafkaTopicProtocol(readerConfig, Globals.Logger);
         var consumerMock = new Mock<IConsumer<byte[]?, byte[]?>>();
@@ -234,8 +273,8 @@ public class ProtocolIntegrationCoverageTests
             {
                 Key = "key"u8.ToArray(),
                 Value = "value"u8.ToArray(),
-                Headers = kafkaHeaders
-            }
+                Headers = kafkaHeaders,
+            },
         };
 
         consumerMock.Setup(m => m.Consume(It.IsAny<TimeSpan>())).Returns(consumed);
@@ -251,9 +290,12 @@ public class ProtocolIntegrationCoverageTests
             Assert.That(detailedData, Is.Not.Null);
             Assert.That(detailedData?.Body, Is.EqualTo("value"u8.ToArray()));
             Assert.That(detailedData?.MetaData?.Kafka?.Headers?.Count, Is.EqualTo(expectedCount));
-            Assert.That(detailedData?.MetaData?.Kafka?.Headers?[keyToVerify], Is.EqualTo(expectedValue));
+            Assert.That(
+                detailedData?.MetaData?.Kafka?.Headers?[keyToVerify],
+                Is.EqualTo(expectedValue)
+            );
         });
-        
+
         consumerMock.Verify(mock => mock.Subscribe("topic-default"), Times.Once);
         consumerMock.Verify(mock => mock.Commit(consumed), Times.Once);
         consumerMock.Verify(mock => mock.Unsubscribe(), Times.Once);
@@ -263,15 +305,18 @@ public class ProtocolIntegrationCoverageTests
     [Test]
     public void SftpProtocol_UsesConfiguredClient_For_Send_And_Lifecycle()
     {
-        var protocol = new SftpProtocol(new SftpSenderConfig
-        {
-            Hostname = "127.0.0.1",
-            Port = 22,
-            Username = "u",
-            Password = "p",
-            Path = "/tmp",
-            Prefix = "pref-"
-        }, Globals.Logger);
+        var protocol = new SftpProtocol(
+            new SftpSenderConfig
+            {
+                Hostname = "127.0.0.1",
+                Port = 22,
+                Username = "u",
+                Password = "p",
+                Path = "/tmp",
+                Prefix = "pref-",
+            },
+            Globals.Logger
+        );
 
         var producerMock = new Mock<ISftpClient>();
         string? capturedPath = null;
@@ -279,23 +324,24 @@ public class ProtocolIntegrationCoverageTests
 
         producerMock
             .Setup(mock => mock.WriteAllBytes(It.IsAny<string>(), It.IsAny<byte[]>()))
-            .Callback<string, byte[]>((path, body) =>
-            {
-                capturedPath = path;
-                capturedBody = body;
-            });
+            .Callback<string, byte[]>(
+                (path, body) =>
+                {
+                    capturedPath = path;
+                    capturedBody = body;
+                }
+            );
 
         SetPrivateField(protocol, "_producer", producerMock.Object);
 
         protocol.Connect();
-        var sent = protocol.Send(new Data<object>
-        {
-            Body = "file-content"u8.ToArray(),
-            MetaData = new MetaData
+        var sent = protocol.Send(
+            new Data<object>
             {
-                Storage = new Storage { Key = "file.bin" }
+                Body = "file-content"u8.ToArray(),
+                MetaData = new MetaData { Storage = new Storage { Key = "file.bin" } },
             }
-        });
+        );
         protocol.Disconnect();
 
         Assert.Multiple(() =>
@@ -315,14 +361,26 @@ public class ProtocolIntegrationCoverageTests
     {
         var channelMock = new Mock<IChannel>();
         channelMock
-            .Setup(mock => mock.ExchangeDeclarePassiveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.ExchangeDeclarePassiveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
+            )
             .Returns(Task.CompletedTask);
         channelMock
-            .Setup(mock => mock.BasicPublishAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(),
-                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.BasicPublishAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<BasicProperties>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(ValueTask.CompletedTask);
         channelMock
-            .Setup(mock => mock.QueueDeclarePassiveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.QueueDeclarePassiveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(new QueueDeclareOk("q", 0, 0));
 
         var message = new BasicGetResult(
@@ -336,51 +394,72 @@ public class ProtocolIntegrationCoverageTests
                 ContentType = "application/octet-stream",
                 Expiration = "1000",
                 Type = "type",
-                Headers = new Dictionary<string, object?> { ["h"] = "v" }
+                Headers = new Dictionary<string, object?> { ["h"] = "v" },
             },
-            body: "rabbit-body"u8.ToArray());
+            body: "rabbit-body"u8.ToArray()
+        );
 
         channelMock
-            .SetupSequence(mock => mock.BasicGetAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()))
+            .SetupSequence(mock =>
+                mock.BasicGetAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync((BasicGetResult?)null)
             .ReturnsAsync(message);
 
         channelMock
-            .Setup(mock => mock.QueueDeleteAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>(),
-                It.IsAny<bool>(),
-                It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.QueueDeleteAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(Task.FromResult<uint>(0));
         channelMock
-            .Setup(mock => mock.CloseAsync(It.IsAny<ushort>(), It.IsAny<string>(), It.IsAny<bool>(),
-                It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.CloseAsync(
+                    It.IsAny<ushort>(),
+                    It.IsAny<string>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(Task.CompletedTask);
         var connectionMock = new Mock<IConnection>();
         connectionMock
-            .Setup(mock => mock.CloseAsync(It.IsAny<ushort>(), It.IsAny<string>(), It.IsAny<TimeSpan>(),
-                It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.CloseAsync(
+                    It.IsAny<ushort>(),
+                    It.IsAny<string>(),
+                    It.IsAny<TimeSpan>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(Task.CompletedTask);
 
-        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            QueueName = "q",
-            RoutingKey = "rk",
-            ExchangeName = "ex"
-        }, Globals.Logger);
+        var sender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig
+            {
+                Host = "localhost",
+                QueueName = "q",
+                RoutingKey = "rk",
+                ExchangeName = "ex",
+            },
+            Globals.Logger
+        );
         SetPrivateField(sender, "_channel", channelMock.Object);
         SetPrivateField(sender, "_connection", connectionMock.Object);
 
-        var sent = sender.Send(new Data<object>
-        {
-            Body = "rabbit-body"u8.ToArray(),
-            MetaData = new MetaData
+        var sent = sender.Send(
+            new Data<object>
             {
-                RabbitMq = new RabbitMq
-                {
-                    RoutingKey = "rk"
-                }
+                Body = "rabbit-body"u8.ToArray(),
+                MetaData = new MetaData { RabbitMq = new RabbitMq { RoutingKey = "rk" } },
             }
-        });
+        );
 
         sender.Disconnect();
         sender.Dispose();
@@ -392,11 +471,24 @@ public class ProtocolIntegrationCoverageTests
         });
 
         var publishInvocation = channelMock.Invocations.Single(invocation =>
-            invocation.Method.Name == nameof(IChannel.BasicPublishAsync));
-        Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
-            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
-        channelMock.Verify(mock => mock.QueueDeleteAsync(It.IsAny<string>(), false, false, false,
-            It.IsAny<CancellationToken>()), Times.Once);
+            invocation.Method.Name == nameof(IChannel.BasicPublishAsync)
+        );
+        Assert.That(
+            publishInvocation.Method.GetGenericArguments().Single().FullName,
+            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty")
+        );
+        channelMock.Verify(
+            mock =>
+                mock.QueueDeleteAsync(
+                    It.IsAny<string>(),
+                    false,
+                    false,
+                    false,
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never,
+            "Sender-mode protocol must not delete the queue on Disconnect (F-9 fix)"
+        );
         channelMock.Verify(mock => mock.Dispose(), Times.Once);
         connectionMock.Verify(mock => mock.Dispose(), Times.Once);
     }
@@ -404,12 +496,15 @@ public class ProtocolIntegrationCoverageTests
     [Test]
     public void RedisReaderProtocol_ReadString_UsesAtomicReadAndDelete()
     {
-        var protocol = new RedisReaderProtocol(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "items",
-            RedisDataType = RedisDataType.SetString
-        }, Globals.Logger);
+        var protocol = new RedisReaderProtocol(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "items",
+                RedisDataType = RedisDataType.SetString,
+            },
+            Globals.Logger
+        );
 
         var redisDbMock = new Mock<IDatabase>();
         redisDbMock
@@ -427,8 +522,14 @@ public class ProtocolIntegrationCoverageTests
             Assert.That(result.MetaData!.Redis!.Key, Is.EqualTo("items"));
         });
 
-        redisDbMock.Verify(mock => mock.StringGetDelete("items", It.IsAny<CommandFlags>()), Times.Once);
-        redisDbMock.Verify(mock => mock.KeyDelete(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Never);
+        redisDbMock.Verify(
+            mock => mock.StringGetDelete("items", It.IsAny<CommandFlags>()),
+            Times.Once
+        );
+        redisDbMock.Verify(
+            mock => mock.KeyDelete(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()),
+            Times.Never
+        );
     }
 
     [Test]
@@ -443,33 +544,55 @@ public class ProtocolIntegrationCoverageTests
             AssemblyName = assemblyName,
             ProtoNameSpace = "QaaS.Framework.Protocols.Tests.ProtocolsTests",
             ServiceName = nameof(FakeGrpcService),
-            RpcName = nameof(FakeGrpcService.FakeGrpcServiceClient.Echo)
+            RpcName = nameof(FakeGrpcService.FakeGrpcServiceClient.Echo),
         };
 
         var protocol = new GrpcProtocol(config, Globals.Logger, TimeSpan.FromMilliseconds(100));
-        var success = protocol.Transact(new Data<object> { Body = new StringValue { Value = "hello" } });
+        var success = protocol.Transact(
+            new Data<object> { Body = new StringValue { Value = "hello" } }
+        );
 
         Assert.Multiple(() =>
         {
-            Assert.That(protocol.GetInputCommunicationSerializationType(),
-                Is.EqualTo(Serialization.SerializationType.ProtobufMessage));
-            Assert.That(protocol.GetOutputCommunicationSerializationType(),
-                Is.EqualTo(Serialization.SerializationType.ProtobufMessage));
+            Assert.That(
+                protocol.GetInputCommunicationSerializationType(),
+                Is.EqualTo(Serialization.SerializationType.ProtobufMessage)
+            );
+            Assert.That(
+                protocol.GetOutputCommunicationSerializationType(),
+                Is.EqualTo(Serialization.SerializationType.ProtobufMessage)
+            );
             Assert.That(success.Item2, Is.Not.Null);
             Assert.That(((StringValue)success.Item2!.Body!).Value, Is.EqualTo("hello"));
         });
 
-        var timeoutConfig = config with { RpcName = nameof(FakeGrpcService.FakeGrpcServiceClient.Timeout) };
-        var timeoutProtocol = new GrpcProtocol(timeoutConfig, Globals.Logger, TimeSpan.FromMilliseconds(1));
-        var timeout = timeoutProtocol.Transact(new Data<object> { Body = new StringValue { Value = "late" } });
+        var timeoutConfig = config with
+        {
+            RpcName = nameof(FakeGrpcService.FakeGrpcServiceClient.Timeout),
+        };
+        var timeoutProtocol = new GrpcProtocol(
+            timeoutConfig,
+            Globals.Logger,
+            TimeSpan.FromMilliseconds(1)
+        );
+        var timeout = timeoutProtocol.Transact(
+            new Data<object> { Body = new StringValue { Value = "late" } }
+        );
 
         Assert.That(timeout.Item2, Is.Null);
 
-        Assert.Throws<ArgumentException>(() => new GrpcProtocol(config with { RpcName = "MissingRpc" }, Globals.Logger,
-            TimeSpan.FromMilliseconds(100)));
-
         Assert.Throws<ArgumentException>(() =>
-            protocol.Transact(new Data<object> { Body = null }));
+            new GrpcProtocol(
+                config with
+                {
+                    RpcName = "MissingRpc",
+                },
+                Globals.Logger,
+                TimeSpan.FromMilliseconds(100)
+            )
+        );
+
+        Assert.Throws<ArgumentException>(() => protocol.Transact(new Data<object> { Body = null }));
     }
 
     [Test]
@@ -494,18 +617,21 @@ public class ProtocolIntegrationCoverageTests
             badContext.Response.Close();
         });
 
-        var protocol = new ExposedPrometheusProtocol(new PrometheusFetcherConfig
-        {
-            Url = $"http://127.0.0.1:{port}",
-            Expression = "up",
-            ApiKey = "k",
-            TimeoutMs = 1000
-        });
+        var protocol = new ExposedPrometheusProtocol(
+            new PrometheusFetcherConfig
+            {
+                Url = $"http://127.0.0.1:{port}",
+                Expression = "up",
+                ApiKey = "k",
+                TimeoutMs = 1000,
+            }
+        );
 
         var okBody = protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/ok");
         Assert.That(okBody, Does.Contain("ok"));
         Assert.Throws<HttpRequestException>(() =>
-            protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/bad"));
+            protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/bad")
+        );
 
         serverTask.GetAwaiter().GetResult();
     }
@@ -526,7 +652,9 @@ public class ProtocolIntegrationCoverageTests
             try
             {
                 delayedContext.Response.StatusCode = 200;
-                await delayedContext.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"slow\":true}"));
+                await delayedContext.Response.OutputStream.WriteAsync(
+                    Encoding.UTF8.GetBytes("{\"slow\":true}")
+                );
             }
             catch (HttpListenerException)
             {
@@ -545,15 +673,18 @@ public class ProtocolIntegrationCoverageTests
             }
         });
 
-        var protocol = new ExposedPrometheusProtocol(new PrometheusFetcherConfig
-        {
-            Url = $"http://127.0.0.1:{port}",
-            Expression = "up",
-            TimeoutMs = 50
-        });
+        var protocol = new ExposedPrometheusProtocol(
+            new PrometheusFetcherConfig
+            {
+                Url = $"http://127.0.0.1:{port}",
+                Expression = "up",
+                TimeoutMs = 50,
+            }
+        );
 
         Assert.Throws<TaskCanceledException>(() =>
-            protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/slow"));
+            protocol.InvokeHttpGetResultBodyAsString($"http://127.0.0.1:{port}/slow")
+        );
 
         serverTask.GetAwaiter().GetResult();
     }
@@ -561,41 +692,54 @@ public class ProtocolIntegrationCoverageTests
     [Test]
     public void PrometheusProtocol_Collect_WhenBodyIsInvalidJson_Throws()
     {
-        var protocol = new StubPrometheusProtocol(new PrometheusFetcherConfig
-        {
-            Url = "http://prometheus.local",
-            Expression = "up"
-        }, "{bad-json");
+        var protocol = new StubPrometheusProtocol(
+            new PrometheusFetcherConfig { Url = "http://prometheus.local", Expression = "up" },
+            "{bad-json"
+        );
 
-        Assert.Throws<JsonException>(() => protocol.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList());
+        Assert.Throws<JsonException>(() =>
+            protocol.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList()
+        );
     }
 
     [Test]
     public void ElasticProtocol_Constructors_And_EmptySendChunk_AreCovered()
     {
-        var sender = new ElasticProtocol(new ElasticSenderConfig
-        {
-            Url = "http://localhost:9200",
-            Username = "u",
-            Password = "p",
-            IndexName = "logs-2026"
-        }, new DataFilter { Body = true }, Globals.Logger);
+        var sender = new ElasticProtocol(
+            new ElasticSenderConfig
+            {
+                Url = "http://localhost:9200",
+                Username = "u",
+                Password = "p",
+                IndexName = "logs-2026",
+            },
+            new DataFilter { Body = true },
+            Globals.Logger
+        );
 
-        var regex = new ElasticProtocol(new ElasticIndicesRegex
-        {
-            Url = "http://localhost:9200",
-            Username = "u",
-            Password = "p",
-            IndexPattern = "logs-*"
-        }, new DataFilter { Body = true }, Globals.Logger);
+        var regex = new ElasticProtocol(
+            new ElasticIndicesRegex
+            {
+                Url = "http://localhost:9200",
+                Username = "u",
+                Password = "p",
+                IndexPattern = "logs-*",
+            },
+            new DataFilter { Body = true },
+            Globals.Logger
+        );
 
-        var reader = new ElasticProtocol(new ElasticReaderConfig
-        {
-            Url = "http://localhost:9200",
-            Username = "u",
-            Password = "p",
-            IndexPattern = "logs-*"
-        }, new DataFilter { Body = true }, Globals.Logger);
+        var reader = new ElasticProtocol(
+            new ElasticReaderConfig
+            {
+                Url = "http://localhost:9200",
+                Username = "u",
+                Password = "p",
+                IndexPattern = "logs-*",
+            },
+            new DataFilter { Body = true },
+            Globals.Logger
+        );
 
         var sent = sender.SendChunk([]).ToList();
         sender.Connect();
@@ -608,15 +752,26 @@ public class ProtocolIntegrationCoverageTests
         Assert.Multiple(() =>
         {
             Assert.That(sent, Is.Empty);
-            Assert.That(sender.GetSerializationType(), Is.EqualTo(Serialization.SerializationType.Json));
-            Assert.That(regex.GetSerializationType(), Is.EqualTo(Serialization.SerializationType.Json));
-            Assert.That(reader.GetSerializationType(), Is.EqualTo(Serialization.SerializationType.Json));
+            Assert.That(
+                sender.GetSerializationType(),
+                Is.EqualTo(Serialization.SerializationType.Json)
+            );
+            Assert.That(
+                regex.GetSerializationType(),
+                Is.EqualTo(Serialization.SerializationType.Json)
+            );
+            Assert.That(
+                reader.GetSerializationType(),
+                Is.EqualTo(Serialization.SerializationType.Json)
+            );
         });
     }
 
     private static void SetPrivateField<TValue>(object instance, string fieldName, TValue value)
     {
-        var fieldInfo = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        var fieldInfo = instance
+            .GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         fieldInfo!.SetValue(instance, value);
     }
 
@@ -640,13 +795,11 @@ public class FakeGrpcService
 {
     public class FakeGrpcServiceClient : ClientBase<FakeGrpcServiceClient>
     {
-        public FakeGrpcServiceClient(Channel channel) : base()
-        {
-        }
+        public FakeGrpcServiceClient(Channel channel)
+            : base() { }
 
-        private FakeGrpcServiceClient(ClientBaseConfiguration configuration) : base(configuration)
-        {
-        }
+        private FakeGrpcServiceClient(ClientBaseConfiguration configuration)
+            : base(configuration) { }
 
         protected override FakeGrpcServiceClient NewInstance(ClientBaseConfiguration configuration)
         {

@@ -38,7 +38,10 @@ public class CustomValidationAttributesBehaviorTests
 
     private sealed class AtLeastOnePropertyContainer
     {
-        [AtLeastOnePropertyNotNull(nameof(PayloadWithFields.First), nameof(PayloadWithFields.Second))]
+        [AtLeastOnePropertyNotNull(
+            nameof(PayloadWithFields.First),
+            nameof(PayloadWithFields.Second)
+        )]
         public PayloadWithFields Payload { get; set; } = new();
     }
 
@@ -57,8 +60,14 @@ public class CustomValidationAttributesBehaviorTests
         var valid = new PathContainer { Path = "C:\\temp\\file.txt" };
         var invalid = new PathContainer { Path = "C:\\temp\\a\0b.txt" };
 
-        Assert.That(Validator.TryValidateObject(valid, new ValidationContext(valid), null, true), Is.True);
-        Assert.That(Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true), Is.False);
+        Assert.That(
+            Validator.TryValidateObject(valid, new ValidationContext(valid), null, true),
+            Is.True
+        );
+        Assert.That(
+            Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true),
+            Is.False
+        );
     }
 
     [Test]
@@ -68,10 +77,23 @@ public class CustomValidationAttributesBehaviorTests
         var invalid = new PathListContainer { Paths = ["C:\\temp\\a.txt", "C:\\temp\\a\0b.txt"] };
         var invalidNullEntry = new NullablePathListContainer { Paths = ["C:\\temp\\a.txt", null] };
 
-        Assert.That(Validator.TryValidateObject(valid, new ValidationContext(valid), null, true), Is.True);
-        Assert.That(Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true), Is.False);
-        Assert.That(Validator.TryValidateObject(invalidNullEntry, new ValidationContext(invalidNullEntry), null, true),
-            Is.False);
+        Assert.That(
+            Validator.TryValidateObject(valid, new ValidationContext(valid), null, true),
+            Is.True
+        );
+        Assert.That(
+            Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true),
+            Is.False
+        );
+        Assert.That(
+            Validator.TryValidateObject(
+                invalidNullEntry,
+                new ValidationContext(invalidNullEntry),
+                null,
+                true
+            ),
+            Is.False
+        );
     }
 
     [Test]
@@ -80,8 +102,14 @@ public class CustomValidationAttributesBehaviorTests
         var valid = new UniqueItemsContainer { Items = ["a", "b", "c"] };
         var invalid = new UniqueItemsContainer { Items = ["a", "b", "a"] };
 
-        Assert.That(Validator.TryValidateObject(valid, new ValidationContext(valid), null, true), Is.True);
-        Assert.That(Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true), Is.False);
+        Assert.That(
+            Validator.TryValidateObject(valid, new ValidationContext(valid), null, true),
+            Is.True
+        );
+        Assert.That(
+            Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true),
+            Is.False
+        );
     }
 
     [Test]
@@ -89,32 +117,36 @@ public class CustomValidationAttributesBehaviorTests
     {
         var valid = new AtLeastOnePropertyContainer
         {
-            Payload = new PayloadWithFields { First = "x", Second = null }
+            Payload = new PayloadWithFields { First = "x", Second = null },
         };
         var invalid = new AtLeastOnePropertyContainer
         {
-            Payload = new PayloadWithFields { First = null, Second = null }
+            Payload = new PayloadWithFields { First = null, Second = null },
         };
 
-        Assert.That(Validator.TryValidateObject(valid, new ValidationContext(valid), null, true), Is.True);
-        Assert.That(Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true), Is.False);
+        Assert.That(
+            Validator.TryValidateObject(valid, new ValidationContext(valid), null, true),
+            Is.True
+        );
+        Assert.That(
+            Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true),
+            Is.False
+        );
     }
 
     [Test]
     public void AtLeastOneEnumerablePropertyNotEmptyAttribute_RequiresAnyNonEmptyEnumerable()
     {
-        var valid = new AtLeastOneEnumerableContainer
-        {
-            First = [1],
-            Second = []
-        };
-        var invalid = new AtLeastOneEnumerableContainer
-        {
-            First = [],
-            Second = []
-        };
+        var valid = new AtLeastOneEnumerableContainer { First = [1], Second = [] };
+        var invalid = new AtLeastOneEnumerableContainer { First = [], Second = [] };
 
-        Assert.That(Validator.TryValidateObject(valid, new ValidationContext(valid), null, true), Is.True);
-        Assert.That(Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true), Is.False);
+        Assert.That(
+            Validator.TryValidateObject(valid, new ValidationContext(valid), null, true),
+            Is.True
+        );
+        Assert.That(
+            Validator.TryValidateObject(invalid, new ValidationContext(invalid), null, true),
+            Is.False
+        );
     }
 }

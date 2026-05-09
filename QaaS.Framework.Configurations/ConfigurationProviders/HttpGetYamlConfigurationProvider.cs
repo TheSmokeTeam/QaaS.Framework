@@ -6,13 +6,13 @@ namespace QaaS.Framework.Configurations.ConfigurationProviders;
 /// <summary>
 /// Provides configuration from a YAML file from an http get request's content
 /// </summary>
-public class HttpGetYamlConfigurationProvider: YamlConfigurationProvider
+public class HttpGetYamlConfigurationProvider : YamlConfigurationProvider
 {
     private const uint DefaultTimeoutSeconds = 100;
-    
+
     private readonly string _yamlUrl;
     private readonly TimeSpan _timeout;
-    
+
     /// <summary>
     /// Initializes a new instance of the <see cref="HttpGetYamlConfigurationProvider"/> class
     /// </summary>
@@ -40,8 +40,10 @@ public class HttpGetYamlConfigurationProvider: YamlConfigurationProvider
         catch (Exception e)
         {
             throw new CouldNotFindConfigurationException(
-                $"Could not find valid yaml configuration in response content" +
-                $" when executing http get on url {_yamlUrl}", e);
+                $"Could not find valid yaml configuration in response content"
+                    + $" when executing http get on url {_yamlUrl}",
+                e
+            );
         }
     }
 }

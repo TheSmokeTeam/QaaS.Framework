@@ -10,14 +10,14 @@ namespace QaaS.Framework.Configurations.ConfigurationBindingUtils;
 public static class ConfigurationMergeUtils
 {
     private const System.Reflection.BindingFlags MergePropertyBindingFlags =
-        System.Reflection.BindingFlags.Instance |
-        System.Reflection.BindingFlags.Public |
-        System.Reflection.BindingFlags.NonPublic;
+        System.Reflection.BindingFlags.Instance
+        | System.Reflection.BindingFlags.Public
+        | System.Reflection.BindingFlags.NonPublic;
 
     private static readonly BinderOptions MergeBinderOptions = new()
     {
         ErrorOnUnknownConfiguration = true,
-        BindNonPublicProperties = true
+        BindNonPublicProperties = true,
     };
 
     /// <summary>
@@ -26,12 +26,15 @@ public static class ConfigurationMergeUtils
     /// <paramref name="configuration"/>. A field is treated as omitted when it still matches the
     /// default value produced by a fresh instance of the same configuration type.
     /// </summary>
-    public static IConfiguration MergeConfigurationObjectIntoIConfiguration(this IConfiguration configuration,
-        object? configurationObject)
+    public static IConfiguration MergeConfigurationObjectIntoIConfiguration(
+        this IConfiguration configuration,
+        object? configurationObject
+    )
     {
         var currentConfiguration = configuration.GetDictionaryFromConfiguration();
         var patchConfiguration = GetPatchDictionary(configurationObject);
-        return MergeDictionaries(currentConfiguration, patchConfiguration).BindToDictionaryIConfiguration();
+        return MergeDictionaries(currentConfiguration, patchConfiguration)
+            .BindToDictionaryIConfiguration();
     }
 
     /// <summary>
@@ -39,22 +42,30 @@ public static class ConfigurationMergeUtils
     /// When the incoming configuration type differs from the existing one, the incoming configuration replaces it.
     /// Fields that still match a fresh default instance of the incoming configuration type are ignored.
     /// </summary>
-    public static TConfiguration? MergeConfiguration<TConfiguration>(this TConfiguration? currentConfiguration,
-        TConfiguration? newConfiguration)
+    public static TConfiguration? MergeConfiguration<TConfiguration>(
+        this TConfiguration? currentConfiguration,
+        TConfiguration? newConfiguration
+    )
     {
         if (newConfiguration == null)
         {
             return currentConfiguration;
         }
 
-        if (currentConfiguration == null || currentConfiguration.GetType() != newConfiguration.GetType())
+        if (
+            currentConfiguration == null
+            || currentConfiguration.GetType() != newConfiguration.GetType()
+        )
         {
             return newConfiguration;
         }
 
         var currentConfigurationDictionary = BuildCurrentDictionary(currentConfiguration);
         var patchConfigurationDictionary = GetPatchDictionary(newConfiguration);
-        var mergedConfiguration = MergeDictionaries(currentConfigurationDictionary, patchConfigurationDictionary)
+        var mergedConfiguration = MergeDictionaries(
+                currentConfigurationDictionary,
+                patchConfigurationDictionary
+            )
             .BindToDictionaryIConfiguration()
             .BindToObject(currentConfiguration.GetType(), MergeBinderOptions);
 
@@ -66,14 +77,20 @@ public static class ConfigurationMergeUtils
         var currentDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
         foreach (var propertyInfo in GetConfigurationProperties(configurationObject.GetType()))
         {
-            if (!propertyInfo.CanRead || propertyInfo.GetIndexParameters().Length != 0 ||
-                !IsPatchableProperty(propertyInfo) ||
-                !TryGetPropertyValue(propertyInfo, configurationObject, out var propertyValue))
+            if (
+                !propertyInfo.CanRead
+                || propertyInfo.GetIndexParameters().Length != 0
+                || !IsPatchableProperty(propertyInfo)
+                || !TryGetPropertyValue(propertyInfo, configurationObject, out var propertyValue)
+            )
             {
                 continue;
             }
 
-            currentDictionary[propertyInfo.Name] = ConvertCurrentValue(propertyInfo.PropertyType, propertyValue);
+            currentDictionary[propertyInfo.Name] = ConvertCurrentValue(
+                propertyInfo.PropertyType,
+                propertyValue
+            );
         }
 
         return currentDictionary;
@@ -98,8 +115,11 @@ public static class ConfigurationMergeUtils
         }
         foreach (var propertyInfo in GetConfigurationProperties(configurationObject.GetType()))
         {
-            if (!propertyInfo.CanRead || propertyInfo.GetIndexParameters().Length != 0 ||
-                !IsPatchableProperty(propertyInfo))
+            if (
+                !propertyInfo.CanRead
+                || propertyInfo.GetIndexParameters().Length != 0
+                || !IsPatchableProperty(propertyInfo)
+            )
             {
                 continue;
             }
@@ -109,24 +129,30 @@ public static class ConfigurationMergeUtils
                 continue;
             }
 
-            var defaultPropertyValue = defaultConfiguration == null
-                ? propertyInfo.PropertyType.GetDefaultValue()
-                : TryGetPropertyValue(propertyInfo, defaultConfiguration, out var value)
-                    ? value
-                    : propertyInfo.PropertyType.GetDefaultValue();
-            if (ShouldSkipPatchValue(propertyInfo.PropertyType, propertyValue, defaultPropertyValue))
+            var defaultPropertyValue =
+                defaultConfiguration == null ? propertyInfo.PropertyType.GetDefaultValue()
+                : TryGetPropertyValue(propertyInfo, defaultConfiguration, out var value) ? value
+                : propertyInfo.PropertyType.GetDefaultValue();
+            if (
+                ShouldSkipPatchValue(propertyInfo.PropertyType, propertyValue, defaultPropertyValue)
+            )
             {
                 continue;
             }
 
-            patchDictionary[propertyInfo.Name] = ConvertPatchValue(propertyInfo.PropertyType, propertyValue);
+            patchDictionary[propertyInfo.Name] = ConvertPatchValue(
+                propertyInfo.PropertyType,
+                propertyValue
+            );
         }
 
         return patchDictionary;
     }
 
-    private static Dictionary<string, object?> MergeDictionaries(IDictionary<string, object?> currentConfiguration,
-        IDictionary<string, object?> patchConfiguration)
+    private static Dictionary<string, object?> MergeDictionaries(
+        IDictionary<string, object?> currentConfiguration,
+        IDictionary<string, object?> patchConfiguration
+    )
     {
         var mergedConfiguration = CloneDictionary(currentConfiguration);
         foreach (var patchValuePair in patchConfiguration)
@@ -137,7 +163,10 @@ public static class ConfigurationMergeUtils
                 continue;
             }
 
-            mergedConfiguration[patchValuePair.Key] = MergeValues(currentValue, patchValuePair.Value);
+            mergedConfiguration[patchValuePair.Key] = MergeValues(
+                currentValue,
+                patchValuePair.Value
+            );
         }
 
         return mergedConfiguration;
@@ -150,8 +179,10 @@ public static class ConfigurationMergeUtils
             return CloneValue(currentValue);
         }
 
-        if (currentValue is IDictionary<string, object?> currentDictionary &&
-            patchValue is IDictionary<string, object?> patchDictionary)
+        if (
+            currentValue is IDictionary<string, object?> currentDictionary
+            && patchValue is IDictionary<string, object?> patchDictionary
+        )
         {
             return MergeDictionaries(currentDictionary, patchDictionary);
         }
@@ -186,7 +217,9 @@ public static class ConfigurationMergeUtils
             return ConvertList(enumerable);
         }
 
-        return propertyType.IsClass && propertyType != typeof(string) ? GetPatchDictionary(propertyValue) : propertyValue;
+        return propertyType.IsClass && propertyType != typeof(string)
+            ? GetPatchDictionary(propertyValue)
+            : propertyValue;
     }
 
     private static object? ConvertCurrentValue(Type propertyType, object? propertyValue)
@@ -234,7 +267,7 @@ public static class ConfigurationMergeUtils
                 IEnumerable enumerable when entry.Value is not string => ConvertList(enumerable),
                 _ => entry.Value.GetType().IsClass && entry.Value is not string
                     ? GetPatchDictionary(entry.Value)
-                    : entry.Value
+                    : entry.Value,
             };
         }
 
@@ -251,15 +284,19 @@ public static class ConfigurationMergeUtils
                 continue;
             }
 
-            convertedList.Add(item switch
-            {
-                IConfiguration configuration => configuration.GetDictionaryFromConfiguration(),
-                IDictionary dictionary => ConvertDictionary(dictionary),
-                IEnumerable nestedEnumerable when item is not string => ConvertList(nestedEnumerable),
-                _ => item.GetType().IsClass && item is not string
-                    ? GetPatchDictionary(item)
-                    : item
-            });
+            convertedList.Add(
+                item switch
+                {
+                    IConfiguration configuration => configuration.GetDictionaryFromConfiguration(),
+                    IDictionary dictionary => ConvertDictionary(dictionary),
+                    IEnumerable nestedEnumerable when item is not string => ConvertList(
+                        nestedEnumerable
+                    ),
+                    _ => item.GetType().IsClass && item is not string
+                        ? GetPatchDictionary(item)
+                        : item,
+                }
+            );
         }
 
         return convertedList;
@@ -271,7 +308,10 @@ public static class ConfigurationMergeUtils
         foreach (DictionaryEntry entry in dictionary)
         {
             var key = entry.Key.ToString()!;
-            convertedDictionary[key] = ConvertCurrentValue(entry.Value?.GetType() ?? typeof(object), entry.Value);
+            convertedDictionary[key] = ConvertCurrentValue(
+                entry.Value?.GetType() ?? typeof(object),
+                entry.Value
+            );
         }
 
         return convertedDictionary;
@@ -288,7 +328,11 @@ public static class ConfigurationMergeUtils
         return convertedList;
     }
 
-    private static bool ShouldSkipPatchValue(Type propertyType, object? propertyValue, object? defaultPropertyValue)
+    private static bool ShouldSkipPatchValue(
+        Type propertyType,
+        object? propertyValue,
+        object? defaultPropertyValue
+    )
     {
         if (propertyValue == null)
         {
@@ -297,38 +341,49 @@ public static class ConfigurationMergeUtils
 
         if (propertyValue is IConfiguration configuration)
         {
-            return AreEquivalentValues(configuration.GetDictionaryFromConfiguration(),
+            return AreEquivalentValues(
+                configuration.GetDictionaryFromConfiguration(),
                 defaultPropertyValue is IConfiguration defaultConfiguration
                     ? defaultConfiguration.GetDictionaryFromConfiguration()
-                    : defaultPropertyValue);
+                    : defaultPropertyValue
+            );
         }
 
         if (propertyValue is IDictionary dictionary)
         {
-            return AreEquivalentValues(ConvertDictionary(dictionary),
+            return AreEquivalentValues(
+                ConvertDictionary(dictionary),
                 defaultPropertyValue is IDictionary defaultDictionary
                     ? ConvertDictionary(defaultDictionary)
-                    : defaultPropertyValue);
+                    : defaultPropertyValue
+            );
         }
 
         if (propertyValue is IEnumerable enumerable && propertyType != typeof(string))
         {
-            return AreEquivalentValues(ConvertList(enumerable),
-                defaultPropertyValue is IEnumerable defaultEnumerable && defaultPropertyValue is not string
+            return AreEquivalentValues(
+                ConvertList(enumerable),
+                defaultPropertyValue is IEnumerable defaultEnumerable
+                && defaultPropertyValue is not string
                     ? ConvertList(defaultEnumerable)
-                    : defaultPropertyValue);
+                    : defaultPropertyValue
+            );
         }
 
         if (propertyType.IsClass && propertyType != typeof(string))
         {
-            return AreEquivalentValues(GetPatchDictionary(propertyValue),
-                defaultPropertyValue == null ? null : GetPatchDictionary(defaultPropertyValue));
+            return AreEquivalentValues(
+                GetPatchDictionary(propertyValue),
+                defaultPropertyValue == null ? null : GetPatchDictionary(defaultPropertyValue)
+            );
         }
 
         return Equals(propertyValue, defaultPropertyValue);
     }
 
-    private static Dictionary<string, object?> CloneDictionary(IDictionary<string, object?> sourceDictionary)
+    private static Dictionary<string, object?> CloneDictionary(
+        IDictionary<string, object?> sourceDictionary
+    )
     {
         var clonedDictionary = DictionaryUtils.CreateConfigurationDictionary<object?>();
         foreach (var pair in sourceDictionary)
@@ -342,11 +397,17 @@ public static class ConfigurationMergeUtils
     private static IEnumerable<System.Reflection.PropertyInfo> GetConfigurationProperties(Type type)
     {
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
-        for (var currentType = type; currentType != null && currentType != typeof(object);
-             currentType = currentType.BaseType)
+        for (
+            var currentType = type;
+            currentType != null && currentType != typeof(object);
+            currentType = currentType.BaseType
+        )
         {
-            foreach (var property in currentType.GetProperties(MergePropertyBindingFlags |
-                                                               System.Reflection.BindingFlags.DeclaredOnly))
+            foreach (
+                var property in currentType.GetProperties(
+                    MergePropertyBindingFlags | System.Reflection.BindingFlags.DeclaredOnly
+                )
+            )
             {
                 if (seenNames.Add(property.Name))
                 {
@@ -356,8 +417,11 @@ public static class ConfigurationMergeUtils
         }
     }
 
-    private static bool TryGetPropertyValue(System.Reflection.PropertyInfo propertyInfo, object instance,
-        out object? value)
+    private static bool TryGetPropertyValue(
+        System.Reflection.PropertyInfo propertyInfo,
+        object instance,
+        out object? value
+    )
     {
         try
         {
@@ -373,16 +437,24 @@ public static class ConfigurationMergeUtils
 
     private static bool IsPatchableProperty(System.Reflection.PropertyInfo propertyInfo)
     {
-        return propertyInfo.CanWrite ||
-               HasAutoPropertyBackingField(propertyInfo) ||
-               propertyInfo.DeclaringType?.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false) == true;
+        return propertyInfo.CanWrite
+            || HasAutoPropertyBackingField(propertyInfo)
+            || propertyInfo.DeclaringType?.IsDefined(
+                typeof(CompilerGeneratedAttribute),
+                inherit: false
+            ) == true;
     }
 
     private static bool HasAutoPropertyBackingField(System.Reflection.PropertyInfo propertyInfo)
     {
-        var bindingFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-        return propertyInfo.DeclaringType?.GetField($"<{propertyInfo.Name}>k__BackingField", bindingFlags) != null ||
-               propertyInfo.DeclaringType?.GetField($"<{propertyInfo.Name}>i__Field", bindingFlags) != null;
+        var bindingFlags =
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        return propertyInfo.DeclaringType?.GetField(
+                $"<{propertyInfo.Name}>k__BackingField",
+                bindingFlags
+            ) != null
+            || propertyInfo.DeclaringType?.GetField($"<{propertyInfo.Name}>i__Field", bindingFlags)
+                != null;
     }
 
     private static bool AreEquivalentValues(object? leftValue, object? rightValue)
@@ -392,18 +464,25 @@ public static class ConfigurationMergeUtils
             return leftValue == null && rightValue == null;
         }
 
-        if (leftValue is IDictionary<string, object?> leftDictionary &&
-            rightValue is IDictionary<string, object?> rightDictionary)
+        if (
+            leftValue is IDictionary<string, object?> leftDictionary
+            && rightValue is IDictionary<string, object?> rightDictionary
+        )
         {
-            return leftDictionary.Count == rightDictionary.Count &&
-                   leftDictionary.All(pair => rightDictionary.TryGetValue(pair.Key, out var rightEntry) &&
-                                             AreEquivalentValues(pair.Value, rightEntry));
+            return leftDictionary.Count == rightDictionary.Count
+                && leftDictionary.All(pair =>
+                    rightDictionary.TryGetValue(pair.Key, out var rightEntry)
+                    && AreEquivalentValues(pair.Value, rightEntry)
+                );
         }
 
         if (leftValue is IList leftList && rightValue is IList rightList)
         {
-            return leftList.Count == rightList.Count &&
-                   leftList.Cast<object?>().Zip(rightList.Cast<object?>(), AreEquivalentValues).All(result => result);
+            return leftList.Count == rightList.Count
+                && leftList
+                    .Cast<object?>()
+                    .Zip(rightList.Cast<object?>(), AreEquivalentValues)
+                    .All(result => result);
         }
 
         return Equals(leftValue, rightValue);
@@ -416,7 +495,7 @@ public static class ConfigurationMergeUtils
             null => null,
             IDictionary<string, object?> dictionary => CloneDictionary(dictionary),
             IList list => list.Cast<object?>().Select(CloneValue).ToList(),
-            _ => value
+            _ => value,
         };
     }
 }

@@ -15,5 +15,8 @@ public interface ITransactionProcessor : IProcessor
     /// <param name="dataSourceList"> The relevant data source for this processor scope </param>
     /// <param name="requestData"> The relevant request input to process </param>
     /// <returns> response data </returns>
-    public Data<object> Process(IImmutableList<DataSource> dataSourceList, Data<object> requestData);
+    public Data<object> Process(
+        IImmutableList<DataSource> dataSourceList,
+        Data<object> requestData
+    );
 }

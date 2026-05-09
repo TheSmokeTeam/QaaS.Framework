@@ -9,10 +9,12 @@ namespace QaaS.Framework.Serialization;
 /// </summary>
 public record SpecificTypeConfig
 {
-    [Description("The name of the assembly the type is located in, If no value is given" +
-                 " by default tries to take the entry assembly")]
+    [Description(
+        "The name of the assembly the type is located in, If no value is given"
+            + " by default tries to take the entry assembly"
+    )]
     public string? AssemblyName { get; set; }
-    
+
     [Required, Description("The full name (including path) of the type")]
     public string? TypeFullName { get; set; }
 
@@ -21,13 +23,18 @@ public record SpecificTypeConfig
     /// </summary>
     public Type GetConfiguredType()
     {
-        AssemblyName ??= Assembly.GetEntryAssembly()?.GetName().FullName ?? throw new ArgumentException(
-            "Could not find Entry Assembly, was called from an unmanaged code");
-        
+        AssemblyName ??=
+            Assembly.GetEntryAssembly()?.GetName().FullName
+            ?? throw new ArgumentException(
+                "Could not find Entry Assembly, was called from an unmanaged code"
+            );
+
         var assembly = Assembly.Load(AssemblyName!);
         var type = assembly.GetType(TypeFullName!, throwOnError: true);
         if (type == null)
-            throw new ArgumentException($"Type {TypeFullName} in assembly {AssemblyName} could not be found");
+            throw new ArgumentException(
+                $"Type {TypeFullName} in assembly {AssemblyName} could not be found"
+            );
         return type;
     }
 }

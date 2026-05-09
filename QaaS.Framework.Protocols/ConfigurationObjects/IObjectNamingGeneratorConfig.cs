@@ -1,7 +1,6 @@
-
 namespace QaaS.Framework.Protocols.ConfigurationObjects;
 
-public interface IObjectNamingGeneratorConfig 
+public interface IObjectNamingGeneratorConfig
 {
     public string Prefix { get; set; }
 

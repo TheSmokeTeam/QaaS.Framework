@@ -9,10 +9,7 @@ public class RabbitMqMetadataSerializationTests
     [Test]
     public void RabbitMqMetadata_DefaultSerialization_OmitsUnsetOptionalFields()
     {
-        var metadata = new RabbitMq
-        {
-            RoutingKey = "/"
-        };
+        var metadata = new RabbitMq { RoutingKey = "/" };
 
         var json = JsonSerializer.Serialize(metadata);
 
@@ -35,7 +32,7 @@ public class RabbitMqMetadataSerializationTests
             Headers = new Dictionary<string, object?> { ["x-trace-id"] = "abc" },
             Expiration = "2000",
             ContentType = "application/json",
-            Type = "event"
+            Type = "event",
         };
 
         var json = JsonSerializer.Serialize(metadata);

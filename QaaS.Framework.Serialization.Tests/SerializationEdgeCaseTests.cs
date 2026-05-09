@@ -1,3 +1,4 @@
+using System.Reflection;
 using BinaryDeserializer = QaaS.Framework.Serialization.Deserializers.Binary;
 using BinarySerializer = QaaS.Framework.Serialization.Serializers.Binary;
 using MessagePackDeserializer = QaaS.Framework.Serialization.Deserializers.MessagePack;
@@ -5,7 +6,6 @@ using ProtobufDeserializer = QaaS.Framework.Serialization.Deserializers.Protobuf
 using XmlDeserializer = QaaS.Framework.Serialization.Deserializers.Xml;
 using XmlElementDeserializer = QaaS.Framework.Serialization.Deserializers.XmlElement;
 using YamlDeserializer = QaaS.Framework.Serialization.Deserializers.Yaml;
-using System.Reflection;
 
 namespace QaaS.Framework.Serialization.Tests;
 
@@ -20,72 +20,60 @@ public class SerializationEdgeCaseTests
     }
 
     [Test]
-    public void BinaryDeserializer_WithSpecificType_ReturnsTypedPayload()
+    public void BinaryDeserializer_WithSpecificType_ThrowsNotSupportedException()
     {
-        var serializer = new BinarySerializer();
+        // BinaryFormatter is disabled for security; any non-null input must throw.
         var deserializer = new BinaryDeserializer();
-        const string payload = "typed";
-
-        var bytes = serializer.Serialize(payload);
-        var result = deserializer.Deserialize(bytes, typeof(string)) as string;
-
-        Assert.That(result, Is.EqualTo(payload));
+        Assert.Throws<NotSupportedException>(() =>
+            deserializer.Deserialize(new byte[] { 1, 2, 3 }, typeof(string))
+        );
     }
 
     [Test]
-    public void BinaryDeserializer_WithoutSpecificType_ReturnsRuntimePayload()
+    public void BinaryDeserializer_WithoutSpecificType_ThrowsNotSupportedException()
     {
-        var bytes = new BinarySerializer().Serialize("typed");
-
-        var result = new BinaryDeserializer().Deserialize(bytes);
-
-        Assert.That(result, Is.EqualTo("typed"));
+        Assert.Throws<NotSupportedException>(() =>
+            new BinaryDeserializer().Deserialize(new byte[] { 1 })
+        );
     }
 
     [Test]
-    public void BinaryDeserializer_WithoutSpecificType_RoundTripsSerializableContractType()
+    public void BinarySerializer_NonNullData_ThrowsNotSupportedException()
     {
-        var payload = new LegacyBinaryPayload
-        {
-            Name = "alpha",
-            Count = 2
-        };
-        var bytes = new BinarySerializer().Serialize(payload);
-
-        var result = new BinaryDeserializer().Deserialize(bytes);
-
-        Assert.That(result, Is.TypeOf<LegacyBinaryPayload>());
-        Assert.That(((LegacyBinaryPayload)result!).Name, Is.EqualTo("alpha"));
-        Assert.That(((LegacyBinaryPayload)result).Count, Is.EqualTo(2));
+        // BinaryFormatter is disabled for security; serializing any non-null object must throw.
+        Assert.Throws<NotSupportedException>(() =>
+            new BinarySerializer().Serialize(new LegacyBinaryPayload { Name = "alpha", Count = 2 })
+        );
     }
 
     [Test]
-    public void BinaryDeserializer_IgnoresRequestedTypeHint_AndReturnsPayloadRuntimeType()
+    public void BinaryDeserializer_WithTypeHint_ThrowsNotSupportedException()
     {
-        var bytes = new BinarySerializer().Serialize("typed");
-
-        Assert.That(new BinaryDeserializer().Deserialize(bytes, typeof(int)), Is.EqualTo("typed"));
+        Assert.Throws<NotSupportedException>(() =>
+            new BinaryDeserializer().Deserialize(new byte[] { 1 }, typeof(int))
+        );
     }
 
     [Test]
     public void SerializerAndDeserializerFactories_InvalidEnum_ThrowArgumentOutOfRangeException()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            SerializerFactory.BuildSerializer((SerializationType)999));
+            SerializerFactory.BuildSerializer((SerializationType)999)
+        );
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            DeserializerFactory.BuildDeserializer((SerializationType)999));
+            DeserializerFactory.BuildDeserializer((SerializationType)999)
+        );
     }
 
     [Test]
     public void SpecificTypeConfig_UsesEntryAssembly_WhenAssemblyNameIsMissing()
     {
-        var entryAssemblyTypeName = Assembly.GetEntryAssembly()!.GetTypes()
+        var entryAssemblyTypeName = Assembly
+            .GetEntryAssembly()!
+            .GetTypes()
             .First(type => !string.IsNullOrWhiteSpace(type.FullName))
             .FullName;
-        var config = new SpecificTypeConfig
-        {
-            TypeFullName = entryAssemblyTypeName
-        };
+        var config = new SpecificTypeConfig { TypeFullName = entryAssemblyTypeName };
 
         var configuredType = config.GetConfiguredType();
 
@@ -99,7 +87,7 @@ public class SerializationEdgeCaseTests
         var config = new SpecificTypeConfig
         {
             AssemblyName = typeof(SerializationEdgeCaseTests).Assembly.FullName,
-            TypeFullName = "QaaS.Framework.Serialization.Tests.DoesNotExist"
+            TypeFullName = "QaaS.Framework.Serialization.Tests.DoesNotExist",
         };
 
         Assert.Throws<TypeLoadException>(() => config.GetConfiguredType());

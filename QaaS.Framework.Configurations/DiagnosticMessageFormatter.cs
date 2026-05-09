@@ -9,7 +9,8 @@ public static class DiagnosticMessageFormatter
         IEnumerable<string?>? contextLines = null,
         string? detailHeading = null,
         IEnumerable<string?>? detailLines = null,
-        IEnumerable<string?>? guidanceLines = null)
+        IEnumerable<string?>? guidanceLines = null
+    )
     {
         var builder = new StringBuilder();
         builder.AppendLine(headline);
@@ -21,10 +22,14 @@ public static class DiagnosticMessageFormatter
         return builder.ToString().TrimEnd();
     }
 
-    private static void AppendBulletedSection(StringBuilder builder, string title, IEnumerable<string?>? lines)
+    private static void AppendBulletedSection(
+        StringBuilder builder,
+        string title,
+        IEnumerable<string?>? lines
+    )
     {
-        var materializedLines = lines?
-            .Where(line => !string.IsNullOrWhiteSpace(line))
+        var materializedLines = lines
+            ?.Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(line => line!.Trim())
             .ToList();
 
@@ -41,14 +46,22 @@ public static class DiagnosticMessageFormatter
         }
     }
 
-    private static void AppendNumberedSection(StringBuilder builder, string? title, IEnumerable<string?>? lines)
+    private static void AppendNumberedSection(
+        StringBuilder builder,
+        string? title,
+        IEnumerable<string?>? lines
+    )
     {
-        var materializedLines = lines?
-            .Where(line => !string.IsNullOrWhiteSpace(line))
+        var materializedLines = lines
+            ?.Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(line => line!.Trim())
             .ToList();
 
-        if (string.IsNullOrWhiteSpace(title) || materializedLines == null || materializedLines.Count == 0)
+        if (
+            string.IsNullOrWhiteSpace(title)
+            || materializedLines == null
+            || materializedLines.Count == 0
+        )
         {
             return;
         }

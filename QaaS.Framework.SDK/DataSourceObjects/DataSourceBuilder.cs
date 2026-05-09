@@ -30,26 +30,43 @@ public class DataSourceBuilder : IYamlConvertible
 
     [Required, Description("The name of the generator to use")]
     public string? Generator { get; internal set; }
+
     [Description("True to iterate over data lazily"), DefaultValue(false)]
     public bool Lazy { get; internal set; } = false;
-    [EnumerablePropertyDoesNotContainAnotherPropertyValue(nameof(Name)),
-     Description("Names of data sources to pass to this data source for usage, those data sources dont have to be" +
-                 " defined before this data source.")]
+
+    [
+        EnumerablePropertyDoesNotContainAnotherPropertyValue(nameof(Name)),
+        Description(
+            "Names of data sources to pass to this data source for usage, those data sources dont have to be"
+                + " defined before this data source."
+        )
+    ]
     public string[] DataSourceNames { get; internal set; } = [];
-    [EnumerablePropertyDoesNotContainAnotherPropertyValue(nameof(Name)),
-     Description(
-         "Regex patterns of data sources to pass to this data source for usage, those data sources dont have to be" +
-         " defined before this data source.")]
+
+    [
+        EnumerablePropertyDoesNotContainAnotherPropertyValue(nameof(Name)),
+        Description(
+            "Regex patterns of data sources to pass to this data source for usage, those data sources dont have to be"
+                + " defined before this data source."
+        )
+    ]
     public string[] DataSourcePatterns { get; internal set; } = [];
-    [Description("Implementation configuration for the generator, " +
-                 "the configuration given here is loaded into the provided generator dynamically.")]
-    public IConfiguration GeneratorConfiguration { get; internal set; } = new ConfigurationBuilder().Build();
+
+    [Description(
+        "Implementation configuration for the generator, "
+            + "the configuration given here is loaded into the provided generator dynamically."
+    )]
+    public IConfiguration GeneratorConfiguration { get; internal set; } =
+        new ConfigurationBuilder().Build();
+
     [Description("Serialize to use on the generated data"), DefaultValue(null)]
     [NullUnlessAll(new[] { nameof(Deserialize) }, [null])]
     public SerializeConfig? Serialize { get; internal set; } = null;
+
     [Description("Deserialize to use on the generated data"), DefaultValue(null)]
     [NullUnlessAll(new[] { nameof(Serialize) }, [null])]
     public DeserializeConfig? Deserialize { get; internal set; } = null;
+
     /// <summary>
     /// Sets the name used for the current Framework data source builder instance.
     /// </summary>
@@ -137,7 +154,9 @@ public class DataSourceBuilder : IYamlConvertible
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public DataSourceBuilder RemoveDataSourcePattern(string dataSourcePattern)
     {
-        DataSourcePatterns = (DataSourcePatterns ?? []).Where(value => value != dataSourcePattern).ToArray();
+        DataSourcePatterns = (DataSourcePatterns ?? [])
+            .Where(value => value != dataSourcePattern)
+            .ToArray();
         return this;
     }
 
@@ -202,13 +221,15 @@ public class DataSourceBuilder : IYamlConvertible
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public DataSourceBuilder Configure(object configuration)
     {
-        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(configuration)));
+        var stream = new MemoryStream(
+            System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(configuration))
+        );
         GeneratorConfiguration = new ConfigurationBuilder().AddJsonStream(stream).Build();
         return this;
     }
 
     /// <summary>
-     /// Clears the current generator configuration.
+    /// Clears the current generator configuration.
     /// </summary>
     /// <remarks>
     /// After this call, the builder holds an empty configuration until a new one is supplied.
@@ -230,8 +251,9 @@ public class DataSourceBuilder : IYamlConvertible
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public DataSourceBuilder UpdateConfiguration(object configuration)
     {
-        GeneratorConfiguration = (GeneratorConfiguration ?? new ConfigurationBuilder().Build())
-            .UpdateConfiguration(configuration);
+        GeneratorConfiguration = (
+            GeneratorConfiguration ?? new ConfigurationBuilder().Build()
+        ).UpdateConfiguration(configuration);
         return this;
     }
 
@@ -259,8 +281,10 @@ public class DataSourceBuilder : IYamlConvertible
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public void Read(IParser parser, Type expectedType, ObjectDeserializer nestedObjectDeserializer)
     {
-        throw new NotSupportedException($"{nameof(Read)} doesn't support custom" +
-                                        $" deserialization from Yaml for {nameof(DataSourceBuilder)}");
+        throw new NotSupportedException(
+            $"{nameof(Read)} doesn't support custom"
+                + $" deserialization from Yaml for {nameof(DataSourceBuilder)}"
+        );
     }
 
     /// <summary>
@@ -272,19 +296,20 @@ public class DataSourceBuilder : IYamlConvertible
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
     public void Write(IEmitter emitter, ObjectSerializer nestedObjectSerializer)
     {
-        var generatorConfiguration = GeneratorConfiguration
-            .GetDictionaryFromConfiguration();
-        nestedObjectSerializer(new
-        {
-            Name,
-            Generator,
-            Lazy,
-            DataSourceNames,
-            DataSourcePatterns,
-            Serialize,
-            Deserialize,
-            GeneratorConfiguration = generatorConfiguration
-        });
+        var generatorConfiguration = GeneratorConfiguration.GetDictionaryFromConfiguration();
+        nestedObjectSerializer(
+            new
+            {
+                Name,
+                Generator,
+                Lazy,
+                DataSourceNames,
+                DataSourcePatterns,
+                Serialize,
+                Deserialize,
+                GeneratorConfiguration = generatorConfiguration,
+            }
+        );
     }
 
     /// <summary>
@@ -307,7 +332,6 @@ public class DataSourceBuilder : IYamlConvertible
         return _dataSource;
     }
 
-
     /// <summary>
     /// Builds the configured data source for execution.
     /// </summary>
@@ -315,26 +339,42 @@ public class DataSourceBuilder : IYamlConvertible
     /// This resolves the configured generator, links any referenced data sources, and finalizes the registered data source before execution begins.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Data Sources" />
-    public DataSource Build(InternalContext context,IEnumerable<DataSource> dataSources,
-        IEnumerable<KeyValuePair<string, IGenerator>> generators)
+    public DataSource Build(
+        InternalContext context,
+        IEnumerable<DataSource> dataSources,
+        IEnumerable<KeyValuePair<string, IGenerator>> generators
+    )
     {
-        var generator = generators.FirstOrDefault(pair => pair.Key == Generator!).Value ??
-                        throw new ArgumentException($"Data source {Name}'s provided generator {Generator} was" +
-                                                    $" not found in provided generators.");
+        var generator =
+            generators.FirstOrDefault(pair => pair.Key == Generator!).Value
+            ?? throw new ArgumentException(
+                $"Data source {Name}'s provided generator {Generator} was"
+                    + $" not found in provided generators."
+            );
         context.Logger.LogDebugWithMetaData(
             "Started building Generator of type {type}",
             context.GetMetaDataFromContext(),
-            new object?[] { Generator ?? string.Empty });
-        var otherDataSources =
-            dataSources.Where(dataSource => dataSource.Name != _dataSource.Name).ToImmutableList();
-        var usedDataSources = EnumerableExtensions.GetFilteredConfigurationObjectList(
-                otherDataSources, DataSourcePatterns,
+            new object?[] { Generator ?? string.Empty }
+        );
+        var otherDataSources = dataSources
+            .Where(dataSource => dataSource.Name != _dataSource.Name)
+            .ToImmutableList();
+        var usedDataSources = EnumerableExtensions
+            .GetFilteredConfigurationObjectList(
+                otherDataSources,
+                DataSourcePatterns,
                 (dataSource, pattern) => Regex.IsMatch(dataSource.Name!, pattern),
-                "dataSources")
-            .Union(EnumerableExtensions.GetFilteredConfigurationObjectList(
-                otherDataSources, DataSourceNames,
-                (dataSource, name) => dataSource.Name == name,
-                "dataSources")).ToImmutableList();
+                "dataSources"
+            )
+            .Union(
+                EnumerableExtensions.GetFilteredConfigurationObjectList(
+                    otherDataSources,
+                    DataSourceNames,
+                    (dataSource, name) => dataSource.Name == name,
+                    "dataSources"
+                )
+            )
+            .ToImmutableList();
 
         _dataSource.Generator = generator;
         _dataSource.DataSourceList = usedDataSources;

@@ -16,5 +16,8 @@ public interface IGenerator : IHook
     /// <param name="sessionDataList"> The data of the sessions that occurred before this data source scope </param>
     /// <param name="dataSourceList"> The relevant data source for this data source scope </param>
     /// <returns> Enumerable of data </returns>
-    public IEnumerable<Data<object>> Generate(IImmutableList<SessionData> sessionDataList, IImmutableList<DataSource> dataSourceList);
+    public IEnumerable<Data<object>> Generate(
+        IImmutableList<SessionData> sessionDataList,
+        IImmutableList<DataSource> dataSourceList
+    );
 }

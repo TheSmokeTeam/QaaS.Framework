@@ -5,5 +5,5 @@ public enum ExecutionType
     Run,
     Template,
     Act,
-    Assert
+    Assert,
 }

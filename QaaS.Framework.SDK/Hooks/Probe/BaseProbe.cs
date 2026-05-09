@@ -10,29 +10,33 @@ using QaaS.Framework.SDK.Session.SessionDataObjects;
 namespace QaaS.Framework.SDK.Hooks.Probe;
 
 [JsonSchema]
-public abstract class BaseProbe<TConfiguration> : IProbe where TConfiguration : new()
+public abstract class BaseProbe<TConfiguration> : IProbe
+    where TConfiguration : new()
 {
     public Context Context { get; set; } = null!;
-    
+
     /// <summary>
     /// The relevant configuration for this probe's scope loaded and validated
     /// into a configuration object
     /// </summary>
     public TConfiguration Configuration { get; set; } = default!;
-    
+
     /// <summary>
     /// The options of the binder that binds the IConfiguration to the <see cref="Configuration"/>
     /// </summary>
-    protected virtual BinderOptions GetConfigurationBinderOptions() => new()
-    {
-        ErrorOnUnknownConfiguration = true
-    };
-    
+    protected virtual BinderOptions GetConfigurationBinderOptions() =>
+        new() { ErrorOnUnknownConfiguration = true };
+
     /// <inheritdoc />
-    public virtual List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
+    public virtual List<ValidationResult>? LoadAndValidateConfiguration(
+        IConfiguration configuration
+    )
     {
         // Load configuration to c# object
-        Configuration = configuration.BindToObject<TConfiguration>(GetConfigurationBinderOptions(), Context.Logger);
+        Configuration = configuration.BindToObject<TConfiguration>(
+            GetConfigurationBinderOptions(),
+            Context.Logger
+        );
 
         // Validate loaded configuration
         var validationResults = new List<ValidationResult>();
@@ -41,6 +45,9 @@ public abstract class BaseProbe<TConfiguration> : IProbe where TConfiguration : 
         return validationResults;
     }
 
-    /// <inheritdoc /> 
-    public abstract void Run(IImmutableList<SessionData> sessionDataList, IImmutableList<DataSource> dataSourceList);
+    /// <inheritdoc />
+    public abstract void Run(
+        IImmutableList<SessionData> sessionDataList,
+        IImmutableList<DataSource> dataSourceList
+    );
 }

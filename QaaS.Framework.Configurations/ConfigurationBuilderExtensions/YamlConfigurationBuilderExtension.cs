@@ -17,12 +17,15 @@ public static class YamlConfigurationBuilderExtension
     /// Call this extension during configuration bootstrap when YAML should be loaded remotely instead of from the local file system.
     /// </remarks>
     /// <qaas-docs group="Configuration" subgroup="YAML" />
-    public static IConfigurationBuilder AddYamlFromHttpGet(this IConfigurationBuilder builder,
-        string yamlUrl, TimeSpan? timeout = null)
+    public static IConfigurationBuilder AddYamlFromHttpGet(
+        this IConfigurationBuilder builder,
+        string yamlUrl,
+        TimeSpan? timeout = null
+    )
     {
         return builder.Add(new HttpGetYamlConfigurationSource(yamlUrl, timeout));
     }
-    
+
     /// <summary>
     /// Adds a YAML configuration source from a local file path or URL.
     /// </summary>
@@ -30,22 +33,21 @@ public static class YamlConfigurationBuilderExtension
     /// Call this extension during configuration bootstrap so YAML sources go through the same QaaS-aware loading path for files and remote URLs.
     /// </remarks>
     /// <qaas-docs group="Configuration" subgroup="YAML" />
-    public static IConfigurationBuilder AddYaml(this IConfigurationBuilder builder,
-        string yamlPath)
+    public static IConfigurationBuilder AddYaml(this IConfigurationBuilder builder, string yamlPath)
     {
         var correctYamlPath = GetYamlCorrectPath(yamlPath);
-        return PathUtils.IsPathHttpUrl(correctYamlPath) 
+        return PathUtils.IsPathHttpUrl(correctYamlPath)
             ? builder.AddYamlFromHttpGet(correctYamlPath)
             : builder.Add(new LocalYamlConfigurationSource(correctYamlPath));
     }
-    
+
     /// <summary>
     /// If path is http based return it as is else get its full path
     /// </summary>
     /// <param name="yamlPath"> The path to check </param>
     /// <returns> The correct path to the yaml </returns>
     private static string GetYamlCorrectPath(string yamlPath) =>
-         PathUtils.IsPathHttpUrl(yamlPath)
+        PathUtils.IsPathHttpUrl(yamlPath)
             ? yamlPath
             : Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, yamlPath));
 }

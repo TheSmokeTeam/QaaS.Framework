@@ -23,7 +23,7 @@ public class IbmMqProtocol : IReader
         {
             { MQC.HOST_NAME_PROPERTY, configuration.HostName },
             { MQC.CHANNEL_PROPERTY, configuration.Channel },
-            { MQC.PORT_PROPERTY, configuration.Port }
+            { MQC.PORT_PROPERTY, configuration.Port },
         };
         _managerName = configuration.Manager;
         _queueName = configuration.QueueName;
@@ -58,7 +58,7 @@ public class IbmMqProtocol : IReader
         var readOptions = new MQGetMessageOptions
         {
             Options = MQC.MQGMO_WAIT,
-            WaitInterval = (int)timeout.TotalMilliseconds
+            WaitInterval = (int)timeout.TotalMilliseconds,
         };
         _queue!.Get(message, readOptions);
         return message;
@@ -67,7 +67,10 @@ public class IbmMqProtocol : IReader
     public void Connect()
     {
         _manager = new MQQueueManager(_managerName, _properties);
-        _queue = _manager.AccessQueue(_queueName, MQC.MQOO_INPUT_AS_Q_DEF | MQC.MQOO_FAIL_IF_QUIESCING);
+        _queue = _manager.AccessQueue(
+            _queueName,
+            MQC.MQOO_INPUT_AS_Q_DEF | MQC.MQOO_FAIL_IF_QUIESCING
+        );
     }
 
     public void Disconnect()

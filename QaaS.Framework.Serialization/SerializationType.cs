@@ -11,5 +11,5 @@ public enum SerializationType
     Xml,
     Yaml,
     ProtobufMessage,
-    XmlElement
+    XmlElement,
 }

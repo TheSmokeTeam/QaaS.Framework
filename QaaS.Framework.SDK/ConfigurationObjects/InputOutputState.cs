@@ -5,5 +5,5 @@ public enum InputOutputState
     NoInputOutput,
     OnlyInput,
     OnlyOutput,
-    BothInputOutput
+    BothInputOutput,
 }

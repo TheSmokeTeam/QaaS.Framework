@@ -30,7 +30,10 @@ public static class ProbeExecutionContext
         ArgumentException.ThrowIfNullOrWhiteSpace(probeName);
 
         var previousScope = CurrentScope.Value;
-        CurrentScope.Value = new ProbeExecutionScopeState(context, new ProbeExecutionDescriptor(sessionName, probeName));
+        CurrentScope.Value = new ProbeExecutionScopeState(
+            context,
+            new ProbeExecutionDescriptor(sessionName, probeName)
+        );
         return new ScopeRestorer(previousScope);
     }
 
@@ -65,10 +68,14 @@ public static class ProbeExecutionContext
         }
 
         throw new InvalidOperationException(
-            $"No active probe execution scope is available for context {RuntimeHelpers.GetHashCode(context):X8}.");
+            $"No active probe execution scope is available for context {RuntimeHelpers.GetHashCode(context):X8}."
+        );
     }
 
-    private sealed record ProbeExecutionScopeState(Context Context, ProbeExecutionDescriptor Descriptor);
+    private sealed record ProbeExecutionScopeState(
+        Context Context,
+        ProbeExecutionDescriptor Descriptor
+    );
 
     private sealed class ScopeRestorer(ProbeExecutionScopeState? previousScope) : IDisposable
     {

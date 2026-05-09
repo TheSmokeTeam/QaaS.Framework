@@ -14,7 +14,9 @@ public static class PlaceholderConfigurationBuilderExtension
     /// Call this extension before building IConfiguration when placeholder expansion should be applied as part of the configuration pipeline.
     /// </remarks>
     /// <qaas-docs group="Configuration" subgroup="Placeholders" />
-    public static IConfigurationBuilder AddPlaceholderResolver(this IConfigurationBuilder configurationBuilder)
+    public static IConfigurationBuilder AddPlaceholderResolver(
+        this IConfigurationBuilder configurationBuilder
+    )
     {
         var configuration = configurationBuilder.Build();
         var placeholderParser = new ConfigurationPlaceholderParser(configuration);

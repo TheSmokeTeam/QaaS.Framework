@@ -1,6 +1,3 @@
 namespace QaaS.Framework.Protocols.ConfigurationObjects;
 
-public interface IReaderConfig
-{
-    
-}
+public interface IReaderConfig { }

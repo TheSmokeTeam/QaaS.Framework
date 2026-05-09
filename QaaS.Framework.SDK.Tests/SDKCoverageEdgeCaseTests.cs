@@ -29,8 +29,10 @@ public class SDKCoverageEdgeCaseTests
 
     private sealed class BuilderGenerator : BaseGenerator<object>
     {
-        public override IEnumerable<Data<object>> Generate(IImmutableList<SessionData> sessionDataList,
-            IImmutableList<DataSource> dataSourceList) => [];
+        public override IEnumerable<Data<object>> Generate(
+            IImmutableList<SessionData> sessionDataList,
+            IImmutableList<DataSource> dataSourceList
+        ) => [];
     }
 
     [Test]
@@ -50,19 +52,22 @@ public class SDKCoverageEdgeCaseTests
     {
         var dataSources = ImmutableList.Create(
             new DataSource { Name = "dep-a" },
-            new DataSource { Name = "dep-b" });
+            new DataSource { Name = "dep-b" }
+        );
 
         var empty = EnumerableExtensions.GetFilteredConfigurationObjectList<DataSource, string>(
             dataSources,
             null,
             (dataSource, name) => dataSource.Name == name,
-            "dataSources");
+            "dataSources"
+        );
 
         var filtered = EnumerableExtensions.GetFilteredConfigurationObjectList(
             dataSources,
             new[] { "dep-b" },
             (dataSource, name) => dataSource.Name == name,
-            "dataSources");
+            "dataSources"
+        );
 
         Assert.Multiple(() =>
         {
@@ -73,7 +78,9 @@ public class SDKCoverageEdgeCaseTests
                     dataSources,
                     new[] { "missing" },
                     (dataSource, name) => dataSource.Name == name,
-                    "dataSources"));
+                    "dataSources"
+                )
+            );
         });
     }
 
@@ -105,13 +112,13 @@ public class SDKCoverageEdgeCaseTests
         var registered = builder.Register();
         var generators = new Dictionary<string, IGenerator>
         {
-            ["generator-a"] = new BuilderGenerator()
+            ["generator-a"] = new BuilderGenerator(),
         };
         var dataSources = new[]
         {
             new DataSource { Name = "dep-1" },
             new DataSource { Name = "other" },
-            registered
+            registered,
         };
         var yaml = new SerializerBuilder().Build().Serialize(builder);
 
@@ -120,7 +127,10 @@ public class SDKCoverageEdgeCaseTests
         Assert.Multiple(() =>
         {
             Assert.That(built.Generator, Is.SameAs(generators["generator-a"]));
-            Assert.That(built.DataSourceList.Select(source => source.Name), Is.EqualTo(new[] { "dep-1" }));
+            Assert.That(
+                built.DataSourceList.Select(source => source.Name),
+                Is.EqualTo(new[] { "dep-1" })
+            );
             Assert.That(builder.GeneratorConfiguration["Existing"], Is.EqualTo("value"));
             Assert.That(builder.GeneratorConfiguration["Added"], Is.EqualTo("new"));
             Assert.That(yaml, Does.Contain("DataSourcePatterns"));
@@ -136,15 +146,21 @@ public class SDKCoverageEdgeCaseTests
         {
             Logger = NullLogger.Instance,
             RootConfiguration = new ConfigurationBuilder().AddInMemoryCollection().Build(),
-            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
         };
         var validationResults = new List<ValidationResult>();
 
-        var bound = Bind.BindFromContext<RequiredContextConfig>(context, validationResults, new BinderOptions
-        {
-            ErrorOnUnknownConfiguration = true,
-            BindNonPublicProperties = false
-        });
+        var bound = Bind.BindFromContext<RequiredContextConfig>(
+            context,
+            validationResults,
+            new BinderOptions
+            {
+                ErrorOnUnknownConfiguration = true,
+                BindNonPublicProperties = false,
+            }
+        );
 
         Assert.Multiple(() =>
         {
@@ -160,8 +176,11 @@ public class SDKCoverageEdgeCaseTests
         Assert.Throws<NotSupportedException>(() =>
             _ = new InternalContext
             {
-                CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
-            });
+                CurrentRunningSessions = new RunningSessions(
+                    new Dictionary<string, RunningSessionData<object, object>>()
+                ),
+            }
+        );
     }
 
     [Test]
@@ -171,34 +190,48 @@ public class SDKCoverageEdgeCaseTests
         {
             Logger = NullLogger.Instance,
             RootConfiguration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["root:value"] = "base"
-                })
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["root:value"] = "base" })
                 .Build(),
-            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
         };
 
-        var setRootConfiguration = typeof(Context).BaseType!
-            .GetMethod("SetRootConfiguration", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var setRootConfiguration = typeof(Context).BaseType!.GetMethod(
+            "SetRootConfiguration",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+        )!;
         var updatedConfiguration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["variables:rabbitmq:host"] = "localhost",
-                ["variables:rabbitmq:port"] = "5672"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["variables:rabbitmq:host"] = "localhost",
+                    ["variables:rabbitmq:port"] = "5672",
+                }
+            )
             .Build();
 
-        Assert.Throws<KeyNotFoundException>(() => context.LoadConfigurationSectionIntoGlobalDictionary("variables"));
+        Assert.Throws<KeyNotFoundException>(() =>
+            context.LoadConfigurationSectionIntoGlobalDictionary("variables")
+        );
 
         setRootConfiguration.Invoke(context, [updatedConfiguration]);
         context.LoadConfigurationSectionIntoGlobalDictionary("variables");
 
         Assert.Multiple(() =>
         {
-            Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
-            Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "host"]), Is.EqualTo("localhost"));
-            Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "port"]), Is.EqualTo("5672"));
+            Assert.That(
+                context.RootConfiguration["variables:rabbitmq:host"],
+                Is.EqualTo("localhost")
+            );
+            Assert.That(
+                context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "host"]),
+                Is.EqualTo("localhost")
+            );
+            Assert.That(
+                context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "port"]),
+                Is.EqualTo("5672")
+            );
         });
     }
 
@@ -209,22 +242,38 @@ public class SDKCoverageEdgeCaseTests
         {
             Logger = NullLogger.Instance,
             RootConfiguration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["variables:rabbitmq:host"] = "localhost",
-                    ["variables:rabbitmq:port"] = "5672"
-                })
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["variables:rabbitmq:host"] = "localhost",
+                        ["variables:rabbitmq:port"] = "5672",
+                    }
+                )
                 .Build(),
-            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
         };
 
-        context.LoadConfigurationSectionIntoGlobalDictionary("variables:rabbitmq", ["runtime", "rabbitmq"]);
+        context.LoadConfigurationSectionIntoGlobalDictionary(
+            "variables:rabbitmq",
+            ["runtime", "rabbitmq"]
+        );
 
         Assert.Multiple(() =>
         {
-            Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
-            Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "host"]), Is.EqualTo("localhost"));
-            Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "port"]), Is.EqualTo("5672"));
+            Assert.That(
+                context.RootConfiguration["variables:rabbitmq:host"],
+                Is.EqualTo("localhost")
+            );
+            Assert.That(
+                context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "host"]),
+                Is.EqualTo("localhost")
+            );
+            Assert.That(
+                context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "port"]),
+                Is.EqualTo("5672")
+            );
         });
     }
 
@@ -237,9 +286,11 @@ public class SDKCoverageEdgeCaseTests
             {
                 Logger = NullLogger.Instance,
                 RootConfiguration = new ConfigurationBuilder().Build(),
-                CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+                CurrentRunningSessions = new RunningSessions(
+                    new Dictionary<string, RunningSessionData<object, object>>()
+                ),
             },
-            Configuration = new StatusCodeConfiguration { StatusCode = 204 }
+            Configuration = new StatusCodeConfiguration { StatusCode = 204 },
         };
 
         var result = processor.Process([], new Data<object> { Body = "ignored" });
@@ -255,18 +306,14 @@ public class SDKCoverageEdgeCaseTests
         {
             Path = "artifacts/out.json",
             Data = new { Name = "payload" },
-            SerializationType = SerializationType.Json
+            SerializationType = SerializationType.Json,
         };
         var failure = new ActionFailure
         {
             Name = "send",
             Action = "POST",
             ActionType = "http",
-            Reason = new Reason
-            {
-                Message = "failed",
-                Description = "timeout"
-            }
+            Reason = new Reason { Message = "failed", Description = "timeout" },
         };
 
         Assert.Multiple(() =>

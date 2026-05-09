@@ -26,8 +26,9 @@ public interface IByNameObjectCreator
     /// <typeparam name="T">The interface or class that the class derived from</typeparam>
     /// <returns>Instance of the class</returns>
     /// <exception cref="UnsupportedSubClassException">Raise when the class name is not sub class of the interface or class</exception>
-    public T GetInstanceOfSubClassOfTByNameFromAssemblies<T>(string classManifestationName,
+    public T GetInstanceOfSubClassOfTByNameFromAssemblies<T>(
+        string classManifestationName,
         IEnumerable<Assembly>? assemblies,
-        params object[]? constructorArgs);
-
+        params object[]? constructorArgs
+    );
 }

@@ -16,19 +16,25 @@ public class ConfigurationCoverageEdgeCaseTests
     private enum BindingMode
     {
         First,
-        Second
+        Second,
     }
 
     private sealed class RecordingLogger : ILogger
     {
         public List<(LogLevel Level, string Message)> Entries { get; } = [];
 
-        public IDisposable BeginScope<TState>(TState state) where TState : notnull => Scope.Instance;
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull => Scope.Instance;
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
         {
             Entries.Add((logLevel, formatter(state, exception)));
         }
@@ -36,9 +42,8 @@ public class ConfigurationCoverageEdgeCaseTests
         private sealed class Scope : IDisposable
         {
             public static Scope Instance { get; } = new();
-            public void Dispose()
-            {
-            }
+
+            public void Dispose() { }
         }
     }
 
@@ -60,10 +65,7 @@ public class ConfigurationCoverageEdgeCaseTests
 
     private sealed class NonGenericDictionaryHolder
     {
-        public Hashtable Map { get; set; } = new()
-        {
-            ["alpha"] = "one"
-        };
+        public Hashtable Map { get; set; } = new() { ["alpha"] = "one" };
 
         public string Name { get; set; } = "holder";
 
@@ -72,13 +74,7 @@ public class ConfigurationCoverageEdgeCaseTests
 
     private sealed class NonGenericDictionaryListHolder
     {
-        public ArrayList Items { get; set; } =
-        [
-            new Hashtable
-            {
-                ["nested"] = "value"
-            }
-        ];
+        public ArrayList Items { get; set; } = [new Hashtable { ["nested"] = "value" }];
     }
 
     private abstract class BaseSettings
@@ -87,6 +83,7 @@ public class ConfigurationCoverageEdgeCaseTests
     }
 
     private sealed class CurrentSettings : BaseSettings;
+
     private sealed class ReplacementSettings : BaseSettings;
 
     private sealed class NoDefaultCtorMergeSettings(string required)
@@ -122,12 +119,14 @@ public class ConfigurationCoverageEdgeCaseTests
 
     private sealed class StringConditionAttribute : ConditionalValidationAttribute
     {
-        public StringConditionAttribute() : base("Mode:Enabled,State:Open")
-        {
-        }
+        public StringConditionAttribute()
+            : base("Mode:Enabled,State:Open") { }
 
-        protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
-            => CheckIfAnyConditionIsMet(validationContext)
+        protected override ValidationResult? IsValid(
+            object? value,
+            ValidationContext validationContext
+        ) =>
+            CheckIfAnyConditionIsMet(validationContext)
                 ? ValidationResult.Success
                 : new ValidationResult("conditions not met");
     }
@@ -158,27 +157,39 @@ public class ConfigurationCoverageEdgeCaseTests
     private static (bool IsValid, List<ValidationResult> Results) Validate(object value)
     {
         var results = new List<ValidationResult>();
-        var isValid = Validator.TryValidateObject(value, new ValidationContext(value), results, true);
+        var isValid = Validator.TryValidateObject(
+            value,
+            new ValidationContext(value),
+            results,
+            true
+        );
         return (isValid, results);
     }
 
     [Test]
     public void GetInMemoryCollectionFromObject_PreservesNonGenericDictionaryEntries_AndSkipsIndexers()
     {
-        var flat = ConfigurationUtils.GetInMemoryCollectionFromObject(new NonGenericDictionaryHolder());
+        var flat = ConfigurationUtils.GetInMemoryCollectionFromObject(
+            new NonGenericDictionaryHolder()
+        );
 
         Assert.Multiple(() =>
         {
             Assert.That(flat["Map:alpha"], Is.EqualTo("one"));
             Assert.That(flat["Name"], Is.EqualTo("holder"));
-            Assert.That(flat.Keys.Any(key => key.StartsWith("Item", StringComparison.Ordinal)), Is.False);
+            Assert.That(
+                flat.Keys.Any(key => key.StartsWith("Item", StringComparison.Ordinal)),
+                Is.False
+            );
         });
     }
 
     [Test]
     public void GetInMemoryCollectionFromObject_PreservesNonGenericDictionaryEntriesInsideLists()
     {
-        var flat = ConfigurationUtils.GetInMemoryCollectionFromObject(new NonGenericDictionaryListHolder());
+        var flat = ConfigurationUtils.GetInMemoryCollectionFromObject(
+            new NonGenericDictionaryListHolder()
+        );
 
         Assert.That(flat["Items:0:nested"], Is.EqualTo("value"));
     }
@@ -188,26 +199,31 @@ public class ConfigurationCoverageEdgeCaseTests
     {
         var logger = new RecordingLogger();
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["NumericMap:1"] = "one",
-                ["NumericMap:2"] = "two",
-                ["Pair:7"] = "seven",
-                ["Values:0"] = "4",
-                ["Values:1"] = "5",
-                ["Section:child"] = "value",
-                ["Private:Name"] = "hidden",
-                ["Writable"] = "updated",
-                ["ReadOnly"] = "ignored",
-                ["Unknown"] = "extra"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["NumericMap:1"] = "one",
+                    ["NumericMap:2"] = "two",
+                    ["Pair:7"] = "seven",
+                    ["Values:0"] = "4",
+                    ["Values:1"] = "5",
+                    ["Section:child"] = "value",
+                    ["Private:Name"] = "hidden",
+                    ["Writable"] = "updated",
+                    ["ReadOnly"] = "ignored",
+                    ["Unknown"] = "extra",
+                }
+            )
             .Build();
 
-        var bound = configuration.BindToObject<CompositeBindingSettings>(new BinderOptions
-        {
-            ErrorOnUnknownConfiguration = true,
-            BindNonPublicProperties = true
-        }, logger);
+        var bound = configuration.BindToObject<CompositeBindingSettings>(
+            new BinderOptions
+            {
+                ErrorOnUnknownConfiguration = true,
+                BindNonPublicProperties = true,
+            },
+            logger
+        );
 
         Assert.Multiple(() =>
         {
@@ -217,8 +233,18 @@ public class ConfigurationCoverageEdgeCaseTests
             Assert.That(bound.Section?["child"], Is.EqualTo("value"));
             Assert.That(bound.Private.Name, Is.EqualTo("hidden"));
             Assert.That(bound.Writable, Is.EqualTo("updated"));
-            Assert.That(logger.Entries.Any(entry => entry.Level == LogLevel.Warning && entry.Message.Contains("Unknown")), Is.True);
-            Assert.That(logger.Entries.Any(entry => entry.Level == LogLevel.Warning && entry.Message.Contains("ReadOnly")), Is.True);
+            Assert.That(
+                logger.Entries.Any(entry =>
+                    entry.Level == LogLevel.Warning && entry.Message.Contains("Unknown")
+                ),
+                Is.True
+            );
+            Assert.That(
+                logger.Entries.Any(entry =>
+                    entry.Level == LogLevel.Warning && entry.Message.Contains("ReadOnly")
+                ),
+                Is.True
+            );
         });
     }
 
@@ -226,22 +252,26 @@ public class ConfigurationCoverageEdgeCaseTests
     public void BindToObject_BindsScalarRootValues()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [string.Empty] = "7"
-            })
+            .AddInMemoryCollection(new Dictionary<string, string?> { [string.Empty] = "7" })
             .Build();
 
-        var scalar = configuration.BindToObject(typeof(int), new BinderOptions
-        {
-            ErrorOnUnknownConfiguration = true,
-            BindNonPublicProperties = false
-        });
-        var rootConfiguration = (IConfiguration)configuration.BindToObject(typeof(IConfiguration), new BinderOptions
-        {
-            ErrorOnUnknownConfiguration = true,
-            BindNonPublicProperties = false
-        });
+        var scalar = configuration.BindToObject(
+            typeof(int),
+            new BinderOptions
+            {
+                ErrorOnUnknownConfiguration = true,
+                BindNonPublicProperties = false,
+            }
+        );
+        var rootConfiguration = (IConfiguration)
+            configuration.BindToObject(
+                typeof(IConfiguration),
+                new BinderOptions
+                {
+                    ErrorOnUnknownConfiguration = true,
+                    BindNonPublicProperties = false,
+                }
+            );
 
         Assert.Multiple(() =>
         {
@@ -254,18 +284,20 @@ public class ConfigurationCoverageEdgeCaseTests
     public void MergeConfigurationObjectIntoIConfiguration_PreservesExistingCollections_WhenPatchHasNoDefaultsConstructorAndEmptyCollections()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Required"] = "current",
-                ["Values:0"] = "1",
-                ["Values:1"] = "2",
-                ["Extras:left"] = "value"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Required"] = "current",
+                    ["Values:0"] = "1",
+                    ["Values:1"] = "2",
+                    ["Extras:left"] = "value",
+                }
+            )
             .Build();
         var patch = new NoDefaultCtorMergeSettings("patched")
         {
             Values = [],
-            Extras = new Hashtable()
+            Extras = new Hashtable(),
         };
 
         var merged = configuration.MergeConfigurationObjectIntoIConfiguration(patch);
@@ -305,36 +337,78 @@ public class ConfigurationCoverageEdgeCaseTests
     {
         var logger = new RecordingLogger();
         var assembly = typeof(ConfigurationUtils).Assembly;
-        var dictionaryUtilsType = assembly.GetType("QaaS.Framework.Configurations.ConfigurationBindingUtils.DictionaryUtils", true)!;
-        var typeUtilsType = assembly.GetType("QaaS.Framework.Configurations.ConfigurationBindingUtils.TypeUtils", true)!;
+        var dictionaryUtilsType = assembly.GetType(
+            "QaaS.Framework.Configurations.ConfigurationBindingUtils.DictionaryUtils",
+            true
+        )!;
+        var typeUtilsType = assembly.GetType(
+            "QaaS.Framework.Configurations.ConfigurationBindingUtils.TypeUtils",
+            true
+        )!;
 
-        var numericList = (IList)dictionaryUtilsType
-            .GetMethod("ConvertDictionaryToListAccordingToKeys", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
-            .Invoke(null, [new Dictionary<string, object> { ["1"] = "second", ["0"] = "first" }])!;
-        var stringObjectDictionary = (Dictionary<string, object?>)dictionaryUtilsType
-            .GetMethod("ToStringObjectDictionary", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
-            .Invoke(null, [new Hashtable { ["answer"] = 42 }])!;
-        var isDictionary = (bool)dictionaryUtilsType
-            .GetMethod("IsTypeDictionary", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
-            .Invoke(null, [typeof(Dictionary<string, string>)])!;
-        var isKeyValuePair = (bool)dictionaryUtilsType
-            .GetMethod("IsTypeKeyValuePair", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
-            .Invoke(null, [typeof(KeyValuePair<int, string>)])!;
+        var numericList = (IList)
+            dictionaryUtilsType
+                .GetMethod(
+                    "ConvertDictionaryToListAccordingToKeys",
+                    BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+                )!
+                .Invoke(
+                    null,
+                    [new Dictionary<string, object> { ["1"] = "second", ["0"] = "first" }]
+                )!;
+        var stringObjectDictionary =
+            (Dictionary<string, object?>)
+                dictionaryUtilsType
+                    .GetMethod(
+                        "ToStringObjectDictionary",
+                        BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+                    )!
+                    .Invoke(null, [new Hashtable { ["answer"] = 42 }])!;
+        var isDictionary = (bool)
+            dictionaryUtilsType
+                .GetMethod(
+                    "IsTypeDictionary",
+                    BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+                )!
+                .Invoke(null, [typeof(Dictionary<string, string>)])!;
+        var isKeyValuePair = (bool)
+            dictionaryUtilsType
+                .GetMethod(
+                    "IsTypeKeyValuePair",
+                    BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+                )!
+                .Invoke(null, [typeof(KeyValuePair<int, string>)])!;
 
         var configurationInstance = typeUtilsType
-            .GetMethod("CreateInstance", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
+            .GetMethod(
+                "CreateInstance",
+                BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+            )!
             .Invoke(null, [typeof(IConfiguration)]);
         var unsupportedInterfaceInstance = typeUtilsType
-            .GetMethod("CreateInstance", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
+            .GetMethod(
+                "CreateInstance",
+                BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+            )!
             .Invoke(null, [typeof(IDisposable)]);
         var invalidEnumValue = typeUtilsType
-            .GetMethod("ConvertSimpleValueToType", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
+            .GetMethod(
+                "ConvertSimpleValueToType",
+                BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+            )!
             .Invoke(null, [typeof(BindingMode), "missing", logger, ":root:mode"]);
-        var parentPath = (string)typeUtilsType
-            .GetMethod("GetParentPathPrefix", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
-            .Invoke(null, [":root:mode"])!;
+        var parentPath = (string)
+            typeUtilsType
+                .GetMethod(
+                    "GetParentPathPrefix",
+                    BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+                )!
+                .Invoke(null, [":root:mode"])!;
         var defaultValue = typeUtilsType
-            .GetMethod("GetDefaultValue", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!
+            .GetMethod(
+                "GetDefaultValue",
+                BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public
+            )!
             .Invoke(null, [typeof(int)]);
 
         Assert.Multiple(() =>
@@ -355,23 +429,30 @@ public class ConfigurationCoverageEdgeCaseTests
     [Test]
     public void ValidationAttributes_DefaultAndStringConditionPaths_AreCovered()
     {
-        var missingValues = Validate(new AnyPropertyContainer { Payload = new AnyPropertyPayload() });
-        var validProperty = Validate(new AnyPropertyContainer
-        {
-            Payload = new AnyPropertyPayload { Left = "value" }
-        });
-        var missingEnumerableValues = Validate(new AnyEnumerableContainer
-        {
-            Payload = new AnyEnumerablePayload()
-        });
-        var validEnumerable = Validate(new AnyEnumerableContainer
-        {
-            Payload = new AnyEnumerablePayload { Right = [1] }
-        });
-        var stringConditionValid = Validate(new StringConditionContainer { Mode = "Enabled", State = "Open" });
-        var stringConditionInvalid = Validate(new StringConditionContainer { Mode = "Disabled", State = "Closed" });
-        var comparisonInvalid = Validate(new ComparisonContainer { Primary = "dup", Values = ["dup"] });
-        var comparisonValid = Validate(new ComparisonContainer { Primary = "dup", Values = ["other"] });
+        var missingValues = Validate(
+            new AnyPropertyContainer { Payload = new AnyPropertyPayload() }
+        );
+        var validProperty = Validate(
+            new AnyPropertyContainer { Payload = new AnyPropertyPayload { Left = "value" } }
+        );
+        var missingEnumerableValues = Validate(
+            new AnyEnumerableContainer { Payload = new AnyEnumerablePayload() }
+        );
+        var validEnumerable = Validate(
+            new AnyEnumerableContainer { Payload = new AnyEnumerablePayload { Right = [1] } }
+        );
+        var stringConditionValid = Validate(
+            new StringConditionContainer { Mode = "Enabled", State = "Open" }
+        );
+        var stringConditionInvalid = Validate(
+            new StringConditionContainer { Mode = "Disabled", State = "Closed" }
+        );
+        var comparisonInvalid = Validate(
+            new ComparisonContainer { Primary = "dup", Values = ["dup"] }
+        );
+        var comparisonValid = Validate(
+            new ComparisonContainer { Primary = "dup", Values = ["other"] }
+        );
 
         Assert.Multiple(() =>
         {
@@ -383,7 +464,9 @@ public class ConfigurationCoverageEdgeCaseTests
             Assert.That(stringConditionInvalid.IsValid, Is.False);
             Assert.That(comparisonInvalid.IsValid, Is.False);
             Assert.That(comparisonValid.IsValid, Is.True);
-            Assert.Throws<ArgumentException>(() => Validate(new MissingComparisonContainer { Values = ["x"] }));
+            Assert.Throws<ArgumentException>(() =>
+                Validate(new MissingComparisonContainer { Values = ["x"] })
+            );
         });
     }
 

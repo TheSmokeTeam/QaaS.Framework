@@ -89,7 +89,7 @@ public interface IContextBuilder
     /// </summary>
     /// <returns> The built <see cref="Context"/> </returns>
     public Context Build();
-    
+
     /// <summary>
     /// Builds the <see cref="InternalContext"/> with the configured parameters
     /// </summary>

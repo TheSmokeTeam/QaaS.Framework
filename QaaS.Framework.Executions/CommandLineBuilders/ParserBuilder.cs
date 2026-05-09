@@ -3,7 +3,7 @@
 namespace QaaS.Framework.Executions.CommandLineBuilders;
 
 /// <summary>
-/// Builds the CLI's Parser 
+/// Builds the CLI's Parser
 /// </summary>
 public static class ParserBuilder
 {

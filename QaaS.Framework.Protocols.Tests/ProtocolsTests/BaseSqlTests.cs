@@ -12,21 +12,26 @@ using QaaS.Framework.SDK.Session.DataObjects;
 namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 
 /// <summary>
-/// Class for testing `BaseSqlDataBaseSendr` functionalities 
+/// Class for testing `BaseSqlDataBaseSendr` functionalities
 /// </summary>
 internal class MockSqlProtocol : BaseSqlProtocol<IDbConnection>
 {
     public int InsertChunkToTableCalls = 0;
 
-    public MockSqlProtocol(SqlReaderConfig configurations, ILogger logger,
-        IDbConnection? dbConnection = null) : base(configurations, logger, dbConnection)
-    {
-    }
+    public MockSqlProtocol(
+        SqlReaderConfig configurations,
+        ILogger logger,
+        IDbConnection? dbConnection = null
+    )
+        : base(configurations, logger, dbConnection) { }
 
-    public MockSqlProtocol(string name, SqlConfig configurations, ILogger logger, IDbConnection? dbConnection = null) :
-        base(configurations, logger, dbConnection)
-    {
-    }
+    public MockSqlProtocol(
+        string name,
+        SqlConfig configurations,
+        ILogger logger,
+        IDbConnection? dbConnection = null
+    )
+        : base(configurations, logger, dbConnection) { }
 
     protected override void InsertChunkToTable(DataTable chunkData)
     {
@@ -63,8 +68,12 @@ internal sealed class SequencedMockSqlProtocol : MockSqlProtocol
 {
     private readonly Queue<long?> _elapsedMillisecondsByPoll;
 
-    public SequencedMockSqlProtocol(SqlReaderConfig configurations, ILogger logger,
-        IEnumerable<long?> elapsedMillisecondsByPoll, IDbConnection? dbConnection = null)
+    public SequencedMockSqlProtocol(
+        SqlReaderConfig configurations,
+        ILogger logger,
+        IEnumerable<long?> elapsedMillisecondsByPoll,
+        IDbConnection? dbConnection = null
+    )
         : base(configurations, logger, dbConnection)
     {
         _elapsedMillisecondsByPoll = new Queue<long?>(elapsedMillisecondsByPoll);
@@ -72,9 +81,7 @@ internal sealed class SequencedMockSqlProtocol : MockSqlProtocol
 
     protected override long? GetNumberOfMilliSecondsPassedSinceLastTableChange()
     {
-        return _elapsedMillisecondsByPoll.Count > 0
-            ? _elapsedMillisecondsByPoll.Dequeue()
-            : 0;
+        return _elapsedMillisecondsByPoll.Count > 0 ? _elapsedMillisecondsByPoll.Dequeue() : 0;
     }
 }
 
@@ -83,10 +90,12 @@ internal sealed class InspectableSqlProtocol : BaseSqlProtocol<IDbConnection>
     private readonly Queue<string> _queries = new();
     private readonly Queue<DateTime> _utcNowValues = new();
 
-    public InspectableSqlProtocol(SqlReaderConfig configurations, ILogger logger,
-        IDbConnection? dbConnection = null) : base(configurations, logger, dbConnection)
-    {
-    }
+    public InspectableSqlProtocol(
+        SqlReaderConfig configurations,
+        ILogger logger,
+        IDbConnection? dbConnection = null
+    )
+        : base(configurations, logger, dbConnection) { }
 
     public void QueueUtcNow(params DateTime[] values)
     {
@@ -146,15 +155,21 @@ internal sealed class CollectingLogger : ILogger
 {
     public List<(LogLevel Level, string Message)> Entries { get; } = [];
 
-    public IDisposable BeginScope<TState>(TState state) where TState : notnull
+    public IDisposable BeginScope<TState>(TState state)
+        where TState : notnull
     {
         return NullScope.Instance;
     }
 
     public bool IsEnabled(LogLevel logLevel) => true;
 
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-        Func<TState, Exception?, string> formatter)
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter
+    )
     {
         Entries.Add((logLevel, formatter(state, exception)));
     }
@@ -163,9 +178,7 @@ internal sealed class CollectingLogger : ILogger
     {
         public static NullScope Instance { get; } = new();
 
-        public void Dispose()
-        {
-        }
+        public void Dispose() { }
     }
 }
 
@@ -176,8 +189,11 @@ public class BaseSqlTests
     private static Mock<IDbCommand>? _dbCommandMock;
     private static Mock<IDataReader>? _dataReaderMock;
 
-    private static readonly MethodInfo GetJsonEnumerableFromQuery = typeof(MockSqlProtocol).GetMethod(
-        "GetJsonEnumerableFromQuery", BindingFlags.Instance | BindingFlags.NonPublic)!;
+    private static readonly MethodInfo GetJsonEnumerableFromQuery =
+        typeof(MockSqlProtocol).GetMethod(
+            "GetJsonEnumerableFromQuery",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
 
     [SetUp]
     public void SetUp()
@@ -187,10 +203,15 @@ public class BaseSqlTests
 
         _dbCommandMock = new Mock<IDbCommand>();
         _dbCommandMock.Setup(mock => mock.ExecuteNonQuery()).Verifiable();
-        _dbCommandMock.Setup(mock => mock.ExecuteReader()).Returns(_dataReaderMock.Object).Verifiable();
+        _dbCommandMock
+            .Setup(mock => mock.ExecuteReader())
+            .Returns(_dataReaderMock.Object)
+            .Verifiable();
 
         _dbConnectionMock = new Mock<IDbConnection>();
-        _dbConnectionMock.Setup(mock => mock.CreateCommand()).Returns(_dbCommandMock.Object)
+        _dbConnectionMock
+            .Setup(mock => mock.CreateCommand())
+            .Returns(_dbCommandMock.Object)
             .Verifiable();
         _dbConnectionMock.Setup(mock => mock.Open()).Verifiable();
         _dbConnectionMock.Setup(mock => mock.Close()).Verifiable();
@@ -201,27 +222,39 @@ public class BaseSqlTests
     public void TestGetJsonEnumerableFromQuery_CallFunctionWithEmptyReaderMock_ShouldNotReturnAnyOutput()
     {
         // Arrange
-        var mockBaseSqlDataBaseSender =
-            new MockSqlProtocol("test", new SqlReaderConfig(), Globals.Logger, _dbConnectionMock!.Object);
+        var mockBaseSqlDataBaseSender = new MockSqlProtocol(
+            "test",
+            new SqlReaderConfig(),
+            Globals.Logger,
+            _dbConnectionMock!.Object
+        );
 
         // Act
-        var result = ((IEnumerable<JsonNode>)GetJsonEnumerableFromQuery.Invoke(mockBaseSqlDataBaseSender,
-            ["random query", 30, null])!).ToList();
+        var result = (
+            (IEnumerable<JsonNode>)
+                GetJsonEnumerableFromQuery.Invoke(
+                    mockBaseSqlDataBaseSender,
+                    ["random query", 30, null]
+                )!
+        ).ToList();
 
         // Assert
         _dbCommandMock!.Verify(command => command.ExecuteReader(), Times.Once);
         Assert.That(result, Is.Empty);
     }
 
-    [Test,
-     TestCase(null, 100),
-     TestCase(1, 1),
-     TestCase(100, 5),
-     TestCase(5, 100),
-     TestCase(11, 100)]
-    public void
-        TestSend_CallSendFunctionWithDifferentChunkToDataSizeRatios_ShouldCallSendChunkFunctionRatioAmountOfTimesAndReturnDataSizeAmountOfItems
-        (int? chunkSize, int dataSize)
+    [
+        Test,
+        TestCase(null, 100),
+        TestCase(1, 1),
+        TestCase(100, 5),
+        TestCase(5, 100),
+        TestCase(11, 100)
+    ]
+    public void TestSend_CallSendFunctionWithDifferentChunkToDataSizeRatios_ShouldCallSendChunkFunctionRatioAmountOfTimesAndReturnDataSizeAmountOfItems(
+        int? chunkSize,
+        int dataSize
+    )
     {
         // Arrange
         var data = new List<Data<object>>(dataSize);
@@ -230,8 +263,12 @@ public class BaseSqlTests
             data.Add(new Data<object> { Body = new JsonObject() });
         }
 
-        var sqlTableSenderMock =
-            new MockSqlProtocol("test", new SqlConfig(), Globals.Logger, _dbConnectionMock!.Object);
+        var sqlTableSenderMock = new MockSqlProtocol(
+            "test",
+            new SqlConfig(),
+            Globals.Logger,
+            _dbConnectionMock!.Object
+        );
 
         // Act
         var itemsSent = sqlTableSenderMock.SendChunk(data.ToImmutableList()).ToArray();
@@ -257,11 +294,17 @@ public class BaseSqlTests
             data.Add(new Data<object> { Body = null });
         }
 
-        var sqlTableSenderMock =
-            new MockSqlProtocol("test", new SqlConfig(), Globals.Logger, _dbConnectionMock!.Object);
+        var sqlTableSenderMock = new MockSqlProtocol(
+            "test",
+            new SqlConfig(),
+            Globals.Logger,
+            _dbConnectionMock!.Object
+        );
 
         // Act + Assert
-        Assert.Throws<ArgumentException>(() => sqlTableSenderMock.SendChunk(data.ToImmutableList()).ToArray());
+        Assert.Throws<ArgumentException>(() =>
+            sqlTableSenderMock.SendChunk(data.ToImmutableList()).ToArray()
+        );
     }
 
     [Test]
@@ -269,13 +312,10 @@ public class BaseSqlTests
     {
         var protocol = new MockSqlProtocol(
             "test",
-            new SqlConfig
-            {
-                TableName = "tbl",
-                ConnectionString = "Host=localhost"
-            },
+            new SqlConfig { TableName = "tbl", ConnectionString = "Host=localhost" },
             Globals.Logger,
-            _dbConnectionMock!.Object);
+            _dbConnectionMock!.Object
+        );
 
         protocol.Connect();
         protocol.Disconnect();
@@ -289,9 +329,7 @@ public class BaseSqlTests
     public void ReadChunk_WithSingleRow_ReturnsDetailedData()
     {
         var now = DateTime.UtcNow;
-        _dataReaderMock!.SetupSequence(mock => mock.Read())
-            .Returns(true)
-            .Returns(false);
+        _dataReaderMock!.SetupSequence(mock => mock.Read()).Returns(true).Returns(false);
         _dataReaderMock.Setup(mock => mock.FieldCount).Returns(1);
         _dataReaderMock.Setup(mock => mock.GetName(0)).Returns("created_at");
         _dataReaderMock.Setup(mock => mock.GetValue(0)).Returns(now);
@@ -302,10 +340,11 @@ public class BaseSqlTests
             {
                 TableName = "tbl",
                 ConnectionString = "Host=localhost",
-                InsertionTimeField = "created_at"
+                InsertionTimeField = "created_at",
             },
             Globals.Logger,
-            _dbConnectionMock.Object);
+            _dbConnectionMock.Object
+        );
 
         var result = protocol.ReadChunk(TimeSpan.Zero).ToList();
 
@@ -324,16 +363,17 @@ public class BaseSqlTests
             {
                 TableName = "tbl",
                 ConnectionString = "Host=localhost",
-                InsertionTimeField = "created_at"
+                InsertionTimeField = "created_at",
             },
             logger,
             [0, 0, 5],
-            _dbConnectionMock.Object);
+            _dbConnectionMock.Object
+        );
 
         _ = protocol.ReadChunk(TimeSpan.FromMilliseconds(5)).ToList();
 
-        var debugMessages = logger.Entries
-            .Where(entry => entry.Level == LogLevel.Debug)
+        var debugMessages = logger
+            .Entries.Where(entry => entry.Level == LogLevel.Debug)
             .Select(entry => entry.Message)
             .ToList();
 
@@ -344,18 +384,20 @@ public class BaseSqlTests
     [Test]
     public void RowInsertIntoTable_ExecutesInsertStatements()
     {
-        _dbCommandMock!.SetupSet(command => command.CommandText = It.Is<string>(text =>
-            text.Contains("INSERT INTO", StringComparison.OrdinalIgnoreCase))).Verifiable();
+        _dbCommandMock!
+            .SetupSet(command =>
+                command.CommandText = It.Is<string>(text =>
+                    text.Contains("INSERT INTO", StringComparison.OrdinalIgnoreCase)
+                )
+            )
+            .Verifiable();
 
         var protocol = new MockSqlProtocol(
             "target_table",
-            new SqlConfig
-            {
-                TableName = "target_table",
-                ConnectionString = "Host=localhost"
-            },
+            new SqlConfig { TableName = "target_table", ConnectionString = "Host=localhost" },
             Globals.Logger,
-            _dbConnectionMock!.Object);
+            _dbConnectionMock!.Object
+        );
 
         var dataTable = new DataTable();
         dataTable.Columns.Add("id", typeof(int));
@@ -364,33 +406,40 @@ public class BaseSqlTests
 
         var rowInsertMethod = typeof(BaseSqlProtocol<IDbConnection>).GetMethod(
             "RowInsertIntoTable",
-            BindingFlags.Instance | BindingFlags.NonPublic);
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
         rowInsertMethod!.Invoke(protocol, [dataTable]);
 
         _dbCommandMock.Verify(command => command.ExecuteNonQuery(), Times.Once);
-        _dbCommandMock.VerifySet(command => command.CommandText = It.IsAny<string>(), Times.AtLeastOnce);
+        _dbCommandMock.VerifySet(
+            command => command.CommandText = It.IsAny<string>(),
+            Times.AtLeastOnce
+        );
     }
 
     [Test]
     public void ReadChunk_WithoutInsertionTimeField_UsesPlainQueryAndReturnsNullTimestamps()
     {
         string? commandText = null;
-        _dataReaderMock!.SetupSequence(mock => mock.Read())
-            .Returns(true)
-            .Returns(false);
+        _dataReaderMock!.SetupSequence(mock => mock.Read()).Returns(true).Returns(false);
         _dataReaderMock.Setup(mock => mock.FieldCount).Returns(1);
         _dataReaderMock.Setup(mock => mock.GetName(0)).Returns("value");
         _dataReaderMock.Setup(mock => mock.GetValue(0)).Returns("row");
-        _dbCommandMock!.SetupSet(command => command.CommandText = It.IsAny<string>())
+        _dbCommandMock!
+            .SetupSet(command => command.CommandText = It.IsAny<string>())
             .Callback<string>(value => commandText = value);
         _dbConnectionMock!.SetupGet(connection => connection.State).Returns(ConnectionState.Open);
 
-        var protocol = new InspectableSqlProtocol(new SqlReaderConfig
-        {
-            TableName = "tbl",
-            ConnectionString = "Host=localhost",
-            InsertionTimeField = null
-        }, Globals.Logger, _dbConnectionMock.Object);
+        var protocol = new InspectableSqlProtocol(
+            new SqlReaderConfig
+            {
+                TableName = "tbl",
+                ConnectionString = "Host=localhost",
+                InsertionTimeField = null,
+            },
+            Globals.Logger,
+            _dbConnectionMock.Object
+        );
 
         var result = protocol.ReadChunk(TimeSpan.Zero).Single();
 
@@ -406,9 +455,7 @@ public class BaseSqlTests
     public void GetJsonEnumerableFromQuery_HandlesClosedConnections_DbNullValues_AndReaderFallbacks()
     {
         ConnectionState state = ConnectionState.Closed;
-        _dataReaderMock!.SetupSequence(mock => mock.Read())
-            .Returns(true)
-            .Returns(false);
+        _dataReaderMock!.SetupSequence(mock => mock.Read()).Returns(true).Returns(false);
         _dataReaderMock.Setup(mock => mock.FieldCount).Returns(3);
         _dataReaderMock.Setup(mock => mock.GetName(0)).Returns("ignored");
         _dataReaderMock.Setup(mock => mock.GetName(1)).Returns("nullable");
@@ -417,14 +464,26 @@ public class BaseSqlTests
         _dataReaderMock.Setup(mock => mock.GetValue(2)).Throws<InvalidCastException>();
         _dataReaderMock.Setup(mock => mock.GetString(2)).Returns("Point(1 2)");
         _dbConnectionMock!.SetupGet(connection => connection.State).Returns(() => state);
-        _dbConnectionMock.Setup(connection => connection.Open()).Callback(() => state = ConnectionState.Open);
-        _dbConnectionMock.Setup(connection => connection.Close()).Callback(() => state = ConnectionState.Closed);
+        _dbConnectionMock
+            .Setup(connection => connection.Open())
+            .Callback(() => state = ConnectionState.Open);
+        _dbConnectionMock
+            .Setup(connection => connection.Close())
+            .Callback(() => state = ConnectionState.Closed);
 
-        var protocol =
-            new MockSqlProtocol("test", new SqlReaderConfig(), Globals.Logger, _dbConnectionMock.Object);
+        var protocol = new MockSqlProtocol(
+            "test",
+            new SqlReaderConfig(),
+            Globals.Logger,
+            _dbConnectionMock.Object
+        );
 
-        var rows = ((IEnumerable<JsonNode>)GetJsonEnumerableFromQuery.Invoke(protocol,
-            ["select 1", 30, new[] { "ignored" }])!).Cast<JsonObject>().ToList();
+        var rows = (
+            (IEnumerable<JsonNode>)
+                GetJsonEnumerableFromQuery.Invoke(protocol, ["select 1", 30, new[] { "ignored" }])!
+        )
+            .Cast<JsonObject>()
+            .ToList();
 
         Assert.Multiple(() =>
         {
@@ -441,47 +500,46 @@ public class BaseSqlTests
     public void SqlHelpers_HandleLatestChangeDateParsing_AndRowMaterializationBranches()
     {
         var now = new DateTime(2026, 3, 15, 12, 0, 30, DateTimeKind.Utc);
-        _dataReaderMock!.SetupSequence(mock => mock.Read())
-            .Returns(true)
-            .Returns(false);
+        _dataReaderMock!.SetupSequence(mock => mock.Read()).Returns(true).Returns(false);
         _dataReaderMock.Setup(mock => mock.FieldCount).Returns(1);
         _dataReaderMock.Setup(mock => mock.GetName(0)).Returns("created_at");
         _dataReaderMock.Setup(mock => mock.GetValue(0)).Returns(now.AddSeconds(-10));
         _dbConnectionMock!.SetupGet(connection => connection.State).Returns(ConnectionState.Open);
 
-        var protocol = new InspectableSqlProtocol(new SqlReaderConfig
-        {
-            TableName = "tbl",
-            ConnectionString = "Host=localhost",
-            InsertionTimeField = "created_at"
-        }, Globals.Logger, _dbConnectionMock.Object);
+        var protocol = new InspectableSqlProtocol(
+            new SqlReaderConfig
+            {
+                TableName = "tbl",
+                ConnectionString = "Host=localhost",
+                InsertionTimeField = "created_at",
+            },
+            Globals.Logger,
+            _dbConnectionMock.Object
+        );
         protocol.QueueUtcNow(now);
 
-        var elapsedMilliseconds = protocol.InvokeGetNumberOfMillisecondsPassedSinceLastTableChange();
-        var dataTable = (DataTable)typeof(BaseSqlProtocol<IDbConnection>)
-            .GetMethod("GetDataTableFromRawDataChunk", BindingFlags.Static | BindingFlags.NonPublic)!
-            .Invoke(null, new object[]
-            {
-                new List<Data<object>>
-                {
-                    new()
+        var elapsedMilliseconds =
+            protocol.InvokeGetNumberOfMillisecondsPassedSinceLastTableChange();
+        var dataTable = (DataTable)
+            typeof(BaseSqlProtocol<IDbConnection>)
+                .GetMethod(
+                    "GetDataTableFromRawDataChunk",
+                    BindingFlags.Static | BindingFlags.NonPublic
+                )!
+                .Invoke(
+                    null,
+                    new object[]
                     {
-                        Body = new JsonObject
+                        new List<Data<object>>
                         {
-                            ["id"] = null,
-                            ["name"] = "alpha"
-                        }
-                    },
-                    new()
-                    {
-                        Body = new
-                        {
-                            id = 7,
-                            name = "beta"
-                        }
+                            new()
+                            {
+                                Body = new JsonObject { ["id"] = null, ["name"] = "alpha" },
+                            },
+                            new() { Body = new { id = 7, name = "beta" } },
+                        },
                     }
-                }
-            })!;
+                )!;
 
         Assert.Multiple(() =>
         {
@@ -497,22 +555,30 @@ public class BaseSqlTests
     public void SqlHelpers_ThrowForMissingOrInvalidDateFields_AndFormatValuesForInsert()
     {
         string? commandText = null;
-        _dbCommandMock!.SetupSet(command => command.CommandText = It.IsAny<string>())
+        _dbCommandMock!
+            .SetupSet(command => command.CommandText = It.IsAny<string>())
             .Callback<string>(value => commandText = value);
         _dbCommandMock.Setup(command => command.ExecuteNonQuery()).Returns(1);
 
-        var protocol = new InspectableSqlProtocol(new SqlReaderConfig
-        {
-            TableName = "tbl",
-            ConnectionString = "Host=localhost",
-            InsertionTimeField = "created_at"
-        }, Globals.Logger, _dbConnectionMock!.Object);
+        var protocol = new InspectableSqlProtocol(
+            new SqlReaderConfig
+            {
+                TableName = "tbl",
+                ConnectionString = "Host=localhost",
+                InsertionTimeField = "created_at",
+            },
+            Globals.Logger,
+            _dbConnectionMock!.Object
+        );
 
-        Assert.Throws<InvalidOperationException>(() => protocol.InvokeGetDateTimeFromDateTimeField(new JsonObject()));
-        Assert.Throws<InvalidOperationException>(() => protocol.InvokeGetDateTimeFromDateTimeField(new JsonObject
-        {
-            ["created_at"] = "not-a-date"
-        }));
+        Assert.Throws<InvalidOperationException>(() =>
+            protocol.InvokeGetDateTimeFromDateTimeField(new JsonObject())
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            protocol.InvokeGetDateTimeFromDateTimeField(
+                new JsonObject { ["created_at"] = "not-a-date" }
+            )
+        );
 
         var dataTable = new DataTable();
         dataTable.Columns.Add("nullable", typeof(object));
@@ -537,12 +603,16 @@ public class BaseSqlTests
     [Test]
     public void GetNumberOfMilliSecondsPassedSinceLastTableChange_ReturnsNullWhenInsertionTimeFieldIsMissing()
     {
-        var protocol = new InspectableSqlProtocol(new SqlReaderConfig
-        {
-            TableName = "tbl",
-            ConnectionString = "Host=localhost",
-            InsertionTimeField = null
-        }, Globals.Logger, _dbConnectionMock!.Object);
+        var protocol = new InspectableSqlProtocol(
+            new SqlReaderConfig
+            {
+                TableName = "tbl",
+                ConnectionString = "Host=localhost",
+                InsertionTimeField = null,
+            },
+            Globals.Logger,
+            _dbConnectionMock!.Object
+        );
 
         Assert.That(protocol.InvokeGetNumberOfMillisecondsPassedSinceLastTableChange(), Is.Null);
     }

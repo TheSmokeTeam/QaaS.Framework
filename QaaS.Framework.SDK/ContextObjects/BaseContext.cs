@@ -4,9 +4,11 @@ using QaaS.Framework.SDK.ExecutionObjects;
 
 namespace QaaS.Framework.SDK.ContextObjects;
 
-public abstract class BaseContext<TExecutionData> where TExecutionData : class, IExecutionData, new()
+public abstract class BaseContext<TExecutionData>
+    where TExecutionData : class, IExecutionData, new()
 {
     private IConfiguration _rootConfiguration = CreateMutableConfiguration();
+
     // GlobalDict is shared mutable state across execution components, so nested reads/writes
     // must be serialized to avoid races while creating or traversing intermediate dictionaries.
     private readonly Lock _globalDictLock = new();
@@ -36,11 +38,12 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
     /// dictionary through <see cref="Extensions.ContextGlobalDictionaryExtensions"/>.
     /// </summary>
     protected Dictionary<string, object?> GlobalDict { get; set; } = new();
-    
+
     /// <summary>
     /// Gets the <see cref="GlobalDict"/> object
     /// </summary>
     public Dictionary<string, object?> GetGlobalDict => GlobalDict;
+
     /// <summary>
     /// Updates GlobalDict with new value at the requested path.
     /// If there are parts of the path that don't exist, they will be created.
@@ -75,14 +78,21 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
         }
         catch (KeyNotFoundException ex)
         {
-            throw new KeyNotFoundException($"Path '{string.Join(".", path)}' does not exist in GlobalDict.", ex);
+            throw new KeyNotFoundException(
+                $"Path '{string.Join(".", path)}' does not exist in GlobalDict.",
+                ex
+            );
         }
     }
-    
+
     /// <summary>
     /// Updates the dictionary recursively
     /// </summary>
-    private void UpdateDictRecursively(Dictionary<string, object?> dict, List<string> path, object? value)
+    private void UpdateDictRecursively(
+        Dictionary<string, object?> dict,
+        List<string> path,
+        object? value
+    )
     {
         var key = path.First();
         if (path.Count == 1)
@@ -94,7 +104,11 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
         if (!dict.ContainsKey(key) || dict[key] is not Dictionary<string, object?>)
             dict[key] = new Dictionary<string, object?>();
 
-        UpdateDictRecursively((Dictionary<string, object?>)dict[key]!, path.Skip(1).ToList(), value);
+        UpdateDictRecursively(
+            (Dictionary<string, object?>)dict[key]!,
+            path.Skip(1).ToList(),
+            value
+        );
     }
 
     /// <summary>
@@ -110,12 +124,16 @@ public abstract class BaseContext<TExecutionData> where TExecutionData : class, 
             return value;
         }
 
-        if (!dict.TryGetValue(key, out var nextDict) || nextDict is not Dictionary<string, object?> subDict)
-            throw new KeyNotFoundException($"Intermediate key '{key}' not found or is not a dictionary.");
+        if (
+            !dict.TryGetValue(key, out var nextDict)
+            || nextDict is not Dictionary<string, object?> subDict
+        )
+            throw new KeyNotFoundException(
+                $"Intermediate key '{key}' not found or is not a dictionary."
+            );
 
         return GetValueFromDictRecursively(subDict, path.Skip(1).ToList());
     }
-
 
     internal void SetRootConfiguration(IConfiguration updatedConfiguration) =>
         SetMutableRootConfiguration(updatedConfiguration);

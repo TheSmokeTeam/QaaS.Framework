@@ -17,5 +17,4 @@ public static class Constants
     /// Gets the default Microsoft logger shared by framework execution infrastructure.
     /// </summary>
     public static ILogger DefaultLogger => ExecutionLogging.DefaultLogger;
-
 }

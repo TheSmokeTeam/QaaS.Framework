@@ -6,9 +6,10 @@ namespace QaaS.Framework.Serialization.Serializers;
 /// <summary>
 /// Serializes any C# object to a byte[] representing yaml
 /// </summary>
-public class Yaml: ISerializer
+public class Yaml : ISerializer
 {
-    private readonly YamlDotNet.Serialization.ISerializer _serializer = new SerializerBuilder().Build();
+    private readonly YamlDotNet.Serialization.ISerializer _serializer =
+        new SerializerBuilder().Build();
 
     /// <inheritdoc />
     public byte[]? Serialize(object? data)

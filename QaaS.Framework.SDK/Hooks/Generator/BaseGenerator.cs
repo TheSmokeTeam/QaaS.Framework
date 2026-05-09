@@ -15,7 +15,8 @@ namespace QaaS.Framework.SDK.Hooks.Generator;
 /// </summary>
 /// <typeparam name="TConfiguration"> The type of the generator's configuration object </typeparam>
 [JsonSchema]
-public abstract class BaseGenerator<TConfiguration>: IGenerator where TConfiguration : new()
+public abstract class BaseGenerator<TConfiguration> : IGenerator
+    where TConfiguration : new()
 {
     /// <inheritdoc />
     public Context Context { get; set; } = null!;
@@ -29,16 +30,17 @@ public abstract class BaseGenerator<TConfiguration>: IGenerator where TConfigura
     /// <summary>
     /// The options of the binder that binds the IConfiguration to the <see cref="Configuration"/>
     /// </summary>
-    protected virtual BinderOptions GetConfigurationBinderOptions() => new()
-    {
-        ErrorOnUnknownConfiguration = true
-    };
-    
+    protected virtual BinderOptions GetConfigurationBinderOptions() =>
+        new() { ErrorOnUnknownConfiguration = true };
+
     /// <inheritdoc />
     public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
     {
         // Load configuration to c# object
-        Configuration = configuration.BindToObject<TConfiguration>(GetConfigurationBinderOptions(), Context.Logger);
+        Configuration = configuration.BindToObject<TConfiguration>(
+            GetConfigurationBinderOptions(),
+            Context.Logger
+        );
 
         // Validate loaded configuration
         var validationResults = new List<ValidationResult>();
@@ -46,8 +48,10 @@ public abstract class BaseGenerator<TConfiguration>: IGenerator where TConfigura
 
         return validationResults;
     }
-    
-    /// <inheritdoc /> 
-    public abstract IEnumerable<Data<object>> Generate(IImmutableList<SessionData> sessionDataList,
-        IImmutableList<DataSource> dataSourceList);
+
+    /// <inheritdoc />
+    public abstract IEnumerable<Data<object>> Generate(
+        IImmutableList<SessionData> sessionDataList,
+        IImmutableList<DataSource> dataSourceList
+    );
 }

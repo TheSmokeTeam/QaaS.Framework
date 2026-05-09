@@ -24,9 +24,10 @@ public class UniquePropertyInEnumerableAttribute : ValidationAttribute
     /// <inheritdoc />
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
-        // If item is not an enumerable or if its null - validation is automatically successful 
-        if (value is not IEnumerable enumerable) return ValidationResult.Success;
-            
+        // If item is not an enumerable or if its null - validation is automatically successful
+        if (value is not IEnumerable enumerable)
+            return ValidationResult.Success;
+
         var uniqueValues = new HashSet<object?>();
         var itemIndex = 0;
         foreach (var item in enumerable)
@@ -34,23 +35,32 @@ public class UniquePropertyInEnumerableAttribute : ValidationAttribute
             if (item == null)
             {
                 return new ValidationResult(
-                    $"Null item found at index {itemIndex} while validating unique field `{_fieldName}`.");
+                    $"Null item found at index {itemIndex} while validating unique field `{_fieldName}`."
+                );
             }
 
-            var propertyInfo = item.GetType().GetProperty(_fieldName,BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            var propertyInfo = item.GetType()
+                .GetProperty(
+                    _fieldName,
+                    BindingFlags.Public
+                        | BindingFlags.NonPublic
+                        | BindingFlags.Instance
+                        | BindingFlags.Static
+                );
             if (propertyInfo == null)
                 throw new NotSupportedException(
-                    $"Couldn't find public property {_fieldName} in {item.GetType().Name}");
+                    $"Couldn't find public property {_fieldName} in {item.GetType().Name}"
+                );
             var fieldValue = propertyInfo.GetValue(item);
             if (uniqueValues.Contains(fieldValue))
             {
                 return new ValidationResult(
-                    $"Duplicate value found for field `{_fieldName}` in {item.GetType().Name} enumerable");
+                    $"Duplicate value found for field `{_fieldName}` in {item.GetType().Name} enumerable"
+                );
             }
             uniqueValues.Add(fieldValue);
             itemIndex++;
         }
         return ValidationResult.Success;
     }
-
 }

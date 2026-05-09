@@ -13,12 +13,17 @@ internal static class HttpExtentions
         return jwtAlgorithm switch
         {
             JwtAlgorithms.HMACSHA256Algorithm => new HMACSHA256Algorithm(),
-            _ => throw new ArgumentOutOfRangeException(nameof(jwtAlgorithm), jwtAlgorithm,
-                "Jwt algorithm not supported")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(jwtAlgorithm),
+                jwtAlgorithm,
+                "Jwt algorithm not supported"
+            ),
         };
     }
 
-    internal static Dictionary<string, object> GetClaimsFromHierarchicalClaims(string hierarchicalClaims)
+    internal static Dictionary<string, object> GetClaimsFromHierarchicalClaims(
+        string hierarchicalClaims
+    )
     {
         var deserializer = new DeserializerBuilder().Build();
         try
@@ -27,8 +32,10 @@ internal static class HttpExtentions
         }
         catch (YamlException e)
         {
-            throw new InvalidConfigurationsException($"The HierarchicalClaims string must be in yaml format." +
-                                                     $" Encountered the following exception when trying to parse it: {e}");
+            throw new InvalidConfigurationsException(
+                $"The HierarchicalClaims string must be in yaml format."
+                    + $" Encountered the following exception when trying to parse it: {e}"
+            );
         }
     }
 }

@@ -11,9 +11,7 @@ public class ExecutionsCoverageEdgeCaseTests
 
     private sealed class FileConfiguredRunner : IRunner
     {
-        public void Run()
-        {
-        }
+        public void Run() { }
     }
 
     private sealed class FileConfiguredLoader(FileLoggerOptions options)
@@ -26,20 +24,24 @@ public class ExecutionsCoverageEdgeCaseTests
     public void BaseLoader_UsesLoggerConfigurationFile_WhenProvided()
     {
         var loggerConfigFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
-        File.WriteAllText(loggerConfigFile,
+        File.WriteAllText(
+            loggerConfigFile,
             """
             Serilog:
               MinimumLevel:
                 Default: Debug
-            """);
+            """
+        );
 
         try
         {
-            var loader = new FileConfiguredLoader(new FileLoggerOptions
-            {
-                LoggerConfigurationFilePath = loggerConfigFile,
-                LoggerLevel = Serilog.Events.LogEventLevel.Error
-            });
+            var loader = new FileConfiguredLoader(
+                new FileLoggerOptions
+                {
+                    LoggerConfigurationFilePath = loggerConfigFile,
+                    LoggerLevel = Serilog.Events.LogEventLevel.Error,
+                }
+            );
 
             Assert.That(loader.GetLoadedRunner(), Is.TypeOf<FileConfiguredRunner>());
         }
@@ -64,7 +66,10 @@ public class ExecutionsCoverageEdgeCaseTests
     {
         Assert.Multiple(() =>
         {
-            Assert.That(Constants.DefaultSerilogLogger, Is.SameAs(ExecutionLogging.DefaultSerilogLogger));
+            Assert.That(
+                Constants.DefaultSerilogLogger,
+                Is.SameAs(ExecutionLogging.DefaultSerilogLogger)
+            );
             Assert.That(Constants.DefaultLogger, Is.SameAs(ExecutionLogging.DefaultLogger));
         });
     }
@@ -72,8 +77,10 @@ public class ExecutionsCoverageEdgeCaseTests
     [Test]
     public void BuildDefaultSerilogLogger_DoesNotEmitElasticWarnings_WhenSendLogsWasNotRequested()
     {
-        var buildMethod = typeof(ExecutionLogging).GetMethod("BuildDefaultSerilogLogger",
-            BindingFlags.NonPublic | BindingFlags.Static)!;
+        var buildMethod = typeof(ExecutionLogging).GetMethod(
+            "BuildDefaultSerilogLogger",
+            BindingFlags.NonPublic | BindingFlags.Static
+        )!;
         var stdout = new StringWriter();
         var stderr = new StringWriter();
         var originalOut = Console.Out;

@@ -1,20 +1,23 @@
-using System.Runtime.Serialization.Formatters.Binary;
-
 namespace QaaS.Framework.Serialization.Deserializers;
 
 /// <summary>
-/// Deserializes a byte[] to the C# object it represents
+/// Binary deserialisation is disabled for security.
+/// BinaryFormatter is a well-known remote code-execution vector and has been removed
+/// from the .NET 9+ BCL. Deserializing untrusted bytes via BinaryFormatter is forbidden.
+/// Use a different <see cref="SerializationType"/> (Json, MessagePack, etc.) instead.
 /// </summary>
-public class Binary: IDeserializer
+public class Binary : IDeserializer
 {
     /// <inheritdoc />
     public object? Deserialize(byte[]? data, Type? deserializeType = null)
     {
-        if (data is null) return null;
+        if (data is null)
+            return null;
 
-        using var stream = new MemoryStream(data);
-        var formatter = new BinaryFormatter();
-
-        return formatter.Deserialize(stream);
+        throw new NotSupportedException(
+            "BinaryFormatter deserialization is disabled for security. "
+                + "BinaryFormatter is an unauthenticated RCE sink and has been removed from .NET 9+. "
+                + "Configure a safe SerializationType (e.g. Json, MessagePack) instead."
+        );
     }
 }

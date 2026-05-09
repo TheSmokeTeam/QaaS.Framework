@@ -18,9 +18,12 @@ public class ContextBuilder : IContextBuilder
     private readonly IConfigurationBuilder _configurationBuilder;
     private readonly IList<string>? _referenceResolutionPaths;
     private readonly IList<string>? _uniqueIdPathRegexes;
-    private IInternalRunningSessions _currentRunningSessions =
-        new RunningSessions(
-            new Dictionary<string, QaaS.Framework.SDK.Session.SessionDataObjects.RunningSessionData<object, object>>());
+    private IInternalRunningSessions _currentRunningSessions = new RunningSessions(
+        new Dictionary<
+            string,
+            QaaS.Framework.SDK.Session.SessionDataObjects.RunningSessionData<object, object>
+        >()
+    );
     private ILogger _logger = NullLogger.Instance;
     private bool _resolveCaseLast = false;
     private bool _resolveWithEnvironmentVariables = false;
@@ -41,9 +44,11 @@ public class ContextBuilder : IContextBuilder
     /// <see cref="ConfigurationReferencesParser.ResolveReferencesInConfiguration"/> as parameter of the same name </param>
     /// <param name="uniqueIdPathRegexes"> Used in
     /// <see cref="ConfigurationReferencesParser.ResolveReferencesInConfiguration"/> as parameter of the same name </param>
-    public ContextBuilder(string configurationFile,
+    public ContextBuilder(
+        string configurationFile,
         IList<string>? referenceResolutionPaths = null,
-        IList<string>? uniqueIdPathRegexes = null)
+        IList<string>? uniqueIdPathRegexes = null
+    )
     {
         _configurationBuilder = new ConfigurationBuilder();
         _configurationFile = configurationFile;
@@ -63,9 +68,11 @@ public class ContextBuilder : IContextBuilder
     /// <see cref="ConfigurationReferencesParser.ResolveReferencesInConfiguration"/> as parameter of the same name </param>
     /// <param name="uniqueIdPathRegexes"> Used in
     /// <see cref="ConfigurationReferencesParser.ResolveReferencesInConfiguration"/> as parameter of the same name </param>
-    public ContextBuilder(IConfigurationBuilder configurationBuilder,
+    public ContextBuilder(
+        IConfigurationBuilder configurationBuilder,
         IList<string>? referenceResolutionPaths = null,
-        IList<string>? uniqueIdPathRegexes = null)
+        IList<string>? uniqueIdPathRegexes = null
+    )
     {
         _configurationBuilder = configurationBuilder;
         _referenceResolutionPaths = referenceResolutionPaths;
@@ -94,7 +101,8 @@ public class ContextBuilder : IContextBuilder
     /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder SetConfigurationFile(string? configurationFile)
     {
-        if (configurationFile == null) return this;
+        if (configurationFile == null)
+            return this;
         _configurationFile = configurationFile;
         return this;
     }
@@ -108,7 +116,8 @@ public class ContextBuilder : IContextBuilder
     /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder WithOverwriteFile(string? overwriteFile)
     {
-        if (overwriteFile == null) return this;
+        if (overwriteFile == null)
+            return this;
         _configurationOverwriteFiles.Add(overwriteFile);
         return this;
     }
@@ -122,7 +131,8 @@ public class ContextBuilder : IContextBuilder
     /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder WithOverwriteFolder(string? overwriteFolder)
     {
-        if (overwriteFolder == null) return this;
+        if (overwriteFolder == null)
+            return this;
         _configurationOverwriteFolders.Add(overwriteFolder);
         return this;
     }
@@ -136,7 +146,8 @@ public class ContextBuilder : IContextBuilder
     /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder SetCase(string? caseFile)
     {
-        if (caseFile == null) return this;
+        if (caseFile == null)
+            return this;
 
         _caseName = caseFile;
         _caseFile = caseFile;
@@ -165,7 +176,8 @@ public class ContextBuilder : IContextBuilder
     /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     public IContextBuilder WithOverwriteArgument(string? argument)
     {
-        if (argument == null) return this;
+        if (argument == null)
+            return this;
         _configurationOverwriteArguments.Add(argument);
         return this;
     }
@@ -225,9 +237,11 @@ public class ContextBuilder : IContextBuilder
     private IConfiguration GetConfiguration()
     {
         // Base configuration .qaas.yaml file
-        if (_configurationFile != null) _configurationBuilder.AddYaml(_configurationFile);
+        if (_configurationFile != null)
+            _configurationBuilder.AddYaml(_configurationFile);
         // Overwriting variable .yaml files
-        foreach (var overwriteFile in _configurationOverwriteFiles) _configurationBuilder.AddYaml(overwriteFile);
+        foreach (var overwriteFile in _configurationOverwriteFiles)
+            _configurationBuilder.AddYaml(overwriteFile);
         foreach (var overwriteFolder in _configurationOverwriteFolders)
         foreach (var overwriteFile in PathUtils.EnumerateYamlFilesInDirectory(overwriteFolder))
             _configurationBuilder.AddYaml(overwriteFile);
@@ -236,21 +250,39 @@ public class ContextBuilder : IContextBuilder
         if (!_resolveCaseLast)
         {
             // Case .yaml file overwrite
-            if (_caseFile != null) _configurationBuilder.AddYaml(_caseFile);
+            if (_caseFile != null)
+                _configurationBuilder.AddYaml(_caseFile);
             // Build configuration and then resolve references
-            configuration = new ConfigurationBuilder().AddConfiguration(_configurationBuilder
-                .AddCommandLine(_configurationOverwriteArguments.ToArray()).Build()
-                .ResolveReferencesInConfiguration(_referenceConfigs, _referenceResolutionPaths, _uniqueIdPathRegexes,
-                    _resolveWithEnvironmentVariables)).EnrichedBuild(_resolveWithEnvironmentVariables);
+            configuration = new ConfigurationBuilder()
+                .AddConfiguration(
+                    _configurationBuilder
+                        .AddCommandLine(_configurationOverwriteArguments.ToArray())
+                        .Build()
+                        .ResolveReferencesInConfiguration(
+                            _referenceConfigs,
+                            _referenceResolutionPaths,
+                            _uniqueIdPathRegexes,
+                            _resolveWithEnvironmentVariables
+                        )
+                )
+                .EnrichedBuild(_resolveWithEnvironmentVariables);
         }
         else
         {
-            var tmpConfigurationBuilder = new ConfigurationBuilder().AddConfiguration(_configurationBuilder
-                .AddCommandLine(_configurationOverwriteArguments.ToArray()).Build()
-                .ResolveReferencesInConfiguration(_referenceConfigs, _referenceResolutionPaths, _uniqueIdPathRegexes,
-                    _resolveWithEnvironmentVariables));
+            var tmpConfigurationBuilder = new ConfigurationBuilder().AddConfiguration(
+                _configurationBuilder
+                    .AddCommandLine(_configurationOverwriteArguments.ToArray())
+                    .Build()
+                    .ResolveReferencesInConfiguration(
+                        _referenceConfigs,
+                        _referenceResolutionPaths,
+                        _uniqueIdPathRegexes,
+                        _resolveWithEnvironmentVariables
+                    )
+            );
             // Case .yaml file overwrite
-            if (_caseFile != null) tmpConfigurationBuilder.AddYaml(_caseFile);
+            if (_caseFile != null)
+                tmpConfigurationBuilder.AddYaml(_caseFile);
             configuration = tmpConfigurationBuilder.EnrichedBuild(_resolveWithEnvironmentVariables);
         }
 
@@ -264,16 +296,15 @@ public class ContextBuilder : IContextBuilder
     /// Call this after all configuration inputs, overwrite sources, and resolution options have been registered on the builder. The returned internal context is used by the runtime bootstrap flow.
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
-    public InternalContext BuildInternal()
-        => new()
+    public InternalContext BuildInternal() =>
+        new()
         {
             CaseName = _caseName,
             ExecutionId = _executionId,
             RootConfiguration = GetConfiguration(),
             InternalRunningSessions = _currentRunningSessions,
-            Logger = _logger
+            Logger = _logger,
         };
-
 
     /// <summary>
     /// Builds the obsolete public Context projection from the current builder state.
@@ -283,14 +314,13 @@ public class ContextBuilder : IContextBuilder
     /// </remarks>
     /// <qaas-docs group="Framework APIs" subgroup="Contexts" />
     [Obsolete("Function no longer in use, Use BuildInternal instead")]
-    public Context Build()
-        => new()
+    public Context Build() =>
+        new()
         {
             CaseName = _caseName,
             ExecutionId = _executionId,
             RootConfiguration = GetConfiguration(),
             CurrentRunningSessions = _currentRunningSessions,
-            Logger = _logger
+            Logger = _logger,
         };
 }
-

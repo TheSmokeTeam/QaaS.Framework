@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using QaaS.Framework.Protocols.ConfigurationObjects;
 using QaaS.Framework.Protocols.ConfigurationObjects.Grpc;
 using QaaS.Framework.Protocols.ConfigurationObjects.Http;
+
 namespace QaaS.Framework.Protocols.Protocols.Factories;
 
 /// <summary>
@@ -18,13 +19,19 @@ public static class TransactorFactory
     /// <param name="timeOut">Timeout duration for the transactor operations</param>
     /// <returns>An instance of ITransactor configured according to the provided configuration</returns>
     /// <exception cref="InvalidOperationException">Thrown when the provided configuration type is not supported or recognized</exception>
-    public static ITransactor CreateTransactor(ITransactorConfig type, ILogger logger, TimeSpan timeOut)
+    public static ITransactor CreateTransactor(
+        ITransactorConfig type,
+        ILogger logger,
+        TimeSpan timeOut
+    )
     {
         return type switch
         {
             HttpTransactorConfig config => new HttpProtocol(config, logger, timeOut),
             GrpcTransactorConfig config => new GrpcProtocol(config, logger, timeOut),
-            _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
+            _ => throw new InvalidOperationException(
+                $"Protocol type {type.GetType().Name} is not supported"
+            ),
         };
     }
 }

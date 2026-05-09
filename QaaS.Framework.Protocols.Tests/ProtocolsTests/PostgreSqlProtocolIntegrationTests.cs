@@ -9,11 +9,21 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 [TestFixture]
 public class PostgreSqlProtocolIntegrationTests
 {
-    private const string PostgisConnectionStringEnvironmentVariableName = "QAAS_POSTGIS_CONNECTION_STRING";
+    private const string PostgisConnectionStringEnvironmentVariableName =
+        "QAAS_POSTGIS_CONNECTION_STRING";
 
     private sealed record GeometryRoundTripExpectation(int Id, string Name, string Shape);
-    private sealed record RepublishedGeometryRow(int Id, string SourceName, string ReplayName,
-        string SourceGeometryText, string ReplayGeometryText, bool GeometryEquals, int ReplaySrid, string ReplayWkt);
+
+    private sealed record RepublishedGeometryRow(
+        int Id,
+        string SourceName,
+        string ReplayName,
+        string SourceGeometryText,
+        string ReplayGeometryText,
+        bool GeometryEquals,
+        int ReplaySrid,
+        string ReplayWkt
+    );
 
     [Test]
     public void PostgreSqlProtocol_SendChunk_And_ReadChunk_RoundTripsPostGisGeometryColumns()
@@ -32,25 +42,34 @@ public class PostgreSqlProtocolIntegrationTests
             RecreateGeometryTable(setupConnection, sourceTableName);
             RecreateGeometryTable(setupConnection, replayTableName);
 
-            sender = new PostgreSqlProtocol(new PostgreSqlSenderConfig
-            {
-                ConnectionString = connectionString,
-                TableName = sourceTableName
-            }, Globals.Logger);
-            reader = new PostgreSqlProtocol(new PostgreSqlReaderConfig
-            {
-                ConnectionString = connectionString,
-                TableName = sourceTableName,
-                InsertionTimeField = "created_at",
-                IsInsertionTimeFieldTimeZoneTz = true,
-                ReadFromRunStartTime = true,
-                FilterSecondsBeforeRunStartTime = 1
-            }, Globals.Logger);
-            replaySender = new PostgreSqlProtocol(new PostgreSqlSenderConfig
-            {
-                ConnectionString = connectionString,
-                TableName = replayTableName
-            }, Globals.Logger);
+            sender = new PostgreSqlProtocol(
+                new PostgreSqlSenderConfig
+                {
+                    ConnectionString = connectionString,
+                    TableName = sourceTableName,
+                },
+                Globals.Logger
+            );
+            reader = new PostgreSqlProtocol(
+                new PostgreSqlReaderConfig
+                {
+                    ConnectionString = connectionString,
+                    TableName = sourceTableName,
+                    InsertionTimeField = "created_at",
+                    IsInsertionTimeFieldTimeZoneTz = true,
+                    ReadFromRunStartTime = true,
+                    FilterSecondsBeforeRunStartTime = 1,
+                },
+                Globals.Logger
+            );
+            replaySender = new PostgreSqlProtocol(
+                new PostgreSqlSenderConfig
+                {
+                    ConnectionString = connectionString,
+                    TableName = replayTableName,
+                },
+                Globals.Logger
+            );
 
             reader.Connect();
             sender.Connect();
@@ -58,21 +77,31 @@ public class PostgreSqlProtocolIntegrationTests
 
             var expectedRows = new[]
             {
-                new GeometryRoundTripExpectation(7, "geometry-row-a",
-                    "SRID=4326;POLYGON((35 31,35 32,36 32,36 31,35 31))"),
-                new GeometryRoundTripExpectation(8, "geometry-row-b",
-                    "SRID=4326;POLYGON((34.5 30.5,34.5 31.5,35.5 31.5,35.5 30.5,34.5 30.5))")
+                new GeometryRoundTripExpectation(
+                    7,
+                    "geometry-row-a",
+                    "SRID=4326;POLYGON((35 31,35 32,36 32,36 31,35 31))"
+                ),
+                new GeometryRoundTripExpectation(
+                    8,
+                    "geometry-row-b",
+                    "SRID=4326;POLYGON((34.5 30.5,34.5 31.5,35.5 31.5,35.5 30.5,34.5 30.5))"
+                ),
             };
 
-            var sentRows = sender.SendChunk(expectedRows.Select(expectedRow => new Data<object>
-            {
-                Body = new
-                {
-                    id = expectedRow.Id,
-                    name = expectedRow.Name,
-                    shape = expectedRow.Shape
-                }
-            })).ToList();
+            var sentRows = sender
+                .SendChunk(
+                    expectedRows.Select(expectedRow => new Data<object>
+                    {
+                        Body = new
+                        {
+                            id = expectedRow.Id,
+                            name = expectedRow.Name,
+                            shape = expectedRow.Shape,
+                        },
+                    })
+                )
+                .ToList();
 
             var receivedRows = reader.ReadChunk(TimeSpan.Zero).ToList();
 
@@ -86,7 +115,13 @@ public class PostgreSqlProtocolIntegrationTests
             var replayedRows = replaySender.SendChunk(CreateReplayRows(receivedRows)).ToList();
 
             Assert.That(replayedRows, Has.Count.EqualTo(expectedRows.Length));
-            AssertReceivedGeometryRows(connectionString, sourceTableName, replayTableName, receivedRows, expectedRows);
+            AssertReceivedGeometryRows(
+                connectionString,
+                sourceTableName,
+                replayTableName,
+                receivedRows,
+                expectedRows
+            );
         }
         finally
         {
@@ -103,10 +138,13 @@ public class PostgreSqlProtocolIntegrationTests
 
     private static string GetPostgisConnectionStringOrIgnore()
     {
-        var connectionString = Environment.GetEnvironmentVariable(PostgisConnectionStringEnvironmentVariableName);
+        var connectionString = Environment.GetEnvironmentVariable(
+            PostgisConnectionStringEnvironmentVariableName
+        );
         if (string.IsNullOrWhiteSpace(connectionString))
             Assert.Ignore(
-                $"Set {PostgisConnectionStringEnvironmentVariableName} to run PostgreSQL/PostGIS integration tests.");
+                $"Set {PostgisConnectionStringEnvironmentVariableName} to run PostgreSQL/PostGIS integration tests."
+            );
 
         return connectionString;
     }
@@ -115,16 +153,16 @@ public class PostgreSqlProtocolIntegrationTests
     {
         using var command = connection.CreateCommand();
         command.CommandText = $"""
-                              CREATE EXTENSION IF NOT EXISTS postgis;
-                              DROP TABLE IF EXISTS {tableName};
-                              CREATE TABLE {tableName}
-                              (
-                                  id integer NOT NULL,
-                                  name text NOT NULL,
-                                  shape geometry(Polygon, 4326) NOT NULL,
-                                  created_at timestamptz NOT NULL DEFAULT current_timestamp
-                              );
-                              """;
+            CREATE EXTENSION IF NOT EXISTS postgis;
+            DROP TABLE IF EXISTS {tableName};
+            CREATE TABLE {tableName}
+            (
+                id integer NOT NULL,
+                name text NOT NULL,
+                shape geometry(Polygon, 4326) NOT NULL,
+                created_at timestamptz NOT NULL DEFAULT current_timestamp
+            );
+            """;
         command.ExecuteNonQuery();
     }
 
@@ -135,7 +173,9 @@ public class PostgreSqlProtocolIntegrationTests
         command.ExecuteNonQuery();
     }
 
-    private static IEnumerable<Data<object>> CreateReplayRows(IEnumerable<DetailedData<object>> receivedRows)
+    private static IEnumerable<Data<object>> CreateReplayRows(
+        IEnumerable<DetailedData<object>> receivedRows
+    )
     {
         return receivedRows.Select(receivedRow =>
         {
@@ -147,29 +187,44 @@ public class PostgreSqlProtocolIntegrationTests
                 {
                     id = row["id"]!.GetValue<int>(),
                     name = row["name"]!.GetValue<string>(),
-                    shape = row["shape"]!.GetValue<string>()
-                }
+                    shape = row["shape"]!.GetValue<string>(),
+                },
             };
         });
     }
 
-    private static void AssertReceivedGeometryRows(string connectionString, string sourceTableName, string replayTableName,
-        IEnumerable<DetailedData<object>> receivedRows, IEnumerable<GeometryRoundTripExpectation> expectedRows)
+    private static void AssertReceivedGeometryRows(
+        string connectionString,
+        string sourceTableName,
+        string replayTableName,
+        IEnumerable<DetailedData<object>> receivedRows,
+        IEnumerable<GeometryRoundTripExpectation> expectedRows
+    )
     {
         var receivedRowsById = receivedRows
             .Select(row => (JsonObject)row.Body!)
             .ToDictionary(row => row["id"]!.GetValue<int>());
-        var republishedRowsById = LoadRepublishedGeometryRows(connectionString, sourceTableName, replayTableName)
+        var republishedRowsById = LoadRepublishedGeometryRows(
+                connectionString,
+                sourceTableName,
+                replayTableName
+            )
             .ToDictionary(row => row.Id);
 
         Assert.Multiple(() =>
         {
             foreach (var expectedRow in expectedRows)
             {
-                Assert.That(receivedRowsById.ContainsKey(expectedRow.Id), Is.True,
-                    $"Missing row with id {expectedRow.Id}");
-                Assert.That(republishedRowsById.ContainsKey(expectedRow.Id), Is.True,
-                    $"Missing republished row with id {expectedRow.Id}");
+                Assert.That(
+                    receivedRowsById.ContainsKey(expectedRow.Id),
+                    Is.True,
+                    $"Missing row with id {expectedRow.Id}"
+                );
+                Assert.That(
+                    republishedRowsById.ContainsKey(expectedRow.Id),
+                    Is.True,
+                    $"Missing republished row with id {expectedRow.Id}"
+                );
 
                 var receivedRow = receivedRowsById[expectedRow.Id];
                 var receivedGeometryValue = receivedRow["shape"]?.GetValue<string>();
@@ -184,45 +239,54 @@ public class PostgreSqlProtocolIntegrationTests
                 Assert.That(republishedRow.ReplayGeometryText, Is.EqualTo(receivedGeometryValue));
                 Assert.That(republishedRow.GeometryEquals, Is.True);
                 Assert.That(republishedRow.ReplaySrid, Is.EqualTo(4326));
-                Assert.That(republishedRow.ReplayWkt, Is.EqualTo(StripSridPrefix(expectedRow.Shape)));
+                Assert.That(
+                    republishedRow.ReplayWkt,
+                    Is.EqualTo(StripSridPrefix(expectedRow.Shape))
+                );
             }
         });
     }
 
-    private static IReadOnlyCollection<RepublishedGeometryRow> LoadRepublishedGeometryRows(string connectionString,
-        string sourceTableName, string replayTableName)
+    private static IReadOnlyCollection<RepublishedGeometryRow> LoadRepublishedGeometryRows(
+        string connectionString,
+        string sourceTableName,
+        string replayTableName
+    )
     {
         using var connection = new NpgsqlConnection(connectionString);
         connection.Open();
         using var command = connection.CreateCommand();
         command.CommandText = $"""
-                              SELECT source.id,
-                                     source.name,
-                                     replay.name,
-                                     source.shape::text,
-                                     replay.shape::text,
-                                     ST_Equals(source.shape, replay.shape),
-                                     ST_SRID(replay.shape),
-                                     ST_AsText(replay.shape)
-                              FROM {sourceTableName} source
-                              JOIN {replayTableName} replay USING (id)
-                              ORDER BY source.id;
-                              """;
+            SELECT source.id,
+                   source.name,
+                   replay.name,
+                   source.shape::text,
+                   replay.shape::text,
+                   ST_Equals(source.shape, replay.shape),
+                   ST_SRID(replay.shape),
+                   ST_AsText(replay.shape)
+            FROM {sourceTableName} source
+            JOIN {replayTableName} replay USING (id)
+            ORDER BY source.id;
+            """;
 
         using var dataReader = command.ExecuteReader();
         var rows = new List<RepublishedGeometryRow>();
 
         while (dataReader.Read())
         {
-            rows.Add(new RepublishedGeometryRow(
-                dataReader.GetInt32(0),
-                dataReader.GetString(1),
-                dataReader.GetString(2),
-                dataReader.GetString(3),
-                dataReader.GetString(4),
-                dataReader.GetBoolean(5),
-                dataReader.GetInt32(6),
-                dataReader.GetString(7)));
+            rows.Add(
+                new RepublishedGeometryRow(
+                    dataReader.GetInt32(0),
+                    dataReader.GetString(1),
+                    dataReader.GetString(2),
+                    dataReader.GetString(3),
+                    dataReader.GetString(4),
+                    dataReader.GetBoolean(5),
+                    dataReader.GetInt32(6),
+                    dataReader.GetString(7)
+                )
+            );
         }
 
         return rows;
@@ -231,9 +295,7 @@ public class PostgreSqlProtocolIntegrationTests
     private static string StripSridPrefix(string geometryValue)
     {
         var separatorIndex = geometryValue.IndexOf(';');
-        return separatorIndex >= 0
-            ? geometryValue[(separatorIndex + 1)..]
-            : geometryValue;
+        return separatorIndex >= 0 ? geometryValue[(separatorIndex + 1)..] : geometryValue;
     }
 
     private static void SafeDisconnect(PostgreSqlProtocol? protocol)
@@ -245,8 +307,6 @@ public class PostgreSqlProtocolIntegrationTests
         {
             protocol.Disconnect();
         }
-        catch (ObjectDisposedException)
-        {
-        }
+        catch (ObjectDisposedException) { }
     }
 }

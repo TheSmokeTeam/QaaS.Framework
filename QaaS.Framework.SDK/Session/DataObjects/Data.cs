@@ -7,10 +7,10 @@
 public record Data<T>
 {
     /// <summary>
-    /// The data itself, its contents 
+    /// The data itself, its contents
     /// </summary>
     public T? Body { get; init; }
-    
+
     /// <summary>
     /// Meta data of the data that is relevant to certain QaaS actions for example rabbitmq routing key etc..
     /// </summary>

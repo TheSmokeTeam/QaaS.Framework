@@ -13,7 +13,8 @@ internal static class DictionaryUtils
         new(StringComparer.OrdinalIgnoreCase);
 
     internal static Dictionary<string, TValue> CreateConfigurationDictionary<TValue>(
-        IEnumerable<KeyValuePair<string, TValue>> source)
+        IEnumerable<KeyValuePair<string, TValue>> source
+    )
     {
         var result = CreateConfigurationDictionary<TValue>();
         foreach (var pair in source)
@@ -33,7 +34,10 @@ internal static class DictionaryUtils
     /// <param name="parentKey">The parent key of the key, used to concat the key path</param>
     /// <returns>The flattened dictionary</returns>
     internal static IDictionary<string, string?> GetInMemoryCollectionFromDictionary(
-        this IDictionary<string, object?> dict, Dictionary<string, string?> result, string parentKey = "")
+        this IDictionary<string, object?> dict,
+        Dictionary<string, string?> result,
+        string parentKey = ""
+    )
     {
         foreach (var keyValuePair in dict)
         {
@@ -43,9 +47,11 @@ internal static class DictionaryUtils
             switch (keyValuePair.Value)
             {
                 case IConvertible or null:
-                    result[flattenKey] = keyValuePair.Value?.ToString() ?? null; break;
+                    result[flattenKey] = keyValuePair.Value?.ToString() ?? null;
+                    break;
                 case IConfiguration nestedConfig:
-                    var nestedConfigFlattened = nestedConfig.GetDictionaryFromConfiguration()
+                    var nestedConfigFlattened = nestedConfig
+                        .GetDictionaryFromConfiguration()
                         .GetInMemoryCollectionFromDictionary(result, flattenKey);
                     foreach (var nestedKvp in nestedConfigFlattened)
                         result[nestedKvp.Key] = nestedKvp.Value;
@@ -60,7 +66,8 @@ internal static class DictionaryUtils
                     GetInMemoryCollectionFromList(nestedList, flattenKey, result);
                     break;
                 default:
-                    result.GetInMemoryCollectionFromObject(keyValuePair.Value, flattenKey); break;
+                    result.GetInMemoryCollectionFromObject(keyValuePair.Value, flattenKey);
+                    break;
             }
         }
 
@@ -74,8 +81,11 @@ internal static class DictionaryUtils
     /// <param name="nestedList">The list to flatten</param>
     /// <param name="result">The dictionary to put the flattened list in</param>
     /// <param name="parentKey">The parent key of the key, used to concat the key path</param>
-    internal static void GetInMemoryCollectionFromList(this IList nestedList, string? parentKey,
-        Dictionary<string, string?> result)
+    internal static void GetInMemoryCollectionFromList(
+        this IList nestedList,
+        string? parentKey,
+        Dictionary<string, string?> result
+    )
     {
         for (var listIndex = 0; listIndex < nestedList.Count; listIndex++)
         {
@@ -84,18 +94,23 @@ internal static class DictionaryUtils
             switch (listItemValue)
             {
                 case IConvertible or null:
-                    result[listItemKey] = listItemValue?.ToString() ?? string.Empty; break;
+                    result[listItemKey] = listItemValue?.ToString() ?? string.Empty;
+                    break;
                 case IConfiguration nestedConfig:
-                    nestedConfig.GetDictionaryFromConfiguration()
-                        .GetInMemoryCollectionFromDictionary(result, listItemKey); break;
+                    nestedConfig
+                        .GetDictionaryFromConfiguration()
+                        .GetInMemoryCollectionFromDictionary(result, listItemKey);
+                    break;
                 case IDictionary nestedDict:
                     ToStringObjectDictionary(nestedDict)
-                        .GetInMemoryCollectionFromDictionary(result, listItemKey); break;
+                        .GetInMemoryCollectionFromDictionary(result, listItemKey);
+                    break;
                 case IList listItemList:
                     GetInMemoryCollectionFromList(listItemList, listItemKey, result);
                     break;
                 default:
-                    result.GetInMemoryCollectionFromObject(listItemValue, listItemKey); break;
+                    result.GetInMemoryCollectionFromObject(listItemValue, listItemKey);
+                    break;
             }
         }
     }
@@ -104,12 +119,15 @@ internal static class DictionaryUtils
     /// Binds a dictionary of object to an IConfiguration instance
     /// </summary>
     internal static IConfiguration BindToDictionaryIConfiguration(
-        this IDictionary<string, object?> sourceDictionary)
+        this IDictionary<string, object?> sourceDictionary
+    )
     {
         var configurationKeyValuePairs = sourceDictionary.GetInMemoryCollectionFromDictionary(
-            CreateConfigurationDictionary<string?>());
+            CreateConfigurationDictionary<string?>()
+        );
         var instance = new ConfigurationBuilder()
-            .AddInMemoryCollection(configurationKeyValuePairs).Build();
+            .AddInMemoryCollection(configurationKeyValuePairs)
+            .Build();
         return instance;
     }
 
@@ -117,8 +135,7 @@ internal static class DictionaryUtils
     /// Returns true if the type is a dictionary
     /// </summary>
     internal static bool IsTypeDictionary(this Type type) =>
-        type == typeof(IDictionary) ||
-        typeof(IDictionary).IsAssignableFrom(type);
+        type == typeof(IDictionary) || typeof(IDictionary).IsAssignableFrom(type);
 
     /// <summary>
     /// Returns true if the type is a key value pair
@@ -127,9 +144,11 @@ internal static class DictionaryUtils
         type.IsGenericType && type.GetGenericTypeDefinition() == typeof(KeyValuePair<,>);
 
     /// <summary>
-    /// Convert dictionary to list according to the keys numeric values, and if not numeric by the dictionary order 
+    /// Convert dictionary to list according to the keys numeric values, and if not numeric by the dictionary order
     /// </summary>
-    internal static IList ConvertDictionaryToListAccordingToKeys(this IDictionary<string, object> dictionary)
+    internal static IList ConvertDictionaryToListAccordingToKeys(
+        this IDictionary<string, object> dictionary
+    )
     {
         try
         {

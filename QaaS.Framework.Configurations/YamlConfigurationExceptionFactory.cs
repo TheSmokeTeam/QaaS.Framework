@@ -20,8 +20,10 @@ internal static class YamlConfigurationExceptionFactory
                     [$"Resolved local path: {yamlPath}"],
                     null,
                     null,
-                    ["Provide a valid YAML file path and retry."]),
-                exception);
+                    ["Provide a valid YAML file path and retry."]
+                ),
+                exception
+            );
         }
 
         if (TryGetSemanticError(exception, out var semanticError))
@@ -32,15 +34,17 @@ internal static class YamlConfigurationExceptionFactory
                     [
                         $"Resolved local path: {yamlPath}",
                         $"Parser location: line {semanticError.Start.Line}, column {semanticError.Start.Column}",
-                        $"Parser detail: {semanticError.Message}"
+                        $"Parser detail: {semanticError.Message}",
                     ],
                     null,
                     null,
                     [
                         "Fix the YAML syntax at the reported file and location, then retry.",
-                        "Parser locations are 1-based line and column numbers."
-                    ]),
-                exception);
+                        "Parser locations are 1-based line and column numbers.",
+                    ]
+                ),
+                exception
+            );
         }
 
         return new InvalidConfigurationsException(
@@ -48,15 +52,20 @@ internal static class YamlConfigurationExceptionFactory
                 "YAML configuration file could not be loaded.",
                 [
                     $"Resolved local path: {yamlPath}",
-                    $"Load failure detail: {GetMostRelevantMessage(exception)}"
+                    $"Load failure detail: {GetMostRelevantMessage(exception)}",
                 ],
                 null,
                 null,
-                ["Fix the file contents or accessibility issue and retry."]),
-            exception);
+                ["Fix the file contents or accessibility issue and retry."]
+            ),
+            exception
+        );
     }
 
-    private static bool TryGetSemanticError(Exception exception, out SemanticErrorException semanticError)
+    private static bool TryGetSemanticError(
+        Exception exception,
+        out SemanticErrorException semanticError
+    )
     {
         for (var current = exception; current != null; current = current.InnerException)
         {

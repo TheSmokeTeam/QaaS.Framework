@@ -1,14 +1,20 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
-using StackExchange.Redis;
 using QaaS.Framework.Configurations.CustomValidationAttributes;
+using StackExchange.Redis;
 
 namespace QaaS.Framework.Protocols.ConfigurationObjects.Redis;
 
 public record BaseRedisConfig
 {
-    [Required, MinLength(1), UniqueItemsInEnumerable,
-     Description("List of the redis hostnames (each hostname should contain the port too for example: - 'host1:8080'")]
+    [
+        Required,
+        MinLength(1),
+        UniqueItemsInEnumerable,
+        Description(
+            "List of the redis hostnames (each hostname should contain the port too for example: - 'host1:8080'"
+        )
+    ]
     public string[]? HostNames { get; set; }
 
     [Description("User for the redis server"), DefaultValue(null)]
@@ -17,10 +23,16 @@ public record BaseRedisConfig
     [Description("Password for the redis server"), DefaultValue(null)]
     public string? Password { get; set; } = null;
 
-    [Description("If true, connect will not create connection while no servers are available"), DefaultValue(true)]
+    [
+        Description("If true, connect will not create connection while no servers are available"),
+        DefaultValue(true)
+    ]
     public bool AbortOnConnectFail { get; set; } = true;
 
-    [Description("The number of times to repeat connect attempts during initial connect"), DefaultValue(3)]
+    [
+        Description("The number of times to repeat connect attempts during initial connect"),
+        DefaultValue(3)
+    ]
     public int ConnectRetry { get; set; } = 3;
 
     [Description("Identification for the connection within redis"), DefaultValue(null)]
@@ -32,7 +44,10 @@ public record BaseRedisConfig
     [Description("Specifies that SSL encryption should be used"), DefaultValue(false)]
     public bool Ssl { get; set; } = false;
 
-    [Description("Enforces a preticular SSL host identity on the server's certificate"), DefaultValue(null)]
+    [
+        Description("Enforces a preticular SSL host identity on the server's certificate"),
+        DefaultValue(null)
+    ]
     public string? SslHost { get; set; } = null;
 
     [Description("Time (seconds) at which to send a message to help keep alive"), DefaultValue(60)]
@@ -50,7 +65,7 @@ public record BaseRedisConfig
             ClientName = ClientName,
             AsyncTimeout = AsyncTimeout,
             Ssl = Ssl,
-            SslHost = SslHost
+            SslHost = SslHost,
         };
         foreach (var host in HostNames!)
             config.EndPoints.Add(host);

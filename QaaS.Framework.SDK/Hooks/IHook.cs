@@ -13,7 +13,7 @@ public interface IHook
     /// The context relevant to the hook
     /// </summary>
     public Context Context { get; set; }
-    
+
     /// <summary>
     /// Loads and validates the given configuration
     /// </summary>

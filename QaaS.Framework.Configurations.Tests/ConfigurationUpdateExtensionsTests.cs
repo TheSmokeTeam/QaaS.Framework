@@ -10,10 +10,7 @@ public class ConfigurationUpdateExtensionsTests
     {
         FirstConfig? current = null;
 
-        var updated = current.UpdateConfiguration(new FirstConfig
-        {
-            Name = "incoming"
-        });
+        var updated = current.UpdateConfiguration(new FirstConfig { Name = "incoming" });
 
         Assert.That(updated.Name, Is.EqualTo("incoming"));
     }
@@ -29,15 +26,9 @@ public class ConfigurationUpdateExtensionsTests
     [Test]
     public void UpdateConfiguration_WithDifferentRuntimeTypes_ReplacesCurrentConfiguration()
     {
-        ITestConfig current = new FirstConfig
-        {
-            Name = "before"
-        };
+        ITestConfig current = new FirstConfig { Name = "before" };
 
-        var updated = current.UpdateConfiguration<ITestConfig>(new SecondConfig
-        {
-            Count = 3
-        });
+        var updated = current.UpdateConfiguration<ITestConfig>(new SecondConfig { Count = 3 });
 
         Assert.That(updated, Is.TypeOf<SecondConfig>());
         Assert.That(((SecondConfig)updated).Count, Is.EqualTo(3));
@@ -50,21 +41,17 @@ public class ConfigurationUpdateExtensionsTests
         {
             Name = "existing",
             TimeoutSeconds = 30,
-            Nested = new NestedConfig
-            {
-                Marker = "nested-existing"
-            },
-            Tags = ["one"]
+            Nested = new NestedConfig { Marker = "nested-existing" },
+            Tags = ["one"],
         };
 
-        var updated = current.UpdateConfiguration<ITestConfig>(new FirstConfig
-        {
-            TimeoutSeconds = 5,
-            Nested = new NestedConfig
+        var updated = current.UpdateConfiguration<ITestConfig>(
+            new FirstConfig
             {
-                Marker = string.Empty
+                TimeoutSeconds = 5,
+                Nested = new NestedConfig { Marker = string.Empty },
             }
-        });
+        );
 
         var typedUpdated = (FirstConfig)updated;
         Assert.Multiple(() =>
@@ -83,21 +70,13 @@ public class ConfigurationUpdateExtensionsTests
         {
             Name = "existing",
             TimeoutSeconds = 30,
-            Nested = new NestedConfig
-            {
-                Marker = "nested-existing"
-            },
-            Tags = ["one"]
+            Nested = new NestedConfig { Marker = "nested-existing" },
+            Tags = ["one"],
         };
 
-        var updated = current.UpdateConfiguration<ITestConfig>(new
-        {
-            TimeoutSeconds = 12,
-            Nested = new
-            {
-                Marker = "nested-updated"
-            }
-        });
+        var updated = current.UpdateConfiguration<ITestConfig>(
+            new { TimeoutSeconds = 12, Nested = new { Marker = "nested-updated" } }
+        );
 
         var typedUpdated = (FirstConfig)updated;
         Assert.Multiple(() =>
@@ -112,15 +91,9 @@ public class ConfigurationUpdateExtensionsTests
     [Test]
     public void UpdateConfiguration_WithTypeWithoutDefaultConstructor_StillAppliesIncomingValues()
     {
-        var current = new NoDefaultConfig("before")
-        {
-            Count = 1
-        };
+        var current = new NoDefaultConfig("before") { Count = 1 };
 
-        var updated = current.UpdateConfiguration(new NoDefaultConfig("after")
-        {
-            Count = 2
-        });
+        var updated = current.UpdateConfiguration(new NoDefaultConfig("after") { Count = 2 });
 
         Assert.Multiple(() =>
         {
@@ -133,19 +106,10 @@ public class ConfigurationUpdateExtensionsTests
     public void UpdateConfiguration_ForRawConfiguration_BindsOntoExistingTree()
     {
         var current = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Feature:Enabled"] = "true"
-            })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Feature:Enabled"] = "true" })
             .Build();
 
-        var updated = current.UpdateConfiguration(new
-        {
-            Feature = new
-            {
-                Threshold = 5
-            }
-        });
+        var updated = current.UpdateConfiguration(new { Feature = new { Threshold = 5 } });
 
         Assert.Multiple(() =>
         {
@@ -158,27 +122,32 @@ public class ConfigurationUpdateExtensionsTests
     public void UpdateConfiguration_ForRawConfiguration_WithIndexedListPatch_ReplacesExistingListIndexes()
     {
         var current = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["InputNames"] = "scalar-that-should-not-survive",
-                ["InputNames:0"] = "Name1",
-                ["InputNames:1"] = "StaleName"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["InputNames"] = "scalar-that-should-not-survive",
+                    ["InputNames:0"] = "Name1",
+                    ["InputNames:1"] = "StaleName",
+                }
+            )
             .Build();
 
-        var updated = current.UpdateConfiguration(new
-        {
-            InputNames = new[] { "Name2" }
-        });
+        var updated = current.UpdateConfiguration(new { InputNames = new[] { "Name2" } });
 
         Assert.Multiple(() =>
         {
             Assert.That(updated["InputNames:0"], Is.EqualTo("Name2"));
             Assert.That(updated["InputNames:1"], Is.Null);
             Assert.That(updated["InputNames"], Is.Null);
-            Assert.That(updated.AsEnumerable().Count(pair =>
-                pair.Key.StartsWith("InputNames:", StringComparison.OrdinalIgnoreCase) &&
-                pair.Value != null), Is.EqualTo(1));
+            Assert.That(
+                updated
+                    .AsEnumerable()
+                    .Count(pair =>
+                        pair.Key.StartsWith("InputNames:", StringComparison.OrdinalIgnoreCase)
+                        && pair.Value != null
+                    ),
+                Is.EqualTo(1)
+            );
         });
     }
 
@@ -186,29 +155,24 @@ public class ConfigurationUpdateExtensionsTests
     public void UpdateConfiguration_ForRawConfiguration_WithNestedIndexedPatch_ReplacesExistingListWithoutDuplicateKeys()
     {
         var current = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["DataSources"] = "scalar-that-should-not-survive",
-                ["DataSources:0:Name"] = "SourceA",
-                ["DataSources:0:Generator"] = "OldGenerator",
-                ["DataSources:1:Name"] = "StaleSource",
-                ["DataSources:1:Generator"] = "StaleGenerator"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["DataSources"] = "scalar-that-should-not-survive",
+                    ["DataSources:0:Name"] = "SourceA",
+                    ["DataSources:0:Generator"] = "OldGenerator",
+                    ["DataSources:1:Name"] = "StaleSource",
+                    ["DataSources:1:Generator"] = "StaleGenerator",
+                }
+            )
             .Build();
 
-        var updated = current.UpdateConfiguration(new
-        {
-            DataSources = new[]
-            {
-                new
-                {
-                    Name = "SourceA",
-                    Generator = "NewGenerator"
-                }
-            }
-        });
+        var updated = current.UpdateConfiguration(
+            new { DataSources = new[] { new { Name = "SourceA", Generator = "NewGenerator" } } }
+        );
 
-        var nonNullEntries = updated.AsEnumerable()
+        var nonNullEntries = updated
+            .AsEnumerable()
             .Where(pair => pair.Value != null)
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
 
@@ -219,8 +183,12 @@ public class ConfigurationUpdateExtensionsTests
             Assert.That(updated["DataSources:0:Generator"], Is.EqualTo("NewGenerator"));
             Assert.That(updated["DataSources:1:Name"], Is.Null);
             Assert.That(updated["DataSources:1:Generator"], Is.Null);
-            Assert.That(nonNullEntries.Keys.Count(key => key.StartsWith("DataSources:", StringComparison.OrdinalIgnoreCase)),
-                Is.EqualTo(2));
+            Assert.That(
+                nonNullEntries.Keys.Count(key =>
+                    key.StartsWith("DataSources:", StringComparison.OrdinalIgnoreCase)
+                ),
+                Is.EqualTo(2)
+            );
             Assert.That(nonNullEntries.ContainsKey("DataSources:0:Name"), Is.True);
             Assert.That(nonNullEntries.ContainsKey("DataSources:0:Generator"), Is.True);
         });
@@ -229,15 +197,9 @@ public class ConfigurationUpdateExtensionsTests
     [Test]
     public void UpdateConfiguration_WithObjectPatchAndIndexedList_ReplacesExistingListValues()
     {
-        var current = new IndexedConfig
-        {
-            InputNames = ["Name1", "StaleName"]
-        };
+        var current = new IndexedConfig { InputNames = ["Name1", "StaleName"] };
 
-        var updated = current.UpdateConfiguration(new
-        {
-            InputNames = new[] { "Name2" }
-        });
+        var updated = current.UpdateConfiguration(new { InputNames = new[] { "Name2" } });
 
         Assert.That(updated.InputNames, Is.EqualTo(new[] { "Name2" }));
     }
@@ -248,20 +210,12 @@ public class ConfigurationUpdateExtensionsTests
         var current = new NullableConfig
         {
             Name = "existing",
-            Nested = new NullableNestedConfig
-            {
-                Marker = "marker"
-            }
+            Nested = new NullableNestedConfig { Marker = "marker" },
         };
 
-        var updated = current.UpdateConfiguration(new
-        {
-            Name = (string?)null,
-            Nested = new
-            {
-                Marker = (string?)null
-            }
-        });
+        var updated = current.UpdateConfiguration(
+            new { Name = (string?)null, Nested = new { Marker = (string?)null } }
+        );
 
         Assert.Multiple(() =>
         {
@@ -274,25 +228,19 @@ public class ConfigurationUpdateExtensionsTests
     public void UpdateConfiguration_ForRawConfiguration_WithExplicitNull_RemovesExistingLeafAndPreservesNeighbors()
     {
         var current = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Feature:Name"] = "existing",
-                ["Feature:Enabled"] = "true",
-                ["Feature:Nested:Marker"] = "marker"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Feature:Name"] = "existing",
+                    ["Feature:Enabled"] = "true",
+                    ["Feature:Nested:Marker"] = "marker",
+                }
+            )
             .Build();
 
-        var updated = current.UpdateConfiguration(new
-        {
-            Feature = new
-            {
-                Name = (string?)null,
-                Nested = new
-                {
-                    Marker = (string?)null
-                }
-            }
-        });
+        var updated = current.UpdateConfiguration(
+            new { Feature = new { Name = (string?)null, Nested = new { Marker = (string?)null } } }
+        );
 
         Assert.Multiple(() =>
         {
@@ -307,13 +255,7 @@ public class ConfigurationUpdateExtensionsTests
     {
         IConfiguration? current = null;
 
-        var updated = current.UpdateConfiguration(new
-        {
-            Feature = new
-            {
-                Enabled = true
-            }
-        });
+        var updated = current.UpdateConfiguration(new { Feature = new { Enabled = true } });
 
         Assert.That(updated["Feature:Enabled"], Is.EqualTo("True"));
     }
@@ -323,17 +265,14 @@ public class ConfigurationUpdateExtensionsTests
     {
         ITestConfig? current = null;
 
-        var exception = Assert.Throws<InvalidOperationException>(() => current.UpdateConfiguration<ITestConfig>(new
-        {
-            Name = "incoming"
-        }));
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            current.UpdateConfiguration<ITestConfig>(new { Name = "incoming" })
+        );
 
         Assert.That(exception!.Message, Does.Contain(nameof(ITestConfig)));
     }
 
-    private interface ITestConfig
-    {
-    }
+    private interface ITestConfig { }
 
     private sealed class FirstConfig : ITestConfig
     {

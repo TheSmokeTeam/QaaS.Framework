@@ -9,7 +9,7 @@ public record ActionFailure
     /// The failed action name
     /// </summary>
     public string Name { get; init; } = string.Empty;
-    
+
     /// <summary>
     /// The failed action
     /// </summary>
@@ -19,7 +19,7 @@ public record ActionFailure
     /// The failed action type
     /// </summary>
     public string ActionType { get; init; } = string.Empty;
-    
+
     /// <summary>
     /// The failure reason
     /// </summary>

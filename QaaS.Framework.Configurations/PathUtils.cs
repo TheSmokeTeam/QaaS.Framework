@@ -12,7 +12,7 @@ public static class PathUtils
     /// <returns> True if the path is an http url and false otherwise </returns>
     public static bool IsPathHttpUrl(string? path)
     {
-        return path != null && ( path.StartsWith("http://") || path.StartsWith("https://"));
+        return path != null && (path.StartsWith("http://") || path.StartsWith("https://"));
     }
 
     /// <summary>
@@ -33,9 +33,11 @@ public static class PathUtils
                     null,
                     [
                         "Use --with-folders only with a local directory path.",
-                        "Use --with-files for individual YAML files."
-                    ]),
-                nameof(directoryPath));
+                        "Use --with-files for individual YAML files.",
+                    ]
+                ),
+                nameof(directoryPath)
+            );
 
         var resolvedDirectoryPath = Path.IsPathRooted(directoryPath)
             ? directoryPath
@@ -47,18 +49,22 @@ public static class PathUtils
                     "Overwrite folder was not found.",
                     [
                         $"Configured overwrite folder: {directoryPath}",
-                        $"Resolved local path: {resolvedDirectoryPath}"
+                        $"Resolved local path: {resolvedDirectoryPath}",
                     ],
                     null,
                     null,
                     [
-                        "Provide a valid local directory path in --with-folders or remove the value and retry."
-                    ]));
+                        "Provide a valid local directory path in --with-folders or remove the value and retry.",
+                    ]
+                )
+            );
 
-        return Directory.EnumerateFiles(resolvedDirectoryPath, "*", SearchOption.TopDirectoryOnly)
+        return Directory
+            .EnumerateFiles(resolvedDirectoryPath, "*", SearchOption.TopDirectoryOnly)
             .Where(filePath =>
-                filePath.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase) ||
-                filePath.EndsWith(".yml", StringComparison.OrdinalIgnoreCase))
+                filePath.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase)
+                || filePath.EndsWith(".yml", StringComparison.OrdinalIgnoreCase)
+            )
             .OrderBy(filePath => filePath, StringComparer.OrdinalIgnoreCase);
     }
 }

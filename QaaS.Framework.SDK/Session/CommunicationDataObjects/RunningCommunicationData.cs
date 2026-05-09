@@ -23,15 +23,16 @@ public record RunningCommunicationData<TData> : BaseCommunicationData
     /// </summary>
     public CancellationTokenSource DataCancellationTokenSource { get; set; } = new();
 
-
     /// <summary>
     /// Retrieves all the data produced as a result of the communication action, in a lazy form
     /// </summary>
     public virtual IEnumerable<DetailedData<TData>> GetData()
     {
         var consumedItems = 0;
-        foreach (var _ in Data.GetConsumingEnumerable(DataCancellationTokenSource.Token)
-                     .Where(detailedData => detailedData != null))
+        foreach (
+            var _ in Data.GetConsumingEnumerable(DataCancellationTokenSource.Token)
+                .Where(detailedData => detailedData != null)
+        )
         {
             var newAddedItemsCount = Queue.Count - consumedItems;
             var newAddedItems = Queue.Skip(consumedItems).Take(newAddedItemsCount);
@@ -44,5 +45,4 @@ public record RunningCommunicationData<TData> : BaseCommunicationData
         foreach (var item in Queue.Skip(consumedItems).Where(item => item != null))
             yield return item!;
     }
-    
 }

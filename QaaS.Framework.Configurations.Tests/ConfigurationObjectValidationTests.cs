@@ -38,7 +38,12 @@ public class ConfigurationObjectValidationTests
     private static (bool IsValid, List<ValidationResult> Results) Validate(object value)
     {
         var results = new List<ValidationResult>();
-        var isValid = Validator.TryValidateObject(value, new ValidationContext(value), results, true);
+        var isValid = Validator.TryValidateObject(
+            value,
+            new ValidationContext(value),
+            results,
+            true
+        );
         return (isValid, results);
     }
 
@@ -53,31 +58,39 @@ public class ConfigurationObjectValidationTests
         {
             Assert.That(valid.IsValid, Is.True);
             Assert.That(invalid.IsValid, Is.False);
-            Assert.That(invalid.Results.Single().ErrorMessage, Does.Contain("less than or equal to"));
+            Assert.That(
+                invalid.Results.Single().ErrorMessage,
+                Does.Contain("less than or equal to")
+            );
             Assert.That(ignoredWhenNull.IsValid, Is.True);
-            Assert.Throws<ArgumentException>(() => Validate(new MissingComparisonPropertySample { Max = 1 }));
+            Assert.Throws<ArgumentException>(() =>
+                Validate(new MissingComparisonPropertySample { Max = 1 })
+            );
         });
     }
 
     [Test]
     public void RequiredOrNullBasedOnOtherFieldsConfiguration_TreatsEmptyCollectionsAsNotConfigured()
     {
-        var validWhenOtherIsEmpty = Validate(new ConfiguredStateSample
-        {
-            Claims = [],
-            HierarchicalClaims = "sub: 1"
-        });
-        var invalidWhenOtherIsConfigured = Validate(new ConfiguredStateSample
-        {
-            Claims = new Dictionary<string, string> { ["sub"] = "1" },
-            HierarchicalClaims = "sub: 1"
-        });
+        var validWhenOtherIsEmpty = Validate(
+            new ConfiguredStateSample { Claims = [], HierarchicalClaims = "sub: 1" }
+        );
+        var invalidWhenOtherIsConfigured = Validate(
+            new ConfiguredStateSample
+            {
+                Claims = new Dictionary<string, string> { ["sub"] = "1" },
+                HierarchicalClaims = "sub: 1",
+            }
+        );
 
         Assert.Multiple(() =>
         {
             Assert.That(validWhenOtherIsEmpty.IsValid, Is.True);
             Assert.That(invalidWhenOtherIsConfigured.IsValid, Is.False);
-            Assert.That(invalidWhenOtherIsConfigured.Results.Single().ErrorMessage, Does.Contain("must be empty"));
+            Assert.That(
+                invalidWhenOtherIsConfigured.Results.Single().ErrorMessage,
+                Does.Contain("must be empty")
+            );
         });
     }
 
@@ -99,31 +112,37 @@ public class ConfigurationObjectValidationTests
     public void ReferenceConfig_RequiresUniqueValidReferenceFiles()
     {
         var invalidPathCharacter = Path.GetInvalidPathChars().First();
-        var valid = Validate(new ReferenceConfig
-        {
-            ReferenceReplaceKeyword = "__REF__",
-            ReferenceFilesPaths = ["C:\\temp\\ref.yaml"]
-        });
-        var duplicate = Validate(new ReferenceConfig
-        {
-            ReferenceReplaceKeyword = "__REF__",
-            ReferenceFilesPaths = ["C:\\temp\\ref.yaml", "C:\\temp\\ref.yaml"]
-        });
-        var missingPaths = Validate(new ReferenceConfig
-        {
-            ReferenceReplaceKeyword = "__REF__",
-            ReferenceFilesPaths = []
-        });
-        var invalidPath = Validate(new ReferenceConfig
-        {
-            ReferenceReplaceKeyword = "__REF__",
-            ReferenceFilesPaths = [$"C:\\temp\\bad{invalidPathCharacter}.yaml"]
-        });
-        var nullPathEntry = Validate(new ReferenceConfig
-        {
-            ReferenceReplaceKeyword = "__REF__",
-            ReferenceFilesPaths = ["C:\\temp\\ref.yaml", null!]
-        });
+        var valid = Validate(
+            new ReferenceConfig
+            {
+                ReferenceReplaceKeyword = "__REF__",
+                ReferenceFilesPaths = ["C:\\temp\\ref.yaml"],
+            }
+        );
+        var duplicate = Validate(
+            new ReferenceConfig
+            {
+                ReferenceReplaceKeyword = "__REF__",
+                ReferenceFilesPaths = ["C:\\temp\\ref.yaml", "C:\\temp\\ref.yaml"],
+            }
+        );
+        var missingPaths = Validate(
+            new ReferenceConfig { ReferenceReplaceKeyword = "__REF__", ReferenceFilesPaths = [] }
+        );
+        var invalidPath = Validate(
+            new ReferenceConfig
+            {
+                ReferenceReplaceKeyword = "__REF__",
+                ReferenceFilesPaths = [$"C:\\temp\\bad{invalidPathCharacter}.yaml"],
+            }
+        );
+        var nullPathEntry = Validate(
+            new ReferenceConfig
+            {
+                ReferenceReplaceKeyword = "__REF__",
+                ReferenceFilesPaths = ["C:\\temp\\ref.yaml", null!],
+            }
+        );
 
         Assert.Multiple(() =>
         {
@@ -140,7 +159,9 @@ public class ConfigurationObjectValidationTests
     {
         var invalidPathCharacter = Path.GetInvalidPathChars().First();
         var valid = Validate(new FilesInFileSystemConfig { Path = "C:\\temp" });
-        var invalid = Validate(new FilesInFileSystemConfig { Path = $"C:\\temp\\bad{invalidPathCharacter}" });
+        var invalid = Validate(
+            new FilesInFileSystemConfig { Path = $"C:\\temp\\bad{invalidPathCharacter}" }
+        );
 
         Assert.Multiple(() =>
         {

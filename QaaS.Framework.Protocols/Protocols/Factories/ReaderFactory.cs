@@ -1,5 +1,5 @@
-using QaaS.Framework.Protocols.ConfigurationObjects;
 using Microsoft.Extensions.Logging;
+using QaaS.Framework.Protocols.ConfigurationObjects;
 using QaaS.Framework.Protocols.ConfigurationObjects.Elastic;
 using QaaS.Framework.Protocols.ConfigurationObjects.IbmMq;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
@@ -33,7 +33,8 @@ public static class ReaderFactory
         IReaderConfig type,
         ILogger logger,
         DataFilter? dataFilter,
-        string? timeZoneId = null)
+        string? timeZoneId = null
+    )
     {
         var effectiveDataFilter = dataFilter ?? new DataFilter();
 
@@ -45,16 +46,36 @@ public static class ReaderFactory
             SocketReaderConfig config => (new SocketProtocol(config, logger), null),
             IbmMqReaderConfig config => (new IbmMqProtocol(config), null),
             RedisReaderConfig config => (new RedisReaderProtocol(config, logger), null),
-            
+
             // Chunkable readers
-            PostgreSqlReaderConfig config => (null, new PostgreSqlProtocol(config, logger, timeZoneId: timeZoneId)),
-            OracleReaderConfig config => (null, new OracleSqlProtocol(config, logger, timeZoneId: timeZoneId)),
-            MsSqlReaderConfig config => (null, new MsSqlProtocol(config, logger, timeZoneId: timeZoneId)),
-            TrinoReaderConfig config => (null, new TrinoSqlProtocol(config, logger, timeZoneId: timeZoneId)),
-            ElasticReaderConfig config => (null, new ElasticProtocol(config, effectiveDataFilter, logger)),
-            S3BucketReaderConfig config => (null, new S3Protocol(config, effectiveDataFilter, logger)),
-            
-            _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
+            PostgreSqlReaderConfig config => (
+                null,
+                new PostgreSqlProtocol(config, logger, timeZoneId: timeZoneId)
+            ),
+            OracleReaderConfig config => (
+                null,
+                new OracleSqlProtocol(config, logger, timeZoneId: timeZoneId)
+            ),
+            MsSqlReaderConfig config => (
+                null,
+                new MsSqlProtocol(config, logger, timeZoneId: timeZoneId)
+            ),
+            TrinoReaderConfig config => (
+                null,
+                new TrinoSqlProtocol(config, logger, timeZoneId: timeZoneId)
+            ),
+            ElasticReaderConfig config => (
+                null,
+                new ElasticProtocol(config, effectiveDataFilter, logger)
+            ),
+            S3BucketReaderConfig config => (
+                null,
+                new S3Protocol(config, effectiveDataFilter, logger)
+            ),
+
+            _ => throw new InvalidOperationException(
+                $"Protocol type {type.GetType().Name} is not supported"
+            ),
         };
     }
 }

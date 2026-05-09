@@ -21,8 +21,10 @@ public class NoMoreThanXPropertiesNotNullAttribute : ValidationAttribute
     /// </param>
     /// <param name="maximumNumberOfPropertiesNotNull"> The maximum number of properties
     /// that are not null in the given object</param>
-    public NoMoreThanXPropertiesNotNullAttribute(string[] propertyNamesToCheckArray,
-        int maximumNumberOfPropertiesNotNull = 1)
+    public NoMoreThanXPropertiesNotNullAttribute(
+        string[] propertyNamesToCheckArray,
+        int maximumNumberOfPropertiesNotNull = 1
+    )
     {
         _propertyNamesToCheck = propertyNamesToCheckArray;
         _maximumNumberOfPropertiesNotNull = maximumNumberOfPropertiesNotNull;
@@ -46,27 +48,37 @@ public class NoMoreThanXPropertiesNotNullAttribute : ValidationAttribute
         }
 
         var valueType = value.GetType();
-        var allObjectProperties = valueType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+        var allObjectProperties = valueType.GetProperties(
+            BindingFlags.Public
+                | BindingFlags.NonPublic
+                | BindingFlags.Instance
+                | BindingFlags.Static
+        );
 
         // If there are no specific properties to check, check them all
         if (_propertyNamesToCheck == null)
         {
-            return allObjectProperties.Count(property => property.GetValue(value) != null)
-                   <= _maximumNumberOfPropertiesNotNull
+            return
+                allObjectProperties.Count(property => property.GetValue(value) != null)
+                <= _maximumNumberOfPropertiesNotNull
                 ? ValidationResult.Success
                 : new ValidationResult(
-                    $"More than {_maximumNumberOfPropertiesNotNull} properties in {valueType.Name} are not null");
+                    $"More than {_maximumNumberOfPropertiesNotNull} properties in {valueType.Name} are not null"
+                );
         }
 
-        var specificPropertiesToCheck = allObjectProperties.Where(
-            property => _propertyNamesToCheck.Contains(property.Name)).ToArray();
+        var specificPropertiesToCheck = allObjectProperties
+            .Where(property => _propertyNamesToCheck.Contains(property.Name))
+            .ToArray();
 
-        return specificPropertiesToCheck.Count(property => property.GetValue(value) != null)
-               <= _maximumNumberOfPropertiesNotNull
+        return
+            specificPropertiesToCheck.Count(property => property.GetValue(value) != null)
+            <= _maximumNumberOfPropertiesNotNull
             ? ValidationResult.Success
             : new ValidationResult(
-                "Out of the following properties: " +
-                $"[{string.Join(", ", specificPropertiesToCheck.Select(property => property.Name))}] " +
-                $"in {valueType.Name} More than {_maximumNumberOfPropertiesNotNull} are not null");
+                "Out of the following properties: "
+                    + $"[{string.Join(", ", specificPropertiesToCheck.Select(property => property.Name))}] "
+                    + $"in {valueType.Name} More than {_maximumNumberOfPropertiesNotNull} are not null"
+            );
     }
 }

@@ -17,26 +17,68 @@ public class SerializationBehaviorTests
     [Test]
     public void SerializerFactory_ReturnsExpectedSerializerForEachType()
     {
-        Assert.That(SerializerFactory.BuildSerializer(SerializationType.Binary), Is.TypeOf<Serializers.Binary>());
-        Assert.That(SerializerFactory.BuildSerializer(SerializationType.Json), Is.TypeOf<Serializers.Json>());
-        Assert.That(SerializerFactory.BuildSerializer(SerializationType.MessagePack), Is.TypeOf<Serializers.MessagePack>());
-        Assert.That(SerializerFactory.BuildSerializer(SerializationType.Xml), Is.TypeOf<Serializers.Xml>());
-        Assert.That(SerializerFactory.BuildSerializer(SerializationType.Yaml), Is.TypeOf<Serializers.Yaml>());
-        Assert.That(SerializerFactory.BuildSerializer(SerializationType.ProtobufMessage), Is.TypeOf<Serializers.ProtobufMessage>());
-        Assert.That(SerializerFactory.BuildSerializer(SerializationType.XmlElement), Is.TypeOf<Serializers.XmlElement>());
+        Assert.That(
+            SerializerFactory.BuildSerializer(SerializationType.Binary),
+            Is.TypeOf<Serializers.Binary>()
+        );
+        Assert.That(
+            SerializerFactory.BuildSerializer(SerializationType.Json),
+            Is.TypeOf<Serializers.Json>()
+        );
+        Assert.That(
+            SerializerFactory.BuildSerializer(SerializationType.MessagePack),
+            Is.TypeOf<Serializers.MessagePack>()
+        );
+        Assert.That(
+            SerializerFactory.BuildSerializer(SerializationType.Xml),
+            Is.TypeOf<Serializers.Xml>()
+        );
+        Assert.That(
+            SerializerFactory.BuildSerializer(SerializationType.Yaml),
+            Is.TypeOf<Serializers.Yaml>()
+        );
+        Assert.That(
+            SerializerFactory.BuildSerializer(SerializationType.ProtobufMessage),
+            Is.TypeOf<Serializers.ProtobufMessage>()
+        );
+        Assert.That(
+            SerializerFactory.BuildSerializer(SerializationType.XmlElement),
+            Is.TypeOf<Serializers.XmlElement>()
+        );
         Assert.That(SerializerFactory.BuildSerializer(null), Is.Null);
     }
 
     [Test]
     public void DeserializerFactory_ReturnsExpectedDeserializerForEachType()
     {
-        Assert.That(DeserializerFactory.BuildDeserializer(SerializationType.Binary), Is.TypeOf<Deserializers.Binary>());
-        Assert.That(DeserializerFactory.BuildDeserializer(SerializationType.Json), Is.TypeOf<Deserializers.Json>());
-        Assert.That(DeserializerFactory.BuildDeserializer(SerializationType.MessagePack), Is.TypeOf<Deserializers.MessagePack>());
-        Assert.That(DeserializerFactory.BuildDeserializer(SerializationType.Xml), Is.TypeOf<Deserializers.Xml>());
-        Assert.That(DeserializerFactory.BuildDeserializer(SerializationType.Yaml), Is.TypeOf<Deserializers.Yaml>());
-        Assert.That(DeserializerFactory.BuildDeserializer(SerializationType.ProtobufMessage), Is.TypeOf<Deserializers.ProtobufMessage>());
-        Assert.That(DeserializerFactory.BuildDeserializer(SerializationType.XmlElement), Is.TypeOf<Deserializers.XmlElement>());
+        Assert.That(
+            DeserializerFactory.BuildDeserializer(SerializationType.Binary),
+            Is.TypeOf<Deserializers.Binary>()
+        );
+        Assert.That(
+            DeserializerFactory.BuildDeserializer(SerializationType.Json),
+            Is.TypeOf<Deserializers.Json>()
+        );
+        Assert.That(
+            DeserializerFactory.BuildDeserializer(SerializationType.MessagePack),
+            Is.TypeOf<Deserializers.MessagePack>()
+        );
+        Assert.That(
+            DeserializerFactory.BuildDeserializer(SerializationType.Xml),
+            Is.TypeOf<Deserializers.Xml>()
+        );
+        Assert.That(
+            DeserializerFactory.BuildDeserializer(SerializationType.Yaml),
+            Is.TypeOf<Deserializers.Yaml>()
+        );
+        Assert.That(
+            DeserializerFactory.BuildDeserializer(SerializationType.ProtobufMessage),
+            Is.TypeOf<Deserializers.ProtobufMessage>()
+        );
+        Assert.That(
+            DeserializerFactory.BuildDeserializer(SerializationType.XmlElement),
+            Is.TypeOf<Deserializers.XmlElement>()
+        );
         Assert.That(DeserializerFactory.BuildDeserializer(null), Is.Null);
     }
 
@@ -70,17 +112,21 @@ public class SerializationBehaviorTests
     }
 
     [Test]
-    public void BinarySerializer_AndDeserializer_RoundTripPayload()
+    public void BinarySerializer_ThrowsNotSupportedException_ForSecurityReasons()
     {
+        // BinaryFormatter is disabled as an RCE sink. Serializing non-null data must throw.
         var serializer = new Serializers.Binary();
+        Assert.Throws<NotSupportedException>(() => serializer.Serialize("gamma"));
+    }
+
+    [Test]
+    public void BinaryDeserializer_ThrowsNotSupportedException_ForSecurityReasons()
+    {
+        // BinaryFormatter is disabled as an RCE sink. Deserializing non-null bytes must throw.
         var deserializer = new Deserializers.Binary();
-        const string payload = "gamma";
-
-        var bytes = serializer.Serialize(payload);
-        var result = deserializer.Deserialize(bytes, typeof(string));
-
-        Assert.That(result, Is.Not.Null);
-        Assert.That(result, Is.EqualTo("gamma"));
+        Assert.Throws<NotSupportedException>(() =>
+            deserializer.Deserialize(new byte[] { 1, 2, 3 })
+        );
     }
 
     [Test]
@@ -165,7 +211,7 @@ public class SerializationBehaviorTests
         var config = new SpecificTypeConfig
         {
             AssemblyName = typeof(TestPayload).Assembly.FullName,
-            TypeFullName = typeof(TestPayload).FullName
+            TypeFullName = typeof(TestPayload).FullName,
         };
 
         var configuredType = config.GetConfiguredType();

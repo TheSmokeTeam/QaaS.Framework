@@ -31,7 +31,12 @@ public class RangeIfAnyAttribute : ValidationAttribute
     /// <param name="fieldValues">An array of values of the property specified by <paramref name="fieldName"/>.</param>
     /// <param name="minValues">An array of minimum allowed values, where each value corresponds to the value at the same index in the <paramref name="fieldValues"/> array.</param>
     /// <param name="maxValues">An array of maximum allowed values, where each value corresponds to the value at the same index in the <paramref name="fieldValues"/> array.</param>
-    public RangeIfAnyAttribute(string fieldName, object[] fieldValues, int[] minValues, int[] maxValues)
+    public RangeIfAnyAttribute(
+        string fieldName,
+        object[] fieldValues,
+        int[] minValues,
+        int[] maxValues
+    )
     {
         this._fieldName = fieldName;
         this._fieldValues = fieldValues;
@@ -39,34 +44,55 @@ public class RangeIfAnyAttribute : ValidationAttribute
         this._maxValues = maxValues;
 
         if (fieldValues.Length != minValues.Length || fieldValues.Length != maxValues.Length)
-            throw new ArgumentException("Field values, min values and max values are not the same length.",
-                nameof(fieldValues));
+            throw new ArgumentException(
+                "Field values, min values and max values are not the same length.",
+                nameof(fieldValues)
+            );
     }
-    
+
     /// <inheritdoc />
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
-        if (value is null) return new ValidationResult("Value to check range of cannot be null.");
-    
-        var determiningProperty = validationContext.ObjectType.GetProperty(_fieldName,BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+        if (value is null)
+            return new ValidationResult("Value to check range of cannot be null.");
+
+        var determiningProperty = validationContext.ObjectType.GetProperty(
+            _fieldName,
+            BindingFlags.Public
+                | BindingFlags.NonPublic
+                | BindingFlags.Instance
+                | BindingFlags.Static
+        );
         if (determiningProperty == null)
             return new ValidationResult($"Missing field {_fieldName}.");
 
-        var determiningPropertyValue = determiningProperty.GetValue(validationContext.ObjectInstance, null);
+        var determiningPropertyValue = determiningProperty.GetValue(
+            validationContext.ObjectInstance,
+            null
+        );
         if (determiningPropertyValue == null)
             return new ValidationResult($"Field {_fieldName} cannot be null.");
 
-        foreach (var (conditionValue, minimumAllowedValue, maximumAllowedValue) in _fieldValues.Zip(_minValues, (fieldValue, minValue) => (fieldValue, minValue))
-                     .Zip(_maxValues, (range, maxValue) => (range.fieldValue, range.minValue, maxValue)))
+        foreach (
+            var (conditionValue, minimumAllowedValue, maximumAllowedValue) in _fieldValues
+                .Zip(_minValues, (fieldValue, minValue) => (fieldValue, minValue))
+                .Zip(_maxValues, (range, maxValue) => (range.fieldValue, range.minValue, maxValue))
+        )
         {
             if (Equals(determiningPropertyValue, conditionValue))
             {
                 if (value is not IComparable valueToValidate)
-                    return new ValidationResult($"{validationContext.DisplayName} must be a comparable type.");
-
-                if (valueToValidate.CompareTo(minimumAllowedValue) < 0 || valueToValidate.CompareTo(maximumAllowedValue) > 0)
                     return new ValidationResult(
-                        $"{validationContext.DisplayName} must be between {minimumAllowedValue} and {maximumAllowedValue} but was {valueToValidate}.");
+                        $"{validationContext.DisplayName} must be a comparable type."
+                    );
+
+                if (
+                    valueToValidate.CompareTo(minimumAllowedValue) < 0
+                    || valueToValidate.CompareTo(maximumAllowedValue) > 0
+                )
+                    return new ValidationResult(
+                        $"{validationContext.DisplayName} must be between {minimumAllowedValue} and {maximumAllowedValue} but was {valueToValidate}."
+                    );
 
                 break;
             }

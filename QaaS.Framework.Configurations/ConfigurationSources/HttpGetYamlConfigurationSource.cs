@@ -6,7 +6,7 @@ namespace QaaS.Framework.Configurations.ConfigurationSources;
 /// <summary>
 /// Supports a configuration source of a YAML file from an http get request's content
 /// </summary>
-public class HttpGetYamlConfigurationSource: IConfigurationSource
+public class HttpGetYamlConfigurationSource : IConfigurationSource
 {
     private readonly string _yamlUrl;
     private readonly TimeSpan? _timeout;

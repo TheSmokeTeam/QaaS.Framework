@@ -25,8 +25,11 @@ public static class DeserializerFactory
             SerializationType.ProtobufMessage => new ProtobufMessage(),
             SerializationType.XmlElement => new XmlElement(),
             null => null,
-            _ => throw new ArgumentOutOfRangeException(nameof(type), type, 
-                "Deserializer type not supported")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(type),
+                type,
+                "Deserializer type not supported"
+            ),
         };
     }
 }

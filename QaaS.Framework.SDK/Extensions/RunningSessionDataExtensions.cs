@@ -15,9 +15,9 @@ public static class RunningSessionDataExtensions
     /// <returns> The input <see cref="RunningCommunicationData{TData}"/> that has the given name </returns>
     /// <exception cref="ArgumentException"> If less or more than 1 inputs were found with the given name </exception>
     public static RunningCommunicationData<TInput> GetInputByName<TInput, TOutput>(
-        this RunningSessionData<TInput, TOutput>? runningSessionData, string inputName)
-        => (runningSessionData?.Inputs).GetRunningCommunicationDataByName(inputName, "Inputs");
-
+        this RunningSessionData<TInput, TOutput>? runningSessionData,
+        string inputName
+    ) => (runningSessionData?.Inputs).GetRunningCommunicationDataByName(inputName, "Inputs");
 
     /// <summary>
     /// Retrieves an output <see cref="RunningCommunicationData{TData}"/> from <see cref="RunningSessionData{TInput,TOutput}"/> by its name
@@ -29,9 +29,7 @@ public static class RunningSessionDataExtensions
     /// <returns> The output <see cref="RunningCommunicationData{TData}"/> that has the given name </returns>
     /// <exception cref="ArgumentException"> If less or more than 1 outputs were found with the given name </exception>
     public static RunningCommunicationData<TOutput> GetOutputByName<TInput, TOutput>(
-        this RunningSessionData<TInput, TOutput>? runningSessionData, string outputName)
-        => (runningSessionData?.Outputs).GetRunningCommunicationDataByName(outputName, "Outputs");
-
-
-    
+        this RunningSessionData<TInput, TOutput>? runningSessionData,
+        string outputName
+    ) => (runningSessionData?.Outputs).GetRunningCommunicationDataByName(outputName, "Outputs");
 }

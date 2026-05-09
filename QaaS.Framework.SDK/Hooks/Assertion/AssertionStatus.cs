@@ -9,20 +9,24 @@ public enum AssertionStatus
     /// Assertion passed
     /// </summary>
     Passed,
+
     /// <summary>
     /// Assertion failed
     /// </summary>
     Failed,
+
     /// <summary>
     /// Assertion raised some sort of exception
     /// </summary>
     Broken,
+
     /// <summary>
     /// Represents assertion that its result is unknown
     /// </summary>
     Unknown,
+
     /// <summary>
     /// Represents assertion that was skipped
     /// </summary>
-    Skipped
+    Skipped,
 }

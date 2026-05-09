@@ -29,12 +29,15 @@ public interface IAssertion : IHook
     /// Represents the result of the assertion
     /// </summary>
     public AssertionStatus? AssertionStatus { get; set; }
-    
+
     /// <summary>
     /// Perform assertion on the given sessions with the relevant data sources and configuration
     /// </summary>
     /// <param name="sessionDataList"> The data of the relevant sessions for this assertion scope </param>
     /// <param name="dataSourceList"> The relevant data sources for this data source scope </param>
     /// <returns> True if the assertion passed False if it failed </returns>
-    public bool Assert(IImmutableList<SessionData> sessionDataList, IImmutableList<DataSource> dataSourceList);
+    public bool Assert(
+        IImmutableList<SessionData> sessionDataList,
+        IImmutableList<DataSource> dataSourceList
+    );
 }

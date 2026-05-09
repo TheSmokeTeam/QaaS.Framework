@@ -19,12 +19,14 @@ public class SocketProtocol : IReader, ISender, IDisposable
     public SocketProtocol(SocketReaderConfig configuration, ILogger logger)
     {
         _logger = logger;
-        _socket = new Socket(configuration.AddressFamily,
+        _socket = new Socket(
+            configuration.AddressFamily,
             configuration.SocketType,
-            configuration.ProtocolType!.Value)
+            configuration.ProtocolType!.Value
+        )
         {
             ReceiveBufferSize = configuration.BufferSize,
-            ReceiveTimeout = configuration.ReceiveTimeoutMs
+            ReceiveTimeout = configuration.ReceiveTimeoutMs,
         };
         _bufferSize = configuration.BufferSize;
     }
@@ -32,18 +34,24 @@ public class SocketProtocol : IReader, ISender, IDisposable
     public SocketProtocol(SocketSenderConfig configuration, ILogger logger)
     {
         _logger = logger;
-        _socket = new Socket(configuration.AddressFamily, configuration.SocketType, configuration.ProtocolType!.Value)
+        _socket = new Socket(
+            configuration.AddressFamily,
+            configuration.SocketType,
+            configuration.ProtocolType!.Value
+        )
         {
             SendBufferSize = configuration.BufferSize,
             NoDelay = !configuration.NagleAlgorithm,
-            LingerState = new LingerOption(configuration.LingerTimeSeconds.HasValue,
-                configuration.LingerTimeSeconds ?? 0),
-            SendTimeout = configuration.SendTimeoutMs
+            LingerState = new LingerOption(
+                configuration.LingerTimeSeconds.HasValue,
+                configuration.LingerTimeSeconds ?? 0
+            ),
+            SendTimeout = configuration.SendTimeoutMs,
         };
         _socketHost = configuration.Host;
         _socketPort = configuration.Port;
     }
-    
+
     public SerializationType? GetSerializationType() => null;
 
     public DetailedData<object>? Read(TimeSpan timeout)
@@ -53,12 +61,23 @@ public class SocketProtocol : IReader, ISender, IDisposable
         // While the cancellation token is running, continue to read.
         while (!timeoutToken.IsCancellationRequested)
         {
-            // Getting the message buffer from Socket communication.
-            if (_socket is { Available: 0, Connected: true }) continue;
+            // Avoid busy-spinning when no data is available: yield the thread for 1 ms
+            // so the OS can schedule other work while we wait for bytes to arrive.
+            if (_socket is { Available: 0, Connected: true })
+            {
+                Thread.Sleep(1);
+                continue;
+            }
+
             var message = GetMessage();
-            if (message.Length <= 0) continue;
+            if (message.Length <= 0)
+                continue;
             _logger.LogDebug("Received {NumberOfReceivedBytes} bytes from socket", message.Length);
-            return new DetailedData<object> { Body = message.ToArray(), Timestamp = DateTime.UtcNow };
+            return new DetailedData<object>
+            {
+                Body = message.ToArray(),
+                Timestamp = DateTime.UtcNow,
+            };
         }
 
         return null;
@@ -68,17 +87,18 @@ public class SocketProtocol : IReader, ISender, IDisposable
     /// Method to receive message from Socket connection, overridable for
     /// mocking and implementing other Socket connection data fetches.
     /// </summary>
-    /// <returns>Buffer read from Socket connection</returns>
+    /// <returns>Buffer read from Socket connection containing only the received bytes</returns>
     protected virtual Span<byte> GetMessage()
     {
-        var message = new Span<byte>(new byte[_bufferSize!.Value]);
-        _socket!.Receive(message);
-        return message;
+        var buffer = new byte[_bufferSize!.Value];
+        var n = _socket!.Receive(buffer);
+        // Return only the bytes actually received; do not return trailing zeros from the buffer.
+        return buffer.AsSpan(0, n);
     }
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        _socket!.Send(dataToSend.CastObjectData<byte[]>().Body ?? [] ); // Assumes data is byte[]
+        _socket!.Send(dataToSend.CastObjectData<byte[]>().Body ?? []); // Assumes data is byte[]
         return dataToSend.CloneDetailed();
     }
 

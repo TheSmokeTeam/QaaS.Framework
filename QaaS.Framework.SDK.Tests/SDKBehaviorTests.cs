@@ -43,7 +43,8 @@ public class SDKBehaviorTests
         public List<LogLevel> Levels { get; } = [];
         public List<object?> Scopes { get; } = [];
 
-        public IDisposable BeginScope<TState>(TState state) where TState : notnull
+        public IDisposable BeginScope<TState>(TState state)
+            where TState : notnull
         {
             Scopes.Add(state);
             return new Disposable();
@@ -51,23 +52,27 @@ public class SDKBehaviorTests
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter)
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter
+        )
         {
             Levels.Add(logLevel);
         }
 
         private sealed class Disposable : IDisposable
         {
-            public void Dispose()
-            {
-            }
+            public void Dispose() { }
         }
     }
 
     private sealed class TestSink : ILogEventSink
     {
         public List<LogEvent> Events { get; } = [];
+
         public void Emit(LogEvent logEvent) => Events.Add(logEvent);
     }
 
@@ -75,8 +80,10 @@ public class SDKBehaviorTests
     {
         public int Calls { get; private set; }
 
-        public override IEnumerable<Data<object>> Generate(IImmutableList<SessionData> sessionDataList,
-            IImmutableList<DataSource> dataSourceList)
+        public override IEnumerable<Data<object>> Generate(
+            IImmutableList<SessionData> sessionDataList,
+            IImmutableList<DataSource> dataSourceList
+        )
         {
             Calls++;
             return data;
@@ -85,21 +92,26 @@ public class SDKBehaviorTests
 
     private sealed class TestAssertion : BaseAssertion<HookConfig>
     {
-        public override bool Assert(IImmutableList<SessionData> sessionDataList,
-            IImmutableList<DataSource> dataSourceList) => true;
+        public override bool Assert(
+            IImmutableList<SessionData> sessionDataList,
+            IImmutableList<DataSource> dataSourceList
+        ) => true;
     }
 
     private sealed class TestProbe : BaseProbe<HookConfig>
     {
-        public override void Run(IImmutableList<SessionData> sessionDataList, IImmutableList<DataSource> dataSourceList)
-        {
-        }
+        public override void Run(
+            IImmutableList<SessionData> sessionDataList,
+            IImmutableList<DataSource> dataSourceList
+        ) { }
     }
 
     private sealed class TestProcessor : BaseTransactionProcessor<HookConfig>
     {
-        public override Data<object> Process(IImmutableList<DataSource> dataSourceList, Data<object> requestData)
-            => requestData;
+        public override Data<object> Process(
+            IImmutableList<DataSource> dataSourceList,
+            Data<object> requestData
+        ) => requestData;
     }
 
     [Test]
@@ -108,9 +120,21 @@ public class SDKBehaviorTests
         var metadata = new MetaData { IoMatchIndex = 2 };
         var objectData = new Data<object> { Body = "abc", MetaData = metadata };
         var casted = objectData.CastObjectData<string>();
-        var detailed = new DetailedData<object> { Body = "x", MetaData = metadata, Timestamp = DateTime.UtcNow };
+        var detailed = new DetailedData<object>
+        {
+            Body = "x",
+            MetaData = metadata,
+            Timestamp = DateTime.UtcNow,
+        };
         var castedDetailed = detailed.CastObjectDetailedData<string>();
-        var filtered = castedDetailed.FilterData(new DataFilter { Body = false, MetaData = false, Timestamp = false });
+        var filtered = castedDetailed.FilterData(
+            new DataFilter
+            {
+                Body = false,
+                MetaData = false,
+                Timestamp = false,
+            }
+        );
 
         Assert.Multiple(() =>
         {
@@ -146,8 +170,12 @@ public class SDKBehaviorTests
             Name = "input-a",
             Data =
             [
-                new DetailedData<object> { Body = "x", MetaData = new MetaData { IoMatchIndex = 5 } }
-            ]
+                new DetailedData<object>
+                {
+                    Body = "x",
+                    MetaData = new MetaData { IoMatchIndex = 5 },
+                },
+            ],
         };
 
         var found = new[] { communicationData }.GetCommunicationDataByName("input-a", "Inputs");
@@ -160,10 +188,14 @@ public class SDKBehaviorTests
             Assert.That(casted.Data.Single().Body, Is.EqualTo("x"));
             Assert.That(ioMatchData.Body, Is.EqualTo("x"));
             Assert.Throws<ArgumentException>(() =>
-                new[] { communicationData }.GetCommunicationDataByName("missing"));
+                new[] { communicationData }.GetCommunicationDataByName("missing")
+            );
             Assert.Throws<ArgumentException>(() =>
-                new[] { communicationData, communicationData }.GetCommunicationDataByName("input-a"));
-            Assert.Throws<InvalidCastException>(() => communicationData.CastCommunicationData<int>());
+                new[] { communicationData, communicationData }.GetCommunicationDataByName("input-a")
+            );
+            Assert.Throws<InvalidCastException>(() =>
+                communicationData.CastCommunicationData<int>()
+            );
             Assert.Throws<ArgumentException>(() => casted.GetDataByIoMatchIndex(1234));
         });
     }
@@ -174,8 +206,22 @@ public class SDKBehaviorTests
         var session = new GenericSessionData<string, int>
         {
             Name = "session-1",
-            Inputs = [new CommunicationData<string> { Name = "in", Data = [new DetailedData<string> { Body = "v" }] }],
-            Outputs = [new CommunicationData<int> { Name = "out", Data = [new DetailedData<int> { Body = 7 }] }]
+            Inputs =
+            [
+                new CommunicationData<string>
+                {
+                    Name = "in",
+                    Data = [new DetailedData<string> { Body = "v" }],
+                },
+            ],
+            Outputs =
+            [
+                new CommunicationData<int>
+                {
+                    Name = "out",
+                    Data = [new DetailedData<int> { Body = 7 }],
+                },
+            ],
         };
 
         var foundSession = new[] { session }.GetSessionDataByName("session-1");
@@ -200,24 +246,24 @@ public class SDKBehaviorTests
             Assert.That(missingOutput, Is.False);
             Assert.That(missingOut, Is.Null);
             Assert.Throws<ArgumentException>(() =>
-                new[] { session, session }.GetSessionDataByName("session-1"));
+                new[] { session, session }.GetSessionDataByName("session-1")
+            );
         });
     }
 
     [Test]
     public void DataSourceExtensions_GetByNameAndRetrieveAndCast_Work()
     {
-        var generator = new StaticGenerator(
-        [
+        var generator = new StaticGenerator([
             new Data<object> { Body = "a" },
-            new Data<object> { Body = "b" }
+            new Data<object> { Body = "b" },
         ]);
         var dataSource = new DataSource
         {
             Name = "source-a",
             Lazy = true,
             DataSourceList = [],
-            Generator = generator
+            Generator = generator,
         };
 
         var found = new[] { dataSource }.GetDataSourceByName("source-a");
@@ -227,8 +273,12 @@ public class SDKBehaviorTests
         {
             Assert.That(found.Name, Is.EqualTo("source-a"));
             Assert.That(retrieved.Select(item => item.Body), Is.EqualTo(new[] { "a", "b" }));
-            Assert.Throws<ArgumentException>(() => new[] { dataSource }.GetDataSourceByName("missing"));
-            Assert.Throws<ArgumentException>(() => new[] { dataSource, dataSource }.GetDataSourceByName("source-a"));
+            Assert.Throws<ArgumentException>(() =>
+                new[] { dataSource }.GetDataSourceByName("missing")
+            );
+            Assert.Throws<ArgumentException>(() =>
+                new[] { dataSource, dataSource }.GetDataSourceByName("source-a")
+            );
             Assert.Throws<InvalidCastException>(() => dataSource.RetrieveAndCast<int>().ToList());
         });
     }
@@ -243,14 +293,15 @@ public class SDKBehaviorTests
             Lazy = false,
             DataSourceList = [],
             Generator = serializerGenerator,
-            Serializer = new QaaS.Framework.Serialization.Serializers.Json()
+            Serializer = new QaaS.Framework.Serialization.Serializers.Json(),
         };
 
         var first = serializingDataSource.Retrieve().ToList();
         var second = serializingDataSource.Retrieve().ToList();
 
-        var jsonBytes = new QaaS.Framework.Serialization.Serializers.Json()
-            .Serialize(new SamplePayload { Name = "from-json" });
+        var jsonBytes = new QaaS.Framework.Serialization.Serializers.Json().Serialize(
+            new SamplePayload { Name = "from-json" }
+        );
         var deserializingDataSource = new DataSource
         {
             Name = "deserializer",
@@ -258,7 +309,7 @@ public class SDKBehaviorTests
             DataSourceList = [],
             Generator = new StaticGenerator([new Data<object> { Body = jsonBytes }]),
             Deserializer = new QaaS.Framework.Serialization.Deserializers.Json(),
-            DeserializerSpecificType = typeof(SamplePayload)
+            DeserializerSpecificType = typeof(SamplePayload),
         };
 
         var deserialized = deserializingDataSource.Retrieve().Single();
@@ -278,24 +329,28 @@ public class SDKBehaviorTests
     {
         Assert.Multiple(() =>
         {
-            Assert.Throws<InvalidOperationException>(() => _ = new DataSource
-            {
-                Name = "invalid-meta",
-                Lazy = true,
-                DataSourceList = [],
-                Generator = new StaticGenerator([]),
-                Serializer = new QaaS.Framework.Serialization.Serializers.Json(),
-                Deserializer = new QaaS.Framework.Serialization.Deserializers.Json()
-            });
+            Assert.Throws<InvalidOperationException>(() =>
+                _ = new DataSource
+                {
+                    Name = "invalid-meta",
+                    Lazy = true,
+                    DataSourceList = [],
+                    Generator = new StaticGenerator([]),
+                    Serializer = new QaaS.Framework.Serialization.Serializers.Json(),
+                    Deserializer = new QaaS.Framework.Serialization.Deserializers.Json(),
+                }
+            );
 
-            Assert.Throws<InvalidOperationException>(() => _ = new DataSource
-            {
-                Name = "invalid-specific",
-                Lazy = true,
-                DataSourceList = [],
-                Generator = new StaticGenerator([]),
-                DeserializerSpecificType = typeof(SamplePayload)
-            });
+            Assert.Throws<InvalidOperationException>(() =>
+                _ = new DataSource
+                {
+                    Name = "invalid-specific",
+                    Lazy = true,
+                    DataSourceList = [],
+                    Generator = new StaticGenerator([]),
+                    DeserializerSpecificType = typeof(SamplePayload),
+                }
+            );
         });
     }
 
@@ -308,7 +363,7 @@ public class SDKBehaviorTests
             Lazy = true,
             DataSourceList = [],
             Generator = new StaticGenerator([new Data<object> { Body = "not-bytes" }]),
-            Deserializer = new QaaS.Framework.Serialization.Deserializers.Json()
+            Deserializer = new QaaS.Framework.Serialization.Deserializers.Json(),
         };
 
         Assert.Throws<InvalidOperationException>(() => dataSource.Retrieve().ToList());
@@ -335,12 +390,12 @@ public class SDKBehaviorTests
                         {
                             Body = new SamplePayload { Name = "x" },
                             Timestamp = now,
-                            MetaData = new MetaData { IoMatchIndex = 10 }
-                        }
-                    ]
-                }
+                            MetaData = new MetaData { IoMatchIndex = 10 },
+                        },
+                    ],
+                },
             ],
-            Outputs = []
+            Outputs = [],
         };
 
         var serialized = SessionDataSerialization.SerializeSessionData(session);
@@ -352,7 +407,10 @@ public class SDKBehaviorTests
             Assert.That(deserialized.Name, Is.EqualTo("session-a"));
             Assert.That(payload, Is.Not.Null);
             Assert.That(payload!.Name, Is.EqualTo("x"));
-            Assert.That(deserialized.Inputs!.Single().Data.Single().MetaData?.IoMatchIndex, Is.EqualTo(10));
+            Assert.That(
+                deserialized.Inputs!.Single().Data.Single().MetaData?.IoMatchIndex,
+                Is.EqualTo(10)
+            );
         });
     }
 
@@ -364,11 +422,15 @@ public class SDKBehaviorTests
         {
             Name = "raw",
             SerializationType = null,
-            Data = [new DetailedData<object> { Body = rawBytes }]
+            Data = [new DetailedData<object> { Body = rawBytes }],
         };
 
-        var serializedCommunication = SessionDataSerialization.SerializeCommunicationData(communicationData);
-        var deserializedCommunication = SessionDataSerialization.DeserializeCommunicationData(serializedCommunication);
+        var serializedCommunication = SessionDataSerialization.SerializeCommunicationData(
+            communicationData
+        );
+        var deserializedCommunication = SessionDataSerialization.DeserializeCommunicationData(
+            serializedCommunication
+        );
 
         Assert.That(deserializedCommunication.Data.Single().Body, Is.EqualTo(rawBytes));
     }
@@ -383,11 +445,13 @@ public class SDKBehaviorTests
             Assert.That(defaults.Body, Is.True);
             Assert.That(defaults.Timestamp, Is.True);
             Assert.That(defaults.MetaData, Is.True);
-            Assert.Throws<InvalidOperationException>(() => _ = new MetaData
-            {
-                Serializer = new QaaS.Framework.Serialization.Serializers.Json(),
-                Deserializer = new QaaS.Framework.Serialization.Deserializers.Json()
-            });
+            Assert.Throws<InvalidOperationException>(() =>
+                _ = new MetaData
+                {
+                    Serializer = new QaaS.Framework.Serialization.Serializers.Json(),
+                    Deserializer = new QaaS.Framework.Serialization.Deserializers.Json(),
+                }
+            );
         });
     }
 
@@ -413,16 +477,20 @@ public class SDKBehaviorTests
         var runningSession = new RunningSessionData<string, int>
         {
             Inputs = [runningIn],
-            Outputs = [runningOut]
+            Outputs = [runningOut],
         };
 
         Assert.Multiple(() =>
         {
-            Assert.That(new[] { runningIn }.GetRunningCommunicationDataByName("in"), Is.SameAs(runningIn));
+            Assert.That(
+                new[] { runningIn }.GetRunningCommunicationDataByName("in"),
+                Is.SameAs(runningIn)
+            );
             Assert.That(runningSession.GetInputByName<string, int>("in"), Is.SameAs(runningIn));
             Assert.That(runningSession.GetOutputByName<string, int>("out"), Is.SameAs(runningOut));
             Assert.Throws<ArgumentException>(() =>
-                new[] { runningIn, runningIn }.GetRunningCommunicationDataByName("in"));
+                new[] { runningIn, runningIn }.GetRunningCommunicationDataByName("in")
+            );
         });
     }
 
@@ -430,10 +498,9 @@ public class SDKBehaviorTests
     public void RunningSessions_GetSessionByName_AndGetAllSessions_Work()
     {
         var session = new RunningSessionData<object, object>();
-        var runningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>
-        {
-            ["s1"] = session
-        });
+        var runningSessions = new RunningSessions(
+            new Dictionary<string, RunningSessionData<object, object>> { ["s1"] = session }
+        );
 
         Assert.Multiple(() =>
         {
@@ -450,7 +517,9 @@ public class SDKBehaviorTests
         {
             Logger = NullLogger.Instance,
             RootConfiguration = new ConfigurationBuilder().Build(),
-            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
         };
 
         context.InsertValueIntoGlobalDictionary(["root", "child", "leaf"], 17);
@@ -461,7 +530,9 @@ public class SDKBehaviorTests
             Assert.That(fetched, Is.EqualTo(17));
             Assert.Throws<ArgumentException>(() => context.InsertValueIntoGlobalDictionary([], 1));
             Assert.Throws<ArgumentException>(() => context.GetValueFromGlobalDictionary([]));
-            Assert.Throws<KeyNotFoundException>(() => context.GetValueFromGlobalDictionary(["missing"]));
+            Assert.Throws<KeyNotFoundException>(() =>
+                context.GetValueFromGlobalDictionary(["missing"])
+            );
         });
     }
 
@@ -472,16 +543,25 @@ public class SDKBehaviorTests
         {
             Logger = NullLogger.Instance,
             RootConfiguration = new ConfigurationBuilder().Build(),
-            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
         };
 
-        Parallel.For(0, 64, index =>
-        {
-            context.InsertValueIntoGlobalDictionary(["root", $"node-{index}", "leaf"], index);
-        });
+        Parallel.For(
+            0,
+            64,
+            index =>
+            {
+                context.InsertValueIntoGlobalDictionary(["root", $"node-{index}", "leaf"], index);
+            }
+        );
 
-        var values = Enumerable.Range(0, 64)
-            .Select(index => context.GetValueFromGlobalDictionary(["root", $"node-{index}", "leaf"]))
+        var values = Enumerable
+            .Range(0, 64)
+            .Select(index =>
+                context.GetValueFromGlobalDictionary(["root", $"node-{index}", "leaf"])
+            )
             .Cast<int>()
             .OrderBy(value => value)
             .ToArray();
@@ -494,19 +574,30 @@ public class SDKBehaviorTests
     {
         var baseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
         var overwriteYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
-        var overwriteFolder = Path.Combine(Path.GetTempPath(), $"overwrite-folder-{Guid.NewGuid():N}");
+        var overwriteFolder = Path.Combine(
+            Path.GetTempPath(),
+            $"overwrite-folder-{Guid.NewGuid():N}"
+        );
         var caseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
         File.WriteAllText(baseYaml, "root:\n  value: base\n");
         File.WriteAllText(overwriteYaml, "root:\n  value: overwrite\n");
         Directory.CreateDirectory(overwriteFolder);
-        File.WriteAllText(Path.Combine(overwriteFolder, "01-overwrite.yaml"), "root:\n  value: folder-a\n");
-        File.WriteAllText(Path.Combine(overwriteFolder, "02-overwrite.yml"), "root:\n  value: folder-b\n");
+        File.WriteAllText(
+            Path.Combine(overwriteFolder, "01-overwrite.yaml"),
+            "root:\n  value: folder-a\n"
+        );
+        File.WriteAllText(
+            Path.Combine(overwriteFolder, "02-overwrite.yml"),
+            "root:\n  value: folder-b\n"
+        );
         File.WriteAllText(Path.Combine(overwriteFolder, "ignore.txt"), "root:\n  value: ignored\n");
         File.WriteAllText(caseYaml, "root:\n  value: case\n");
 
         try
         {
-            var runningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>());
+            var runningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            );
             var context = new ContextBuilder(baseYaml)
                 .SetLogger(NullLogger.Instance)
                 .WithOverwriteFile(overwriteYaml)
@@ -542,14 +633,17 @@ public class SDKBehaviorTests
     {
         var baseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
 
-        File.WriteAllText(baseYaml, """
+        File.WriteAllText(
+            baseYaml,
+            """
 variables:
   rabbitmq:
     host: localhost
     port: 5672
 root:
   value: test
-""");
+"""
+        );
 
         try
         {
@@ -562,10 +656,22 @@ root:
 
             Assert.Multiple(() =>
             {
-                Assert.That(context.RootConfiguration["variables:rabbitmq:host"], Is.EqualTo("localhost"));
-                Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "host"]), Is.EqualTo("localhost"));
-                Assert.That(context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "port"]), Is.EqualTo("5672"));
-                Assert.That(context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "host"]), Is.EqualTo("127.0.0.1"));
+                Assert.That(
+                    context.RootConfiguration["variables:rabbitmq:host"],
+                    Is.EqualTo("localhost")
+                );
+                Assert.That(
+                    context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "host"]),
+                    Is.EqualTo("localhost")
+                );
+                Assert.That(
+                    context.GetValueFromGlobalDictionary(["variables", "rabbitmq", "port"]),
+                    Is.EqualTo("5672")
+                );
+                Assert.That(
+                    context.GetValueFromGlobalDictionary(["runtime", "rabbitmq", "host"]),
+                    Is.EqualTo("127.0.0.1")
+                );
             });
         }
         finally
@@ -581,20 +687,25 @@ root:
         {
             Logger = NullLogger.Instance,
             RootConfiguration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["variables:connections:0:name"] = "primary",
-                    ["variables:connections:0:host"] = "localhost",
-                    ["variables:connections:1:name"] = "secondary",
-                    ["variables:connections:1:host"] = "remote"
-                })
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["variables:connections:0:name"] = "primary",
+                        ["variables:connections:0:host"] = "localhost",
+                        ["variables:connections:1:name"] = "secondary",
+                        ["variables:connections:1:host"] = "remote",
+                    }
+                )
                 .Build(),
-            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
         };
 
         context.LoadConfigurationSectionIntoGlobalDictionary("variables");
 
-        var variables = context.GetValueFromGlobalDictionary(["variables"]) as Dictionary<string, object?>;
+        var variables =
+            context.GetValueFromGlobalDictionary(["variables"]) as Dictionary<string, object?>;
         var connections = variables?["connections"] as List<object?>;
         var firstConnection = connections?[0] as Dictionary<string, object?>;
         var secondConnection = connections?[1] as Dictionary<string, object?>;
@@ -618,20 +729,23 @@ root:
         {
             Logger = NullLogger.Instance,
             RootConfiguration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["RequiredValue"] = "ok"
-                })
+                .AddInMemoryCollection(new Dictionary<string, string?> { ["RequiredValue"] = "ok" })
                 .Build(),
-            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
         };
         var validation = new List<ValidationResult>();
 
-        var bound = Bind.BindFromContext<HookConfig>(context, validation, new BinderOptions
-        {
-            ErrorOnUnknownConfiguration = true,
-            BindNonPublicProperties = false
-        });
+        var bound = Bind.BindFromContext<HookConfig>(
+            context,
+            validation,
+            new BinderOptions
+            {
+                ErrorOnUnknownConfiguration = true,
+                BindNonPublicProperties = false,
+            }
+        );
 
         Assert.Multiple(() =>
         {
@@ -655,20 +769,28 @@ root:
             {
                 Logger = logger,
                 RootConfiguration = new ConfigurationBuilder()
-                    .AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        ["RequiredValue"] = $"${{{environmentVariableName}}}"
-                    })
+                    .AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["RequiredValue"] = $"${{{environmentVariableName}}}",
+                        }
+                    )
                     .EnrichedBuild(addEnvironmentVariables: true),
-                CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+                CurrentRunningSessions = new RunningSessions(
+                    new Dictionary<string, RunningSessionData<object, object>>()
+                ),
             };
             var validation = new List<ValidationResult>();
 
-            var bound = Bind.BindFromContext<HookConfig>(context, validation, new BinderOptions
-            {
-                ErrorOnUnknownConfiguration = true,
-                BindNonPublicProperties = false
-            });
+            var bound = Bind.BindFromContext<HookConfig>(
+                context,
+                validation,
+                new BinderOptions
+                {
+                    ErrorOnUnknownConfiguration = true,
+                    BindNonPublicProperties = false,
+                }
+            );
 
             Assert.Multiple(() =>
             {
@@ -688,17 +810,18 @@ root:
     public void BaseHooks_LoadAndValidateConfiguration_Work()
     {
         var hookConfiguration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["RequiredValue"] = "configured"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["RequiredValue"] = "configured" }
+            )
             .Build();
 
         var context = new Context
         {
             Logger = NullLogger.Instance,
             RootConfiguration = hookConfiguration,
-            CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
         };
 
         var assertion = new TestAssertion { Context = context };
@@ -714,7 +837,10 @@ root:
             Assert.That(processor.LoadAndValidateConfiguration(hookConfiguration), Is.Empty);
             Assert.That(generator.LoadAndValidateConfiguration(hookConfiguration), Is.Empty);
             Assert.That(generator.Generate([], []), Is.Empty);
-            Assert.That(processor.Process([], new Data<object> { Body = "x" }).Body, Is.EqualTo("x"));
+            Assert.That(
+                processor.Process([], new Data<object> { Body = "x" }).Body,
+                Is.EqualTo("x")
+            );
         });
     }
 
@@ -745,8 +871,14 @@ root:
             {
                 Assert.That(sink.Events, Has.Count.EqualTo(1));
                 Assert.That(sink.Events[0].Properties.ContainsKey("Hostname"), Is.True);
-                Assert.That(sink.Events[0].Properties["Environment"].ToString(), Is.EqualTo("\"Local\""));
-                Assert.That(ciSink.Events[0].Properties["Environment"].ToString(), Is.EqualTo("\"CI\""));
+                Assert.That(
+                    sink.Events[0].Properties["Environment"].ToString(),
+                    Is.EqualTo("\"Local\"")
+                );
+                Assert.That(
+                    ciSink.Events[0].Properties["Environment"].ToString(),
+                    Is.EqualTo("\"CI\"")
+                );
             });
         }
         finally
@@ -770,15 +902,20 @@ root:
 
         Assert.Multiple(() =>
         {
-            Assert.That(logger.Levels, Is.EqualTo(new[]
-            {
-                LogLevel.Information,
-                LogLevel.Warning,
-                LogLevel.Error,
-                LogLevel.Critical,
-                LogLevel.Debug,
-                LogLevel.Trace
-            }));
+            Assert.That(
+                logger.Levels,
+                Is.EqualTo(
+                    new[]
+                    {
+                        LogLevel.Information,
+                        LogLevel.Warning,
+                        LogLevel.Error,
+                        LogLevel.Critical,
+                        LogLevel.Debug,
+                        LogLevel.Trace,
+                    }
+                )
+            );
             Assert.That(logger.Scopes.Count, Is.EqualTo(6));
         });
     }

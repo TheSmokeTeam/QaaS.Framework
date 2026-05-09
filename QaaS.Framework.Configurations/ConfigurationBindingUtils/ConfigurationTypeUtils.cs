@@ -15,12 +15,15 @@ internal static class TypeUtils
     /// <returns>Instance from the type</returns>
     internal static object? CreateInstance(this Type type)
     {
-        if (!type.IsInterface) 
+        if (!type.IsInterface)
             return Activator.CreateInstance(type);
-        return type == typeof(IConfiguration) ? new ConfigurationBuilder().
-            AddInMemoryCollection(DictionaryUtils.CreateConfigurationDictionary<string?>()).Build() : null;
+        return type == typeof(IConfiguration)
+            ? new ConfigurationBuilder()
+                .AddInMemoryCollection(DictionaryUtils.CreateConfigurationDictionary<string?>())
+                .Build()
+            : null;
     }
-    
+
     /// <summary>
     /// Convert the simple value to the type
     /// <remarks>Supports primitive types and enums</remarks>
@@ -30,12 +33,18 @@ internal static class TypeUtils
     /// <param name="logger">ILogger for logging></param>
     /// <param name="parentPath">The path to the property</param>
     /// <returns>The converted object</returns>
-    internal static object? ConvertSimpleValueToType(Type type, object value,
-        ILogger? logger = null, string parentPath = "")
+    internal static object? ConvertSimpleValueToType(
+        Type type,
+        object value,
+        ILogger? logger = null,
+        string parentPath = ""
+    )
     {
         object? result;
-        if((type.IsEnum || (Nullable.GetUnderlyingType(type)?.IsEnum ?? false)) 
-           && value is string stringValue)
+        if (
+            (type.IsEnum || (Nullable.GetUnderlyingType(type)?.IsEnum ?? false))
+            && value is string stringValue
+        )
         {
             // If the property type is an enum, we parse the value to the enum type
             // and set the value to the enum
@@ -54,7 +63,7 @@ internal static class TypeUtils
         {
             try
             {
-                // get underlying type if nullable 
+                // get underlying type if nullable
                 var targetType = Nullable.GetUnderlyingType(type) ?? type;
                 result = Convert.ChangeType(value, targetType);
             }
@@ -69,15 +78,25 @@ internal static class TypeUtils
         return result;
     }
 
-    private static void LogOnUnmatchedType(object? value, Type propertyType, ILogger? logger, string parentPath,
-        Exception exception)
+    private static void LogOnUnmatchedType(
+        object? value,
+        Type propertyType,
+        ILogger? logger,
+        string parentPath,
+        Exception exception
+    )
     {
-        logger?.LogWarning("Failed to bind configurations because value" +
-                           " {Value} at path {Path} could not be converted to type {Type}," +
-                           " Exception encountered is {Exception}", 
-            value, GetParentPathPrefix(parentPath), propertyType, exception.Message);
+        logger?.LogWarning(
+            "Failed to bind configurations because value"
+                + " {Value} at path {Path} could not be converted to type {Type},"
+                + " Exception encountered is {Exception}",
+            value,
+            GetParentPathPrefix(parentPath),
+            propertyType,
+            exception.Message
+        );
     }
-    
+
     /// <summary>
     /// Get the parent path prefix for logging purposes
     /// </summary>
@@ -89,5 +108,6 @@ internal static class TypeUtils
     /// <summary>
     /// Get the default value for the type
     /// </summary>
-    internal static object? GetDefaultValue(this Type type) => type.IsValueType ? Activator.CreateInstance(type) : null;
+    internal static object? GetDefaultValue(this Type type) =>
+        type.IsValueType ? Activator.CreateInstance(type) : null;
 }

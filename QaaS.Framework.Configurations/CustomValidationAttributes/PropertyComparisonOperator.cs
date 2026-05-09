@@ -7,5 +7,5 @@ public enum PropertyComparisonOperator
     Equal,
     GreaterThan,
     GreaterThanOrEqual,
-    NotEqual
+    NotEqual,
 }

@@ -7,6 +7,9 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.Elastic;
 /// </summary>
 public record ElasticIndicesRegex : BaseElasticIndices
 {
-    [Description("The match query string for the documents from the relevant indices"), DefaultValue("*")]
+    [
+        Description("The match query string for the documents from the relevant indices"),
+        DefaultValue("*")
+    ]
     public string MatchQueryString { get; set; } = "*";
 }

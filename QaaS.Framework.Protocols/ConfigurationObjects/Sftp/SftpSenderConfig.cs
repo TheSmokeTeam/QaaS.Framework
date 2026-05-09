@@ -7,8 +7,10 @@ public record SftpSenderConfig : BaseSftpConfig, IObjectNamingGeneratorConfig, I
     [Description("The object's naming prefix"), DefaultValue("")]
     public string Prefix { get; set; } = "";
 
-    [Description("The naming type of the object naming generator"),
-     DefaultValue(ObjectNamingGeneratorType.GrowingNumericalSeries)]
-    public ObjectNamingGeneratorType NamingType { get; set; } = ObjectNamingGeneratorType.GrowingNumericalSeries;
-    
+    [
+        Description("The naming type of the object naming generator"),
+        DefaultValue(ObjectNamingGeneratorType.GrowingNumericalSeries)
+    ]
+    public ObjectNamingGeneratorType NamingType { get; set; } =
+        ObjectNamingGeneratorType.GrowingNumericalSeries;
 }

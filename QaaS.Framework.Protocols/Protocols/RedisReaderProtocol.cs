@@ -17,7 +17,9 @@ public class RedisReaderProtocol(RedisReaderConfig configuration, ILogger logger
     public DetailedData<object>? Read(TimeSpan timeout)
     {
         if (_redisDb == null)
-            throw new InvalidOperationException("Redis is not connected. Call Connect() before reading data.");
+            throw new InvalidOperationException(
+                "Redis is not connected. Call Connect() before reading data."
+            );
 
         var startedAt = DateTime.UtcNow;
         while (DateTime.UtcNow - startedAt < timeout)
@@ -25,8 +27,11 @@ public class RedisReaderProtocol(RedisReaderConfig configuration, ILogger logger
             var data = TryRead();
             if (data != null)
             {
-                logger.LogDebug("Consumed redis item from key {RedisKey} using {RedisDataType}",
-                    configuration.Key, configuration.RedisDataType);
+                logger.LogDebug(
+                    "Consumed redis item from key {RedisKey} using {RedisDataType}",
+                    configuration.Key,
+                    configuration.RedisDataType
+                );
                 return data;
             }
 
@@ -63,10 +68,16 @@ public class RedisReaderProtocol(RedisReaderConfig configuration, ILogger logger
             RedisDataType.HashSet => ReadHash(),
             RedisDataType.SortedSetAdd => ReadSortedSet(),
             RedisDataType.GeoAdd => throw new NotSupportedException(
-                "Redis GeoAdd consumption is not supported. Use a list, string, set, hash, or sorted set reader instead."),
-            null => throw new InvalidOperationException("Redis data type is required for redis consumption."),
-            _ => throw new ArgumentOutOfRangeException(nameof(configuration.RedisDataType), configuration.RedisDataType,
-                "Redis data type is not supported for consumption")
+                "Redis GeoAdd consumption is not supported. Use a list, string, set, hash, or sorted set reader instead."
+            ),
+            null => throw new InvalidOperationException(
+                "Redis data type is required for redis consumption."
+            ),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(configuration.RedisDataType),
+                configuration.RedisDataType,
+                "Redis data type is not supported for consumption"
+            ),
         };
     }
 
@@ -84,19 +95,25 @@ public class RedisReaderProtocol(RedisReaderConfig configuration, ILogger logger
     private DetailedData<object>? ReadListLeft()
     {
         var value = _redisDb!.ListLeftPop(configuration.Key, configuration.CommandFlags);
-        return value.IsNull ? null : CreateDetailedData(value, new Redis { Key = configuration.Key });
+        return value.IsNull
+            ? null
+            : CreateDetailedData(value, new Redis { Key = configuration.Key });
     }
 
     private DetailedData<object>? ReadListRight()
     {
         var value = _redisDb!.ListRightPop(configuration.Key, configuration.CommandFlags);
-        return value.IsNull ? null : CreateDetailedData(value, new Redis { Key = configuration.Key });
+        return value.IsNull
+            ? null
+            : CreateDetailedData(value, new Redis { Key = configuration.Key });
     }
 
     private DetailedData<object>? ReadSet()
     {
         var value = _redisDb!.SetPop(configuration.Key, configuration.CommandFlags);
-        return value.IsNull ? null : CreateDetailedData(value, new Redis { Key = configuration.Key });
+        return value.IsNull
+            ? null
+            : CreateDetailedData(value, new Redis { Key = configuration.Key });
     }
 
     private DetailedData<object>? ReadHash()
@@ -104,35 +121,44 @@ public class RedisReaderProtocol(RedisReaderConfig configuration, ILogger logger
         if (string.IsNullOrWhiteSpace(configuration.HashField))
             throw new ArgumentException($"Hash field missing for {RedisDataType.HashSet} action");
 
-        var value = _redisDb!.HashGet(configuration.Key, configuration.HashField, configuration.CommandFlags);
+        var value = _redisDb!.HashGet(
+            configuration.Key,
+            configuration.HashField,
+            configuration.CommandFlags
+        );
         if (value.IsNull)
         {
             return null;
         }
 
         _redisDb.HashDelete(configuration.Key, configuration.HashField, configuration.CommandFlags);
-        return CreateDetailedData(value, new Redis
-        {
-            Key = configuration.Key,
-            HashField = configuration.HashField
-        });
+        return CreateDetailedData(
+            value,
+            new Redis { Key = configuration.Key, HashField = configuration.HashField }
+        );
     }
 
     private DetailedData<object>? ReadSortedSet()
     {
-        var entry = _redisDb!.SortedSetRangeByRankWithScores(configuration.Key, 0, 0, configuration.SortedSetOrder,
-            configuration.CommandFlags).FirstOrDefault();
+        var entry = _redisDb!
+            .SortedSetRangeByRankWithScores(
+                configuration.Key,
+                0,
+                0,
+                configuration.SortedSetOrder,
+                configuration.CommandFlags
+            )
+            .FirstOrDefault();
         if (entry.Element.IsNull)
         {
             return null;
         }
 
         _redisDb.SortedSetRemove(configuration.Key, entry.Element, configuration.CommandFlags);
-        return CreateDetailedData(entry.Element, new Redis
-        {
-            Key = configuration.Key,
-            SetScore = entry.Score
-        });
+        return CreateDetailedData(
+            entry.Element,
+            new Redis { Key = configuration.Key, SetScore = entry.Score }
+        );
     }
 
     private static DetailedData<object>? CreateDetailedData(RedisValue value, Redis redisMetaData)
@@ -147,10 +173,7 @@ public class RedisReaderProtocol(RedisReaderConfig configuration, ILogger logger
         {
             Body = bytes,
             Timestamp = DateTime.UtcNow,
-            MetaData = new MetaData
-            {
-                Redis = redisMetaData
-            }
+            MetaData = new MetaData { Redis = redisMetaData },
         };
     }
 }

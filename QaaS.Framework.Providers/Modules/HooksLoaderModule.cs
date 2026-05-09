@@ -16,23 +16,31 @@ namespace QaaS.Framework.Providers.Modules;
 /// <param name="validationResults"> An existing list of validation results that will be expended with all
 /// validation results of the registered hooks </param>
 /// </summary>
-public class HooksLoaderModule<THook>(List<ValidationResult> validationResults): Module where THook: IHook
+public class HooksLoaderModule<THook>(List<ValidationResult> validationResults) : Module
+    where THook : IHook
 {
     /// <summary>
     /// All validation results of objects created in this module are loaded to this object after its container builder is resolved
     /// </summary>
     public List<ValidationResult> ValidationResults { get; } = validationResults;
 
-
     /// <inheritdoc />
     protected override void Load(ContainerBuilder builder)
     {
-        builder.RegisterType<HookProvider<THook>>().As<IHookProvider<THook>>()
+        builder
+            .RegisterType<HookProvider<THook>>()
+            .As<IHookProvider<THook>>()
             .InstancePerLifetimeScope();
         builder.RegisterType<HooksFromProvidersLoader<THook>>().InstancePerLifetimeScope();
-        builder.Register<IComponentContext, IList<KeyValuePair<string, THook>>>(context =>
-            context.Resolve<HooksFromProvidersLoader<THook>>()
-            .LoadAndValidate(context.Resolve<IEnumerable<HookData<THook>>>(), ValidationResults))
+        builder
+            .Register<IComponentContext, IList<KeyValuePair<string, THook>>>(context =>
+                context
+                    .Resolve<HooksFromProvidersLoader<THook>>()
+                    .LoadAndValidate(
+                        context.Resolve<IEnumerable<HookData<THook>>>(),
+                        ValidationResults
+                    )
+            )
             .InstancePerLifetimeScope();
     }
 }

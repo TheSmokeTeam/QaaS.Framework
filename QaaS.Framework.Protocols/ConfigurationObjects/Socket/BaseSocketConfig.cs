@@ -14,11 +14,13 @@ public record BaseSocketConfig
 
     [Required, Description("Specifies the protocol to use in the socket")]
     public ProtocolType? ProtocolType { get; set; }
-    
+
     [Description("Specifies the type of socket"), DefaultValue(SocketType.Stream)]
     public SocketType SocketType { get; set; } = SocketType.Stream;
-    
-    [Description("Specifies the addressing scheme to use in the socket"), DefaultValue(AddressFamily.InterNetwork)]
-    public AddressFamily AddressFamily { get; set; } = AddressFamily.InterNetwork;
 
+    [
+        Description("Specifies the addressing scheme to use in the socket"),
+        DefaultValue(AddressFamily.InterNetwork)
+    ]
+    public AddressFamily AddressFamily { get; set; } = AddressFamily.InterNetwork;
 }

@@ -12,9 +12,7 @@ public class PolicyBehaviorTests
     {
         protected override uint Index { get; set; }
 
-        protected override void SetupThis()
-        {
-        }
+        protected override void SetupThis() { }
 
         protected override void RunThis()
         {
@@ -26,9 +24,7 @@ public class PolicyBehaviorTests
     {
         protected override uint Index { get; set; } = index;
 
-        protected override void SetupThis()
-        {
-        }
+        protected override void SetupThis() { }
 
         protected override void RunThis()
         {
@@ -47,22 +43,42 @@ public class PolicyBehaviorTests
             SetupCalled = true;
         }
 
-        protected override void RunThis()
-        {
-        }
+        protected override void RunThis() { }
     }
 
     [Test]
     public void CountPolicy_RunChain_StopsAfterConfiguredCount()
     {
+        // max=2 means exactly 2 messages are allowed; the third call stops.
         var policy = new CountPolicy(2);
         policy.SetupChain();
 
         var firstRun = policy.RunChain();
         var secondRun = policy.RunChain();
+        var thirdRun = policy.RunChain();
 
         Assert.That(firstRun, Is.True);
-        Assert.That(secondRun, Is.False);
+        Assert.That(secondRun, Is.True);
+        Assert.That(thirdRun, Is.False);
+    }
+
+    [Test]
+    public void CountPolicy_AllowsExactlyN_MessagesBeforeStopping()
+    {
+        // Pin the semantic: CountPolicy(N) allows exactly N passes, stops on N+1.
+        const int max = 5;
+        var policy = new CountPolicy(max);
+        policy.SetupChain();
+
+        int passCount = 0;
+        while (policy.RunChain())
+            passCount++;
+
+        Assert.That(
+            passCount,
+            Is.EqualTo(max),
+            "CountPolicy(N) must allow exactly N RunChain calls to return true."
+        );
     }
 
     [Test]
@@ -126,7 +142,12 @@ public class PolicyBehaviorTests
     [Test]
     public void LoadBalanceStage_ComputesMessagesPerSecond()
     {
-        var stage = new LoadBalanceStage(rate: 10, intervalMs: 1000, amountToNextStage: 5, timeToNextStage: null);
+        var stage = new LoadBalanceStage(
+            rate: 10,
+            intervalMs: 1000,
+            amountToNextStage: 5,
+            timeToNextStage: null
+        );
 
         Assert.That(stage.MessagesPerSecond, Is.EqualTo(10));
         Assert.That(stage.AmountToNextStage, Is.EqualTo(5));
@@ -168,8 +189,7 @@ public class PolicyBehaviorTests
     public void PolicyBuilder_ConfigurationSettersAndUpdates_ReplaceOrMergePolicyConfiguration()
     {
         var countConfig = new CountPolicyConfig { Count = 3 };
-        var builder = new PolicyBuilder()
-            .WithCount(countConfig);
+        var builder = new PolicyBuilder().WithCount(countConfig);
 
         Assert.That(builder.Count, Is.SameAs(countConfig));
 
@@ -191,33 +211,46 @@ public class PolicyBehaviorTests
         builder.Configure(new LoadBalancePolicyConfig { Rate = 5, TimeIntervalMs = 1000 });
         Assert.That(builder.Build(), Is.TypeOf<LoadBalancePolicy>());
 
-        builder.Configure(new IncreasingLoadBalancePolicyConfig
-        {
-            StartRate = 1,
-            MaxRate = 2,
-            RateIncrease = 1,
-            RateIncreaseIntervalMs = 100,
-            TimeIntervalMs = 1000
-        });
+        builder.Configure(
+            new IncreasingLoadBalancePolicyConfig
+            {
+                StartRate = 1,
+                MaxRate = 2,
+                RateIncrease = 1,
+                RateIncreaseIntervalMs = 100,
+                TimeIntervalMs = 1000,
+            }
+        );
         Assert.That(builder.Build(), Is.TypeOf<IncreasingLoadBalancePolicy>());
 
-        builder.Configure(new AdvancedLoadBalancePolicyConfig
-        {
-            Stages =
-            [
-                new StageConfig { Rate = 1, Amount = 1, TimeIntervalMs = 1000 },
-                new StageConfig { Rate = 2, Amount = 2, TimeIntervalMs = 1000 }
-            ]
-        });
+        builder.Configure(
+            new AdvancedLoadBalancePolicyConfig
+            {
+                Stages =
+                [
+                    new StageConfig
+                    {
+                        Rate = 1,
+                        Amount = 1,
+                        TimeIntervalMs = 1000,
+                    },
+                    new StageConfig
+                    {
+                        Rate = 2,
+                        Amount = 2,
+                        TimeIntervalMs = 1000,
+                    },
+                ],
+            }
+        );
         Assert.That(builder.Build(), Is.TypeOf<AdvancedLoadBalancePolicy>());
     }
 
     [Test]
     public void AdvancedLoadBalancePolicy_WithoutStageExitConditions_ThrowsInvalidOperationException()
     {
-        var policy = new AdvancedLoadBalancePolicy(
-        [
-            new StageConfig { Rate = 1, TimeIntervalMs = 1000 }
+        var policy = new AdvancedLoadBalancePolicy([
+            new StageConfig { Rate = 1, TimeIntervalMs = 1000 },
         ]);
         policy.SetupChain();
 
@@ -227,13 +260,24 @@ public class PolicyBehaviorTests
     [Test]
     public void AdvancedLoadBalancePolicy_AdvancesStages_AndDoesNotOverflowOnFinalStage()
     {
-        var policy = new AdvancedLoadBalancePolicy(
-        [
-            new StageConfig { Rate = 1000, TimeIntervalMs = 1000, Amount = 2 },
-            new StageConfig { Rate = 1000, TimeIntervalMs = 1000, Amount = 1 }
+        var policy = new AdvancedLoadBalancePolicy([
+            new StageConfig
+            {
+                Rate = 1000,
+                TimeIntervalMs = 1000,
+                Amount = 2,
+            },
+            new StageConfig
+            {
+                Rate = 1000,
+                TimeIntervalMs = 1000,
+                Amount = 1,
+            },
         ]);
-        var currentStageField = typeof(AdvancedLoadBalancePolicy)
-            .GetField("_currStage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var currentStageField = typeof(AdvancedLoadBalancePolicy).GetField(
+            "_currStage",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
 
         policy.SetupChain();
 
@@ -255,9 +299,12 @@ public class PolicyBehaviorTests
             intervalMs: 1000,
             maxRate: 1002,
             rateIncreaseMessagesPerSecond: 1,
-            rateIncreaseIntervalMs: 25);
-        var messagesPerSecondField = typeof(LoadBalancePolicy)
-            .GetField("MessagesPerSecond", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            rateIncreaseIntervalMs: 25
+        );
+        var messagesPerSecondField = typeof(LoadBalancePolicy).GetField(
+            "MessagesPerSecond",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
 
         policy.SetupChain();
         policy.RunChain();
@@ -283,9 +330,15 @@ public class PolicyBehaviorTests
     {
         var builder = new PolicyBuilder();
         var type = typeof(PolicyBuilder);
-        type.GetProperty("Count", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+        type.GetProperty(
+                    "Count",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                )!
             .SetValue(builder, new CountPolicyConfig { Count = 1 });
-        type.GetProperty("Timeout", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+        type.GetProperty(
+                    "Timeout",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                )!
             .SetValue(builder, new TimeoutPolicyConfig { TimeoutMs = 1 });
 
         Assert.Throws<InvalidOperationException>(() => builder.Build());
@@ -296,9 +349,8 @@ public class PolicyBehaviorTests
     {
         Assert.That(PolicyBuilder.BuildPolicies(null), Is.Null);
 
-        var policy = PolicyBuilder.BuildPolicies(
-        [
-            new PolicyBuilder().Configure(new CountPolicyConfig { Count = 10 })
+        var policy = PolicyBuilder.BuildPolicies([
+            new PolicyBuilder().Configure(new CountPolicyConfig { Count = 10 }),
         ]);
 
         Assert.That(policy, Is.Not.Null);

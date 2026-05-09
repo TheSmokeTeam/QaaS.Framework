@@ -27,14 +27,19 @@ public class RequiredOrNullBasedOnOtherFieldsConfiguration : ValidationAttribute
     /// <exception cref="ArgumentException">
     /// Thrown when the number of property names does not match the number of expected values.
     /// </exception>
-    public RequiredOrNullBasedOnOtherFieldsConfiguration(string[] propertyNames, params bool[] expectedValues)
+    public RequiredOrNullBasedOnOtherFieldsConfiguration(
+        string[] propertyNames,
+        params bool[] expectedValues
+    )
     {
         _propertyNames = propertyNames ?? throw new ArgumentNullException(nameof(propertyNames));
         _expectedValues = expectedValues ?? throw new ArgumentNullException(nameof(expectedValues));
 
         if (_propertyNames.Length != _expectedValues.Length)
         {
-            throw new ArgumentException("The number of property names must match the number of expected values.");
+            throw new ArgumentException(
+                "The number of property names must match the number of expected values."
+            );
         }
     }
 
@@ -54,37 +59,46 @@ public class RequiredOrNullBasedOnOtherFieldsConfiguration : ValidationAttribute
         var instance = validationContext.ObjectInstance;
         var objectType = instance.GetType();
         var validatingPropertyName = validationContext.MemberName;
-        
+
         for (var i = 0; i < _propertyNames.Length; i++)
         {
             var propertyName = _propertyNames[i];
             var expectedValue = _expectedValues[i];
 
-            var propertyInfo = objectType.GetProperty(propertyName,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+            var propertyInfo = objectType.GetProperty(
+                propertyName,
+                BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.Instance
+                    | BindingFlags.Static
+            );
             if (propertyInfo == null)
-                throw new ArgumentException($"Property '{propertyName}' not found in type '{objectType.Name}'.");
-            
+                throw new ArgumentException(
+                    $"Property '{propertyName}' not found in type '{objectType.Name}'."
+                );
+
             var propertyValue = propertyInfo.GetValue(instance);
-            
+
             var isConfigured = IsConfigured(propertyValue);
             switch (isConfigured)
             {
                 case true when expectedValue && !IsConfigured(value):
                     return new ValidationResult(
                         $"The {validatingPropertyName} field is required when {propertyName} is configured.",
-                        [validatingPropertyName!]);
-                
+                        [validatingPropertyName!]
+                    );
+
                 case true when !expectedValue && IsConfigured(value):
                     return new ValidationResult(
                         $"The {validatingPropertyName} field must be empty when {propertyName} is configured.",
-                        [validatingPropertyName!]);
+                        [validatingPropertyName!]
+                    );
             }
         }
-        
+
         return ValidationResult.Success;
     }
-    
+
     /// <summary>
     /// Determines whether the specified value is considered "configured".
     /// </summary>

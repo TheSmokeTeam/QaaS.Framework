@@ -10,8 +10,10 @@ public static class FileSystemExtensions
     /// </summary>
     public static string? MakeValidDirectoryName(string? name)
     {
-        return name == null 
-            ? name 
-            : new string(name.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch).ToArray());
+        return name == null
+            ? name
+            : new string(
+                name.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch).ToArray()
+            );
     }
-} 
+}

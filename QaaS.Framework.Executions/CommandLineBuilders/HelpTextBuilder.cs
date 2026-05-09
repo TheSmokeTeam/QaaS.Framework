@@ -11,7 +11,9 @@ public static class HelpTextBuilder
     public static HelpText BuildHelpText(ParserResult<object> parserResult)
     {
         var helpText = HelpText.AutoBuild(parserResult, 120);
-        helpText.AddPreOptionsLine("Usage:\n dotnet run [Dotnet Parameters] -- [Command] [Values] [Flags]");
+        helpText.AddPreOptionsLine(
+            "Usage:\n dotnet run [Dotnet Parameters] -- [Command] [Values] [Flags]"
+        );
         return helpText;
     }
 }

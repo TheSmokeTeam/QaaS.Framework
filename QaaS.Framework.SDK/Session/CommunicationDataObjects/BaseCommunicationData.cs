@@ -12,11 +12,10 @@ public abstract record BaseCommunicationData
     /// The name of the communication action that produces this communication data
     /// </summary>
     public string Name { get; init; } = null!;
-    
+
     /// <summary>
     /// The serialization type that should be used to serialize this communication data
     /// </summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public SerializationType? SerializationType { get; init; }
-    
 }

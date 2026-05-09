@@ -10,19 +10,31 @@ namespace QaaS.Framework.Protocols.Protocols;
 [ExcludeFromCodeCoverage]
 public class OracleSqlProtocol : BaseSqlProtocol<OracleConnection>, ISender
 {
-    public OracleSqlProtocol(OracleReaderConfig configurations, ILogger logger,
+    public OracleSqlProtocol(
+        OracleReaderConfig configurations,
+        ILogger logger,
         OracleConnection? dbConnection = null,
-        string? timeZoneId = null) : base(configurations, logger,
-        dbConnection ?? new OracleConnection(configurations.ConnectionString), timeZoneId)
-    {
-    }
+        string? timeZoneId = null
+    )
+        : base(
+            configurations,
+            logger,
+            dbConnection ?? new OracleConnection(configurations.ConnectionString),
+            timeZoneId
+        ) { }
 
-    public OracleSqlProtocol(OracleSenderConfig configurations, ILogger logger,
+    public OracleSqlProtocol(
+        OracleSenderConfig configurations,
+        ILogger logger,
         OracleConnection? dbConnection = null,
-        string? timeZoneId = null) : base(configurations, logger,
-        dbConnection ?? new OracleConnection(configurations.ConnectionString), timeZoneId)
-    {
-    }
+        string? timeZoneId = null
+    )
+        : base(
+            configurations,
+            logger,
+            dbConnection ?? new OracleConnection(configurations.ConnectionString),
+            timeZoneId
+        ) { }
 
     protected override void InsertChunkToTable(DataTable chunkData)
     {
@@ -46,7 +58,6 @@ public class OracleSqlProtocol : BaseSqlProtocol<OracleConnection>, ISender
         RowInsertIntoTable(GetDataTableFromRawDataChunk([dataToSend]));
         return dataToSend.CloneDetailed();
     }
-
 
     /// <inheritdoc />
     protected override string GetTableQueryArrangedByInsertionTimeFieldAsc() =>
@@ -74,4 +85,3 @@ public class OracleSqlProtocol : BaseSqlProtocol<OracleConnection>, ISender
             : $"where {WhereStatement}";
     }
 }
-

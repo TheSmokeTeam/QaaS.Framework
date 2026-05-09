@@ -18,7 +18,9 @@ public static class ContextExtensions
         }
 
         public MetaDataConfig GetMetaDataFromContext() =>
-            context.GetValueFromGlobalDictionary(GetMetaDataPath(context)) as MetaDataConfig ??
-            throw new InvalidOperationException($"{nameof(MetaDataConfig)} was not found in Context");
+            context.GetValueFromGlobalDictionary(GetMetaDataPath(context)) as MetaDataConfig
+            ?? throw new InvalidOperationException(
+                $"{nameof(MetaDataConfig)} was not found in Context"
+            );
     }
 }

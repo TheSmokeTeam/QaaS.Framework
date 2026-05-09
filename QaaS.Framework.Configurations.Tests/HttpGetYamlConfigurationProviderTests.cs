@@ -21,7 +21,9 @@ public class HttpGetYamlConfigurationProviderTests
         {
             var context = await listener.GetContextAsync();
             context.Response.StatusCode = 200;
-            await context.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("root:\n  child: value"));
+            await context.Response.OutputStream.WriteAsync(
+                Encoding.UTF8.GetBytes("root:\n  child: value")
+            );
             context.Response.Close();
         });
 
@@ -40,7 +42,8 @@ public class HttpGetYamlConfigurationProviderTests
         var closedPort = GetFreeTcpPort();
         var provider = new HttpGetYamlConfigurationProvider(
             $"http://127.0.0.1:{closedPort}/missing.yaml",
-            TimeSpan.FromMilliseconds(100));
+            TimeSpan.FromMilliseconds(100)
+        );
 
         Assert.Throws<CouldNotFindConfigurationException>(() => provider.Load());
     }

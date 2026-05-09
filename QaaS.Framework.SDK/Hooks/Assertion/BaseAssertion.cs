@@ -15,14 +15,15 @@ namespace QaaS.Framework.SDK.Hooks.Assertion;
 /// </summary>
 /// <typeparam name="TConfiguration"> The type of the assertion's configuration object </typeparam>
 [JsonSchema]
-public abstract class BaseAssertion<TConfiguration>: IAssertion where TConfiguration : new()
+public abstract class BaseAssertion<TConfiguration> : IAssertion
+    where TConfiguration : new()
 {
     /// <inheritdoc />
     public Context Context { get; set; } = null!;
-    
+
     /// <inheritdoc />
     public string? AssertionMessage { get; set; }
-    
+
     /// <inheritdoc />
     public string? AssertionTrace { get; set; }
 
@@ -33,28 +34,31 @@ public abstract class BaseAssertion<TConfiguration>: IAssertion where TConfigura
     public AssertionStatus? AssertionStatus { get; set; }
 
     /// <inheritdoc />
-    public abstract bool Assert(IImmutableList<SessionData> sessionDataList,
-        IImmutableList<DataSource> dataSourceList);
+    public abstract bool Assert(
+        IImmutableList<SessionData> sessionDataList,
+        IImmutableList<DataSource> dataSourceList
+    );
 
     /// <summary>
     /// The relevant configuration for this assertion's scope loaded and validated
     /// into a configuration object
     /// </summary>
     public TConfiguration Configuration { get; set; } = default!;
-    
+
     /// <summary>
     /// The options of the binder that binds the IConfiguration to the <see cref="Configuration"/>
     /// </summary>
-    protected virtual BinderOptions GetConfigurationBinderOptions() => new()
-    {
-        ErrorOnUnknownConfiguration = true
-    };
-    
+    protected virtual BinderOptions GetConfigurationBinderOptions() =>
+        new() { ErrorOnUnknownConfiguration = true };
+
     /// <inheritdoc />
     public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
     {
         // Load configuration to c# object
-        Configuration = configuration.BindToObject<TConfiguration>(GetConfigurationBinderOptions(), Context.Logger);
+        Configuration = configuration.BindToObject<TConfiguration>(
+            GetConfigurationBinderOptions(),
+            Context.Logger
+        );
 
         // Validate loaded configuration
         var validationResults = new List<ValidationResult>();

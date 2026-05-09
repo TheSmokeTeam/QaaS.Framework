@@ -19,8 +19,7 @@ public class Context : BaseContext<ExecutionData>
     public string? ExecutionId { get; init; }
 
     /// <summary>
-    /// Contains all the currently running sessions 
+    /// Contains all the currently running sessions
     /// </summary>
     public virtual IRunningSessions CurrentRunningSessions { get; init; } = null!;
-
 }

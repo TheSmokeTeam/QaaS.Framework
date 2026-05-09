@@ -11,12 +11,14 @@ public class InvalidConfigurationsException : Exception
     public override string StackTrace => "";
 
     /// <summary>
-    /// Constructor 
+    /// Constructor
     /// </summary>
-    public InvalidConfigurationsException(string message) : base(message) { }
+    public InvalidConfigurationsException(string message)
+        : base(message) { }
 
     /// <summary>
     /// Constructor
     /// </summary>
-    public InvalidConfigurationsException(string message, Exception innerException) : base(message, innerException) { }
+    public InvalidConfigurationsException(string message, Exception innerException)
+        : base(message, innerException) { }
 }

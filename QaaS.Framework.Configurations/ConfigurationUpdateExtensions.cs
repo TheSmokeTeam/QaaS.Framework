@@ -13,7 +13,7 @@ public static class ConfigurationUpdateExtensions
     private static readonly BinderOptions UpdateBinderOptions = new()
     {
         ErrorOnUnknownConfiguration = true,
-        BindNonPublicProperties = true
+        BindNonPublicProperties = true,
     };
 
     /// <summary>
@@ -35,7 +35,8 @@ public static class ConfigurationUpdateExtensions
     /// </returns>
     public static TConfiguration UpdateConfiguration<TConfiguration>(
         this TConfiguration? currentConfiguration,
-        TConfiguration incomingConfiguration)
+        TConfiguration incomingConfiguration
+    )
         where TConfiguration : class
     {
         ArgumentNullException.ThrowIfNull(incomingConfiguration);
@@ -55,7 +56,8 @@ public static class ConfigurationUpdateExtensions
             MergeIntoCurrent(currentConfiguration, incomingConfiguration);
             return currentConfiguration;
         }
-        catch (ArgumentException) when (!HasPublicParameterlessConstructor(incomingConfiguration.GetType()))
+        catch (ArgumentException)
+            when (!HasPublicParameterlessConstructor(incomingConfiguration.GetType()))
         {
             MergeIntoCurrent(currentConfiguration, incomingConfiguration);
             return currentConfiguration;
@@ -87,13 +89,15 @@ public static class ConfigurationUpdateExtensions
     /// </exception>
     public static TConfiguration UpdateConfiguration<TConfiguration>(
         this TConfiguration? currentConfiguration,
-        object incomingConfiguration)
+        object incomingConfiguration
+    )
         where TConfiguration : class
     {
         ArgumentNullException.ThrowIfNull(incomingConfiguration);
 
         if (currentConfiguration is IConfiguration currentIConfiguration)
-            return (TConfiguration)(object)currentIConfiguration.UpdateConfiguration(incomingConfiguration);
+            return (TConfiguration)
+                (object)currentIConfiguration.UpdateConfiguration(incomingConfiguration);
 
         if (incomingConfiguration is TConfiguration typedConfiguration)
             return currentConfiguration.UpdateConfiguration(typedConfiguration);
@@ -103,28 +107,36 @@ public static class ConfigurationUpdateExtensions
             if (typeof(TConfiguration).IsInterface)
             {
                 throw new InvalidOperationException(
-                    $"Cannot apply an object-shaped patch to {typeof(TConfiguration).Name} without an existing configuration instance.");
+                    $"Cannot apply an object-shaped patch to {typeof(TConfiguration).Name} without an existing configuration instance."
+                );
             }
 
-            return BindPatchToRuntimeType<TConfiguration>(incomingConfiguration, typeof(TConfiguration));
+            return BindPatchToRuntimeType<TConfiguration>(
+                incomingConfiguration,
+                typeof(TConfiguration)
+            );
         }
 
         try
         {
             var mergedValues = BuildFlatConfigurationValues(currentConfiguration);
             OverlayPatchValues(mergedValues, incomingConfiguration);
-            return (TConfiguration)BuildConfigurationRoot(mergedValues)
-                .BindToObject(currentConfiguration.GetType(), UpdateBinderOptions);
+            return (TConfiguration)
+                BuildConfigurationRoot(mergedValues)
+                    .BindToObject(currentConfiguration.GetType(), UpdateBinderOptions);
         }
-        catch (ArgumentException) when (!HasPublicParameterlessConstructor(currentConfiguration.GetType()))
+        catch (ArgumentException)
+            when (!HasPublicParameterlessConstructor(currentConfiguration.GetType()))
         {
             throw new InvalidOperationException(
-                $"Cannot apply an object-shaped patch to {currentConfiguration.GetType().Name} because it does not expose a parameterless constructor.");
+                $"Cannot apply an object-shaped patch to {currentConfiguration.GetType().Name} because it does not expose a parameterless constructor."
+            );
         }
         catch (MissingMethodException)
         {
             throw new InvalidOperationException(
-                $"Cannot apply an object-shaped patch to {currentConfiguration.GetType().Name} because it does not expose a parameterless constructor.");
+                $"Cannot apply an object-shaped patch to {currentConfiguration.GetType().Name} because it does not expose a parameterless constructor."
+            );
         }
     }
 
@@ -143,25 +155,34 @@ public static class ConfigurationUpdateExtensions
     /// <returns>A new configuration tree that contains the merged values.</returns>
     public static IConfiguration UpdateConfiguration(
         this IConfiguration? currentConfiguration,
-        object incomingConfiguration)
+        object incomingConfiguration
+    )
     {
         ArgumentNullException.ThrowIfNull(incomingConfiguration);
 
-        var mergedValues = currentConfiguration == null
-            ? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-            : BuildFlatConfigurationValues(currentConfiguration);
+        var mergedValues =
+            currentConfiguration == null
+                ? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+                : BuildFlatConfigurationValues(currentConfiguration);
         OverlayPatchValues(mergedValues, incomingConfiguration);
         return BuildConfigurationRoot(mergedValues);
     }
 
-    private static TConfiguration BindPatchToRuntimeType<TConfiguration>(object incomingConfiguration, Type runtimeType)
+    private static TConfiguration BindPatchToRuntimeType<TConfiguration>(
+        object incomingConfiguration,
+        Type runtimeType
+    )
         where TConfiguration : class
     {
-        var configuration = BuildConfigurationRoot(BuildFlatConfigurationValues(incomingConfiguration));
+        var configuration = BuildConfigurationRoot(
+            BuildFlatConfigurationValues(incomingConfiguration)
+        );
         return (TConfiguration)configuration.BindToObject(runtimeType, UpdateBinderOptions);
     }
 
-    private static Dictionary<string, string?> BuildFlatConfigurationValues(object configurationObject)
+    private static Dictionary<string, string?> BuildFlatConfigurationValues(
+        object configurationObject
+    )
     {
         if (configurationObject is IConfiguration configuration)
         {
@@ -174,12 +195,18 @@ public static class ConfigurationUpdateExtensions
             return NormalizeConfigurationValues(values);
         }
 
-        return NormalizeConfigurationValues(ConfigurationUtils.GetInMemoryCollectionFromObject(
-            configurationObject,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
+        return NormalizeConfigurationValues(
+            ConfigurationUtils.GetInMemoryCollectionFromObject(
+                configurationObject,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            )
+        );
     }
 
-    private static void OverlayPatchValues(Dictionary<string, string?> currentValues, object incomingConfiguration)
+    private static void OverlayPatchValues(
+        Dictionary<string, string?> currentValues,
+        object incomingConfiguration
+    )
     {
         var patchValues = BuildFlatConfigurationValues(incomingConfiguration);
         foreach (var replacementPrefix in GetIndexedReplacementPrefixes(patchValues.Keys))
@@ -204,7 +231,9 @@ public static class ConfigurationUpdateExtensions
         NormalizeConfigurationValues(currentValues);
     }
 
-    private static Dictionary<string, string?> NormalizeConfigurationValues(Dictionary<string, string?> values)
+    private static Dictionary<string, string?> NormalizeConfigurationValues(
+        Dictionary<string, string?> values
+    )
     {
         foreach (var key in values.Keys.ToArray())
         {
@@ -219,7 +248,9 @@ public static class ConfigurationUpdateExtensions
 
     private static IEnumerable<string> GetIndexedReplacementPrefixes(IEnumerable<string> keys)
     {
-        var indexSetsByPrefix = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+        var indexSetsByPrefix = new Dictionary<string, HashSet<int>>(
+            StringComparer.OrdinalIgnoreCase
+        );
         foreach (var key in keys)
         {
             var segments = key.Split(ConfigurationConstants.PathSeparator);
@@ -230,7 +261,10 @@ public static class ConfigurationUpdateExtensions
                     continue;
                 }
 
-                var prefix = string.Join(ConfigurationConstants.PathSeparator, segments.Take(segmentIndex));
+                var prefix = string.Join(
+                    ConfigurationConstants.PathSeparator,
+                    segments.Take(segmentIndex)
+                );
                 if (string.IsNullOrWhiteSpace(prefix))
                 {
                     continue;
@@ -247,9 +281,7 @@ public static class ConfigurationUpdateExtensions
             }
         }
 
-        return indexSetsByPrefix
-            .Where(pair => pair.Value.Contains(0))
-            .Select(pair => pair.Key);
+        return indexSetsByPrefix.Where(pair => pair.Value.Contains(0)).Select(pair => pair.Key);
     }
 
     private static void RemoveConflictingPathValues(Dictionary<string, string?> values, string path)
@@ -266,16 +298,24 @@ public static class ConfigurationUpdateExtensions
         while (ancestorLength >= 0)
         {
             values.Remove(path[..ancestorLength]);
-            ancestorLength = path.IndexOf(separator, ancestorLength + separator.Length, StringComparison.Ordinal);
+            ancestorLength = path.IndexOf(
+                separator,
+                ancestorLength + separator.Length,
+                StringComparison.Ordinal
+            );
         }
     }
 
     private static void RemoveDescendantPathValues(Dictionary<string, string?> values, string path)
     {
         var descendantPrefix = $"{path}{ConfigurationConstants.PathSeparator}";
-        foreach (var key in values.Keys
-                     .Where(key => key.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase))
-                     .ToArray())
+        foreach (
+            var key in values
+                .Keys.Where(key =>
+                    key.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToArray()
+        )
         {
             values.Remove(key);
         }
@@ -284,14 +324,14 @@ public static class ConfigurationUpdateExtensions
     private static bool HasDescendantKey(Dictionary<string, string?> values, string path)
     {
         var descendantPrefix = $"{path}{ConfigurationConstants.PathSeparator}";
-        return values.Keys.Any(key => key.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase));
+        return values.Keys.Any(key =>
+            key.StartsWith(descendantPrefix, StringComparison.OrdinalIgnoreCase)
+        );
     }
 
     private static IConfigurationRoot BuildConfigurationRoot(Dictionary<string, string?> values)
     {
-        return new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build();
+        return new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     }
 
     private static void MergeIntoCurrent(object currentConfiguration, object incomingConfiguration)
@@ -305,14 +345,17 @@ public static class ConfigurationUpdateExtensions
             if (incomingValue == null)
                 continue;
 
-            var defaultValue = defaultConfiguration != null ? property.GetValue(defaultConfiguration) : null;
+            var defaultValue =
+                defaultConfiguration != null ? property.GetValue(defaultConfiguration) : null;
             if (AreEquivalentValues(incomingValue, defaultValue, property.PropertyType))
                 continue;
 
             var currentValue = property.GetValue(currentConfiguration);
-            if (!IsComplexType(property.PropertyType) ||
-                currentValue == null ||
-                currentValue.GetType() != incomingValue.GetType())
+            if (
+                !IsComplexType(property.PropertyType)
+                || currentValue == null
+                || currentValue.GetType() != incomingValue.GetType()
+            )
             {
                 property.SetValue(currentConfiguration, incomingValue);
                 continue;
@@ -325,17 +368,29 @@ public static class ConfigurationUpdateExtensions
     private static IEnumerable<PropertyInfo> GetMergeableProperties(Type type)
     {
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
-        for (var currentType = type; currentType != null && currentType != typeof(object);
-             currentType = currentType.BaseType)
+        for (
+            var currentType = type;
+            currentType != null && currentType != typeof(object);
+            currentType = currentType.BaseType
+        )
         {
-            foreach (var property in currentType.GetProperties(BindingFlags.Instance | BindingFlags.Public |
-                                                               BindingFlags.NonPublic |
-                                                               BindingFlags.DeclaredOnly))
+            foreach (
+                var property in currentType.GetProperties(
+                    BindingFlags.Instance
+                        | BindingFlags.Public
+                        | BindingFlags.NonPublic
+                        | BindingFlags.DeclaredOnly
+                )
+            )
             {
                 if (!seenNames.Add(property.Name))
                     continue;
 
-                if (property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)
+                if (
+                    property.CanRead
+                    && property.CanWrite
+                    && property.GetIndexParameters().Length == 0
+                )
                     yield return property;
             }
         }
@@ -344,16 +399,18 @@ public static class ConfigurationUpdateExtensions
     private static bool IsComplexType(Type type)
     {
         var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
-        return !(underlyingType.IsPrimitive ||
-                 underlyingType.IsEnum ||
-                 underlyingType == typeof(decimal) ||
-                 underlyingType == typeof(DateTime) ||
-                 underlyingType == typeof(DateTimeOffset) ||
-                 underlyingType == typeof(TimeSpan) ||
-                 underlyingType == typeof(Guid) ||
-                 underlyingType == typeof(Uri) ||
-                 typeof(IEnumerable).IsAssignableFrom(underlyingType) ||
-                 underlyingType == typeof(string));
+        return !(
+            underlyingType.IsPrimitive
+            || underlyingType.IsEnum
+            || underlyingType == typeof(decimal)
+            || underlyingType == typeof(DateTime)
+            || underlyingType == typeof(DateTimeOffset)
+            || underlyingType == typeof(TimeSpan)
+            || underlyingType == typeof(Guid)
+            || underlyingType == typeof(Uri)
+            || typeof(IEnumerable).IsAssignableFrom(underlyingType)
+            || underlyingType == typeof(string)
+        );
     }
 
     private static object? CreateDefaultConfiguration(Type type)
@@ -376,17 +433,24 @@ public static class ConfigurationUpdateExtensions
         if (type == typeof(string))
             return string.Equals((string)left, (string)right, StringComparison.Ordinal);
 
-        if (left is IEnumerable leftEnumerable && right is IEnumerable rightEnumerable && type != typeof(string))
+        if (
+            left is IEnumerable leftEnumerable
+            && right is IEnumerable rightEnumerable
+            && type != typeof(string)
+        )
             return AreEquivalentEnumerables(leftEnumerable, rightEnumerable);
 
         if (!IsComplexType(type))
             return Equals(left, right);
 
         return GetMergeableProperties(type)
-            .All(property => AreEquivalentValues(
-                property.GetValue(left),
-                property.GetValue(right),
-                property.PropertyType));
+            .All(property =>
+                AreEquivalentValues(
+                    property.GetValue(left),
+                    property.GetValue(right),
+                    property.PropertyType
+                )
+            );
     }
 
     private static bool AreEquivalentEnumerables(IEnumerable left, IEnumerable right)

@@ -11,11 +11,16 @@ public sealed class PropertyComparisonAttribute : ValidationAttribute
     private readonly string _rightPropertyName;
     private readonly PropertyComparisonOperator _comparisonOperator;
 
-    public PropertyComparisonAttribute(string leftPropertyName, string rightPropertyName,
-        PropertyComparisonOperator comparisonOperator)
+    public PropertyComparisonAttribute(
+        string leftPropertyName,
+        string rightPropertyName,
+        PropertyComparisonOperator comparisonOperator
+    )
     {
-        _leftPropertyName = leftPropertyName ?? throw new ArgumentNullException(nameof(leftPropertyName));
-        _rightPropertyName = rightPropertyName ?? throw new ArgumentNullException(nameof(rightPropertyName));
+        _leftPropertyName =
+            leftPropertyName ?? throw new ArgumentNullException(nameof(leftPropertyName));
+        _rightPropertyName =
+            rightPropertyName ?? throw new ArgumentNullException(nameof(rightPropertyName));
         _comparisonOperator = comparisonOperator;
     }
 
@@ -38,13 +43,15 @@ public sealed class PropertyComparisonAttribute : ValidationAttribute
         if (leftValue is not IComparable comparableLeft)
         {
             return new ValidationResult(
-                $"The property '{_leftPropertyName}' on '{objectType.Name}' must implement IComparable.");
+                $"The property '{_leftPropertyName}' on '{objectType.Name}' must implement IComparable."
+            );
         }
 
         if (!TryNormalizeComparisonValue(rightValue, leftValue.GetType(), out var normalizedRight))
         {
             return new ValidationResult(
-                $"The property '{_rightPropertyName}' on '{objectType.Name}' cannot be compared to '{_leftPropertyName}'.");
+                $"The property '{_rightPropertyName}' on '{objectType.Name}' cannot be compared to '{_leftPropertyName}'."
+            );
         }
 
         int comparisonResult;
@@ -55,7 +62,8 @@ public sealed class PropertyComparisonAttribute : ValidationAttribute
         catch (ArgumentException)
         {
             return new ValidationResult(
-                $"The property '{_rightPropertyName}' on '{objectType.Name}' cannot be compared to '{_leftPropertyName}'.");
+                $"The property '{_rightPropertyName}' on '{objectType.Name}' cannot be compared to '{_leftPropertyName}'."
+            );
         }
 
         return IsComparisonSatisfied(comparisonResult)
@@ -65,12 +73,23 @@ public sealed class PropertyComparisonAttribute : ValidationAttribute
 
     private static PropertyInfo GetProperty(Type objectType, string propertyName)
     {
-        return objectType.GetProperty(propertyName,
-                   BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)
-               ?? throw new ArgumentException($"Property '{propertyName}' not found in type '{objectType.Name}'.");
+        return objectType.GetProperty(
+                propertyName,
+                BindingFlags.Public
+                    | BindingFlags.NonPublic
+                    | BindingFlags.Instance
+                    | BindingFlags.Static
+            )
+            ?? throw new ArgumentException(
+                $"Property '{propertyName}' not found in type '{objectType.Name}'."
+            );
     }
 
-    private static bool TryNormalizeComparisonValue(object value, Type targetType, out object? normalizedValue)
+    private static bool TryNormalizeComparisonValue(
+        object value,
+        Type targetType,
+        out object? normalizedValue
+    )
     {
         if (targetType.IsInstanceOfType(value))
         {
@@ -83,7 +102,8 @@ public sealed class PropertyComparisonAttribute : ValidationAttribute
             normalizedValue = Convert.ChangeType(value, targetType, CultureInfo.InvariantCulture);
             return true;
         }
-        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+        catch (Exception ex)
+            when (ex is InvalidCastException or FormatException or OverflowException)
         {
             normalizedValue = null;
             return false;
@@ -100,7 +120,11 @@ public sealed class PropertyComparisonAttribute : ValidationAttribute
             PropertyComparisonOperator.GreaterThan => comparisonResult > 0,
             PropertyComparisonOperator.GreaterThanOrEqual => comparisonResult >= 0,
             PropertyComparisonOperator.NotEqual => comparisonResult != 0,
-            _ => throw new ArgumentOutOfRangeException(nameof(_comparisonOperator), _comparisonOperator, null)
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(_comparisonOperator),
+                _comparisonOperator,
+                null
+            ),
         };
     }
 
@@ -121,7 +145,11 @@ public sealed class PropertyComparisonAttribute : ValidationAttribute
             PropertyComparisonOperator.GreaterThan => "greater than",
             PropertyComparisonOperator.GreaterThanOrEqual => "greater than or equal to",
             PropertyComparisonOperator.NotEqual => "different from",
-            _ => throw new ArgumentOutOfRangeException(nameof(_comparisonOperator), _comparisonOperator, null)
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(_comparisonOperator),
+                _comparisonOperator,
+                null
+            ),
         };
     }
 }

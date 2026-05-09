@@ -31,7 +31,8 @@ public record MetaData
         {
             if (value is not null && _deserializer is not null)
                 throw new InvalidOperationException(
-                    $"{nameof(MetaData)} object can't have both Serializer and Deserializer");
+                    $"{nameof(MetaData)} object can't have both Serializer and Deserializer"
+                );
             _serializer = value;
         }
     }
@@ -48,7 +49,8 @@ public record MetaData
         {
             if (value is not null && _serializer is not null)
                 throw new InvalidOperationException(
-                    $"{nameof(MetaData)} object can't have both Serializer and Deserializer");
+                    $"{nameof(MetaData)} object can't have both Serializer and Deserializer"
+                );
             _deserializer = value;
         }
     }

@@ -17,33 +17,45 @@ public class HooksFromProvidersLoader<THook>(Context context, IHookProvider<THoo
     /// Loads and validates all given hooks from their provider
     /// </summary>
     /// <returns> A list of loaded hooks where the key is their name and the value is the initialized hook </returns>
-    public IList<KeyValuePair<string, THook>> LoadAndValidate(IEnumerable<HookData<THook>> hooksNames,
-        List<ValidationResult> validationResults)
+    public IList<KeyValuePair<string, THook>> LoadAndValidate(
+        IEnumerable<HookData<THook>> hooksNames,
+        List<ValidationResult> validationResults
+    )
     {
-        context.Logger.LogDebug("Starting loading and validation of all hooks of type {HookType}",
-            typeof(THook).Name);
-        return hooksNames.Select(hookData =>
-        {
-            THook hook;
-            try
+        context.Logger.LogDebug(
+            "Starting loading and validation of all hooks of type {HookType}",
+            typeof(THook).Name
+        );
+        return hooksNames
+            .Select(hookData =>
             {
-                hook = hookProvider.GetSupportedInstanceByName(hookData.Type);
-            }
-            catch (ArgumentException e)
-            {
-                context.Logger.LogCritical(
-                    "Encountered exception while loading {HookType} instance {InstanceName} - {Exception}",
-                    typeof(THook).Name, hookData.Type, e);
-                throw;
-            }
+                THook hook;
+                try
+                {
+                    hook = hookProvider.GetSupportedInstanceByName(hookData.Type);
+                }
+                catch (ArgumentException e)
+                {
+                    context.Logger.LogCritical(
+                        "Encountered exception while loading {HookType} instance {InstanceName} - {Exception}",
+                        typeof(THook).Name,
+                        hookData.Type,
+                        e
+                    );
+                    throw;
+                }
 
-            var configurationsValidationResults = (hook.LoadAndValidateConfiguration(
-                hookData.Configuration) ?? Enumerable.Empty<ValidationResult>()).ToList();
-            foreach (var validationResult in configurationsValidationResults)
-                validationResult.ErrorMessage = $"In Hook of {typeof(THook).Name} named {hookData.Name} of type" +
-                                                $" {hookData.Type} {validationResult.ErrorMessage}";
-            validationResults.AddRange(configurationsValidationResults);
-            return new KeyValuePair<string, THook>(hookData.Name, hook);
-        }).ToList();
+                var configurationsValidationResults = (
+                    hook.LoadAndValidateConfiguration(hookData.Configuration)
+                    ?? Enumerable.Empty<ValidationResult>()
+                ).ToList();
+                foreach (var validationResult in configurationsValidationResults)
+                    validationResult.ErrorMessage =
+                        $"In Hook of {typeof(THook).Name} named {hookData.Name} of type"
+                        + $" {hookData.Type} {validationResult.ErrorMessage}";
+                validationResults.AddRange(configurationsValidationResults);
+                return new KeyValuePair<string, THook>(hookData.Name, hook);
+            })
+            .ToList();
     }
 }

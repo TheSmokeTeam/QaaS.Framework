@@ -31,7 +31,10 @@ public class LocalYamlConfigurationProvider : YamlConfigurationProvider
         }
         catch (Exception exception)
         {
-            throw YamlConfigurationExceptionFactory.CreateLocalFileLoadException(_yamlPath, exception);
+            throw YamlConfigurationExceptionFactory.CreateLocalFileLoadException(
+                _yamlPath,
+                exception
+            );
         }
     }
 }

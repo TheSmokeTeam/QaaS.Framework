@@ -8,7 +8,7 @@ using QaaS.Framework.Serialization;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
-public class GrpcProtocol : ITransactor
+public class GrpcProtocol : ITransactor, IConnectable, IDisposable
 {
     private readonly ILogger _logger;
     private const string GrpcServiceClientSuffix = "Client";
@@ -16,39 +16,55 @@ public class GrpcProtocol : ITransactor
     private readonly MethodInfo _rpcMethod;
     private TimeSpan? _timeout;
 
+    // NOTE: This protocol uses the legacy Grpc.Core Channel type which reached end-of-life in May 2022.
+    // Migration to Grpc.Net.Client.GrpcChannel (managed HTTP/2) is deferred because it is a breaking
+    // surface change (ctor and config DTOs would need to change). Track in a dedicated breaking-change PR.
+    private readonly Channel _channel;
+
     public GrpcProtocol(GrpcTransactorConfig configuration, ILogger logger, TimeSpan timeout)
     {
         _logger = logger;
         _timeout = timeout;
 
-        var channel = new Channel($"{configuration.Host}:{configuration.Port}", ChannelCredentials.Insecure);
+        _channel = new Channel(
+            $"{configuration.Host}:{configuration.Port}",
+            ChannelCredentials.Insecure
+        );
 
         var assembly = Assembly.Load(configuration.AssemblyName!);
 
         // Get service client
-        var serviceType = assembly.GetType($"{configuration.ProtoNameSpace!}.{configuration.ServiceName!}",
-            throwOnError: true)!;
-        var serviceClientType = serviceType.GetNestedType($"{configuration.ServiceName!}{GrpcServiceClientSuffix}",
-            BindingFlags.Public | BindingFlags.NonPublic)!;
-        _serviceClient = (ClientBase)Activator.CreateInstance(serviceClientType, channel)!;
+        var serviceType = assembly.GetType(
+            $"{configuration.ProtoNameSpace!}.{configuration.ServiceName!}",
+            throwOnError: true
+        )!;
+        var serviceClientType = serviceType.GetNestedType(
+            $"{configuration.ServiceName!}{GrpcServiceClientSuffix}",
+            BindingFlags.Public | BindingFlags.NonPublic
+        )!;
+        _serviceClient = (ClientBase)Activator.CreateInstance(serviceClientType, _channel)!;
 
         // Get service client method
-        _rpcMethod = serviceClientType
-                         .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                         .FirstOrDefault(m =>
-                             m.Name == configuration.RpcName!
-                             && m.GetParameters().Length == 2
-                             && m.GetParameters()[1].ParameterType == typeof(CallOptions)) ??
-                     throw new ArgumentException(
-                         $"Could not find rpc method {configuration.RpcName!} in service client {serviceClientType}");
+        _rpcMethod =
+            serviceClientType
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault(m =>
+                    m.Name == configuration.RpcName!
+                    && m.GetParameters().Length == 2
+                    && m.GetParameters()[1].ParameterType == typeof(CallOptions)
+                )
+            ?? throw new ArgumentException(
+                $"Could not find rpc method {configuration.RpcName!} in service client {serviceClientType}"
+            );
     }
 
     /// <inheritdoc />
-    public SerializationType? GetInputCommunicationSerializationType() => SerializationType.ProtobufMessage;
+    public SerializationType? GetInputCommunicationSerializationType() =>
+        SerializationType.ProtobufMessage;
 
     /// <inheritdoc />
-    public SerializationType? GetOutputCommunicationSerializationType() => SerializationType.ProtobufMessage;
-
+    public SerializationType? GetOutputCommunicationSerializationType() =>
+        SerializationType.ProtobufMessage;
 
     public Tuple<DetailedData<object>, DetailedData<object>?> Transact(Data<object> dataToSend)
     {
@@ -57,11 +73,17 @@ public class GrpcProtocol : ITransactor
         IMessage? responseData;
         try
         {
-            responseData = (IMessage?)_rpcMethod.Invoke(_serviceClient, [
-                dataToSend.Body ?? throw new ArgumentException(
-                    "A data item's body is null, can't send it as a proto msg using grpc"),
-                new CallOptions(deadline: DateTime.UtcNow + _timeout)
-            ]);
+            responseData = (IMessage?)
+                _rpcMethod.Invoke(
+                    _serviceClient,
+                    [
+                        dataToSend.Body
+                            ?? throw new ArgumentException(
+                                "A data item's body is null, can't send it as a proto msg using grpc"
+                            ),
+                        new CallOptions(deadline: DateTime.UtcNow + _timeout),
+                    ]
+                );
         }
         catch (TargetInvocationException e)
         {
@@ -69,16 +91,41 @@ public class GrpcProtocol : ITransactor
                 throw;
             _logger.LogDebug("Timeout exceeded when performing a grpc request, no response saved");
             return new Tuple<DetailedData<object>, DetailedData<object>?>(
-                dataToSend.CloneDetailed(requestUtcTime), null)!;
+                dataToSend.CloneDetailed(requestUtcTime),
+                null
+            )!;
         }
 
         var responseUtcTime = DateTime.UtcNow;
 
-        return new Tuple<DetailedData<object>, DetailedData<object>?>(dataToSend.CloneDetailed(requestUtcTime),
-            new()
-            {
-                Body = responseData,
-                Timestamp = responseUtcTime
-            })!;
+        return new Tuple<DetailedData<object>, DetailedData<object>?>(
+            dataToSend.CloneDetailed(requestUtcTime),
+            new() { Body = responseData, Timestamp = responseUtcTime }
+        )!;
+    }
+
+    /// <inheritdoc />
+    public void Connect()
+    {
+        // Grpc.Core Channel connects lazily on first RPC call; nothing explicit needed here.
+    }
+
+    /// <inheritdoc />
+    public void Disconnect()
+    {
+        _channel.ShutdownAsync().GetAwaiter().GetResult();
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        // Best-effort shutdown; errors are suppressed because Dispose must not throw.
+        try
+        {
+            _channel.ShutdownAsync().GetAwaiter().GetResult();
+        }
+        catch
+        { /* ignore */
+        }
     }
 }

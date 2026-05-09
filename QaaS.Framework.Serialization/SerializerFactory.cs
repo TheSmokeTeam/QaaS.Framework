@@ -24,8 +24,11 @@ public static class SerializerFactory
             SerializationType.ProtobufMessage => new ProtobufMessage(),
             SerializationType.XmlElement => new XmlElement(),
             null => null,
-            _ => throw new ArgumentOutOfRangeException(nameof(type), 
-                type, "Serializer type not supported")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(type),
+                type,
+                "Serializer type not supported"
+            ),
         };
     }
 }

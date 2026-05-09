@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using QaaS.Framework.Policies.Exceptions;
 
 namespace QaaS.Framework.Policies;
@@ -5,14 +7,32 @@ namespace QaaS.Framework.Policies;
 public abstract class Policy
 {
     protected Policy? Next;
-    
+
+    /// <summary>
+    /// Optional logger used by <see cref="RunChain"/> to log <see cref="StopActionException"/> events.
+    /// Defaults to <see cref="NullLogger.Instance"/> (no-op). Set via
+    /// <see cref="WithLogger"/> before calling <see cref="SetupChain"/>.
+    /// </summary>
+    private ILogger _logger = NullLogger.Instance;
+
     // <summary>
     // the place the policy should be in the chain.
     // a lower index means closer to the start.
     // used to create order between policies that have an ordered relationship.
     // </summary>
     protected abstract uint Index { get; set; }
-    
+
+    /// <summary>
+    /// Configures the logger used by this policy and all subsequent policies in the chain.
+    /// Returns the head of the chain so calls can be fluently chained after <see cref="Add"/>.
+    /// </summary>
+    public Policy WithLogger(ILogger logger)
+    {
+        _logger = logger;
+        Next?.WithLogger(logger);
+        return this;
+    }
+
     /// <summary>
     /// Inserts a policy into the chain while preserving ascending <see cref="Index"/> order.
     /// </summary>
@@ -37,7 +57,7 @@ public abstract class Policy
         Next = next.Add(policy);
         return this;
     }
-    
+
     /// <summary>
     /// Initializes the current policy and every remaining policy in the chain.
     /// </summary>
@@ -51,11 +71,18 @@ public abstract class Policy
 
     public bool RunChain()
     {
-        try {
+        try
+        {
             RunThis();
         }
-        catch (StopActionException) {
-            // log exception
+        catch (StopActionException ex)
+        {
+            _logger.LogDebug(
+                ex,
+                "Policy chain stopped by {ExceptionType}: {Message}",
+                ex.GetType().Name,
+                ex.Message
+            );
             return false;
         }
 

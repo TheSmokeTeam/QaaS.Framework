@@ -1,6 +1,6 @@
+using Microsoft.Extensions.Logging;
 using QaaS.Framework.Protocols.ConfigurationObjects;
 using QaaS.Framework.Protocols.ConfigurationObjects.Prometheus;
-using Microsoft.Extensions.Logging;
 
 namespace QaaS.Framework.Protocols.Protocols.Factories
 {
@@ -22,7 +22,9 @@ namespace QaaS.Framework.Protocols.Protocols.Factories
             return type switch
             {
                 PrometheusFetcherConfig config => new PrometheusProtocol(config, logger),
-                _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
+                _ => throw new InvalidOperationException(
+                    $"Protocol type {type.GetType().Name} is not supported"
+                ),
             };
         }
     }

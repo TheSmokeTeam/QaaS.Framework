@@ -14,7 +14,9 @@ public class TimeZoneInfoResolverTests
     [Test]
     public void ResolveTimeZoneInfo_WhenWindowsTimeZoneIdProvided_ResolvesAcrossPlatforms()
     {
-        var timeZoneInfo = TimeZoneInfoResolver.ResolveTimeZoneInfo(TimeZoneInfoResolver.DefaultWindowsTimeZoneId);
+        var timeZoneInfo = TimeZoneInfoResolver.ResolveTimeZoneInfo(
+            TimeZoneInfoResolver.DefaultWindowsTimeZoneId
+        );
 
         Assert.That(timeZoneInfo.Id, Is.Not.Empty);
     }

@@ -6,9 +6,9 @@ public static class ConfigurationConstants
     /// The string representing a collapse in the configuration
     /// </summary>
     public const string CollapseString = "<<";
-    
+
     /// <summary>
-    /// The string representing the separation between two items in path 
+    /// The string representing the separation between two items in path
     /// </summary>
     public const string PathSeparator = ":";
 }

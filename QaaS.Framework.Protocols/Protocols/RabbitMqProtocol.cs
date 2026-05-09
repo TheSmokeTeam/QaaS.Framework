@@ -23,10 +23,17 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
     private readonly RabbitMqReaderConfig? _rabbitMqReaderConfig;
     private readonly string _defaultQueueName = $"{DefaultName}_{Guid.NewGuid()}";
 
+    /// <summary>
+    /// True when we declared <see cref="_defaultQueueName"/> ourselves during <see cref="Connect"/>
+    /// (reader mode with no user-supplied queue name). Only in this case should
+    /// <see cref="Disconnect"/> attempt to delete the queue.
+    /// </summary>
+    private bool _ownedDefaultQueueWasDeclared;
+
     private ConnectionFactory ConnectionFactory { get; set; }
 
-    public RabbitMqProtocol(RabbitMqReaderConfig configurations, ILogger logger) : this(
-        (BaseRabbitMqConfig)configurations, logger)
+    public RabbitMqProtocol(RabbitMqReaderConfig configurations, ILogger logger)
+        : this((BaseRabbitMqConfig)configurations, logger)
     {
         RoutingKey = configurations.RoutingKey;
         ExchangeName = configurations.ExchangeName ?? string.Empty;
@@ -34,13 +41,14 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         _rabbitMqReaderConfig = configurations;
     }
 
-    public RabbitMqProtocol(RabbitMqSenderConfig configurations, ILogger logger) : this(
-        (BaseRabbitMqConfig)configurations, logger)
+    public RabbitMqProtocol(RabbitMqSenderConfig configurations, ILogger logger)
+        : this((BaseRabbitMqConfig)configurations, logger)
     {
         // When sending directly to a queue the exchange value is an empty string (rabbitmq's default exchange which is
         // implicitly connected to every queue), and the routing key represents the queue's name.
         RoutingKey = configurations.QueueName ?? configurations.RoutingKey;
-        ExchangeName = configurations.QueueName != null ? string.Empty : configurations.ExchangeName!;
+        ExchangeName =
+            configurations.QueueName != null ? string.Empty : configurations.ExchangeName!;
 
         _defaultMetaData = new RabbitMq
         {
@@ -57,12 +65,18 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         _logger = logger;
         ConnectionFactory = new ConnectionFactory
         {
-            HostName = configurations.Host!, Port = configurations.Port,
-            UserName = configurations.Username, Password = configurations.Password,
+            HostName = configurations.Host!,
+            Port = configurations.Port,
+            UserName = configurations.Username,
+            Password = configurations.Password,
             VirtualHost = configurations.VirtualHost,
             ContinuationTimeout = TimeSpan.FromSeconds(configurations.ContinuationTimeoutSeconds),
-            RequestedConnectionTimeout = TimeSpan.FromSeconds(configurations.RequestedConnectionTimeoutSeconds),
-            HandshakeContinuationTimeout = TimeSpan.FromSeconds(configurations.HandshakeContinuationTimeoutSeconds),
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(
+                configurations.RequestedConnectionTimeoutSeconds
+            ),
+            HandshakeContinuationTimeout = TimeSpan.FromSeconds(
+                configurations.HandshakeContinuationTimeoutSeconds
+            ),
         };
     }
 
@@ -70,14 +84,17 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object>? Read(TimeSpan timeout)
     {
-        _channel.QueueDeclarePassiveAsync(_queueName ?? _defaultQueueName).GetAwaiter()
-            .GetResult(); // Before reading check if queue exists
+        _channel.QueueDeclarePassiveAsync(_queueName ?? _defaultQueueName).GetAwaiter().GetResult(); // Before reading check if queue exists
 
         var timoutToken = new CancellationTokenSource(timeout).Token;
         while (!timoutToken.IsCancellationRequested)
         {
-            var message = _channel.BasicGetAsync(_queueName ?? _defaultQueueName, true).GetAwaiter().GetResult();
-            if (message == null) continue;
+            var message = _channel
+                .BasicGetAsync(_queueName ?? _defaultQueueName, true)
+                .GetAwaiter()
+                .GetResult();
+            if (message == null)
+                continue;
             _logger.LogDebug("Read message in bytes from Queue {QueueName}", _queueName);
             return new DetailedData<object>
             {
@@ -90,10 +107,10 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
                         Headers = message.BasicProperties.Headers,
                         Expiration = message.BasicProperties.Expiration,
                         ContentType = message.BasicProperties.ContentType,
-                        Type = message.BasicProperties.Type
-                    }
+                        Type = message.BasicProperties.Type,
+                    },
                 },
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
             };
         }
 
@@ -102,19 +119,34 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
+        if (_defaultMetaData is null)
+            throw new InvalidOperationException(
+                "RabbitMqProtocol.Send was called but this instance was initialised as a reader (RabbitMqReaderConfig). "
+                    + "Create a separate instance with RabbitMqSenderConfig to send messages."
+            );
+
         var routingKey = dataToSend.MetaData?.RabbitMq?.RoutingKey ?? RoutingKey;
         var body = dataToSend.CastObjectData<byte[]>().Body;
-        var headers = NormalizeHeaders(dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers);
-        var expiration = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration);
-        var contentType = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType);
-        var type = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type);
+        var headers = NormalizeHeaders(
+            dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData.Headers
+        );
+        var expiration = NormalizeOptionalString(
+            dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData.Expiration
+        );
+        var contentType = NormalizeOptionalString(
+            dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData.ContentType
+        );
+        var type = NormalizeOptionalString(
+            dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData.Type
+        );
 
-        _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter()
-            .GetResult(); // Before sending check if exchange exists
+        _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter().GetResult(); // Before sending check if exchange exists
 
         if (headers == null && expiration == null && contentType == null && type == null)
         {
-            _channel.BasicPublishAsync(ExchangeName, routingKey, true, body).GetAwaiter()
+            _channel
+                .BasicPublishAsync(ExchangeName, routingKey, true, body)
+                .GetAwaiter()
                 .GetResult();
         }
         else
@@ -129,17 +161,23 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
             if (type != null)
                 basicProperties.Type = type;
 
-            _channel.BasicPublishAsync(ExchangeName, routingKey, true, basicProperties, body).GetAwaiter()
+            _channel
+                .BasicPublishAsync(ExchangeName, routingKey, true, basicProperties, body)
+                .GetAwaiter()
                 .GetResult(); // Assumes data is byte[]
         }
 
-        _logger.LogDebug("Sent message in bytes to Exchange {ExchangeName}, Queue {QueueName}", ExchangeName,
-            _queueName);
+        _logger.LogDebug(
+            "Sent message in bytes to Exchange {ExchangeName}, Queue {QueueName}",
+            ExchangeName,
+            _queueName
+        );
         return dataToSend.CloneDetailed();
     }
 
-    private static IDictionary<string, object?>? NormalizeHeaders(IDictionary<string, object?>? headers) =>
-        headers is { Count: > 0 } ? headers : null;
+    private static IDictionary<string, object?>? NormalizeHeaders(
+        IDictionary<string, object?>? headers
+    ) => headers is { Count: > 0 } ? headers : null;
 
     private static string? NormalizeOptionalString(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
@@ -154,23 +192,44 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
     {
         _connection = ConnectionFactory.CreateConnectionAsync().GetAwaiter().GetResult();
         _channel = _connection.CreateChannelAsync().GetAwaiter().GetResult();
-        if (_rabbitMqReaderConfig == null) return;
+        if (_rabbitMqReaderConfig == null)
+            return;
         if (_queueName == null)
-            _channel.QueueDeclareAsync(_defaultQueueName, arguments: new Dictionary<string, object?>
-            {
-                {
-                    "x-expires",
-                    (int)TimeSpan.FromMilliseconds(_rabbitMqReaderConfig.CreatedQueueTimeToExpireMs).TotalMilliseconds
-                }
-            }).GetAwaiter().GetResult();
+        {
+            _channel
+                .QueueDeclareAsync(
+                    _defaultQueueName,
+                    arguments: new Dictionary<string, object?>
+                    {
+                        {
+                            "x-expires",
+                            (int)
+                                TimeSpan
+                                    .FromMilliseconds(
+                                        _rabbitMqReaderConfig.CreatedQueueTimeToExpireMs
+                                    )
+                                    .TotalMilliseconds
+                        },
+                    }
+                )
+                .GetAwaiter()
+                .GetResult();
+            _ownedDefaultQueueWasDeclared = true;
+        }
 
-        _channel.QueueBindAsync(_queueName ?? _defaultQueueName, ExchangeName, RoutingKey).GetAwaiter().GetResult();
-
+        _channel
+            .QueueBindAsync(_queueName ?? _defaultQueueName, ExchangeName, RoutingKey)
+            .GetAwaiter()
+            .GetResult();
     }
 
     public void Disconnect()
     {
-        _channel.QueueDeleteAsync(_defaultQueueName).GetAwaiter().GetResult();
+        // Only delete the auto-generated queue when we declared it ourselves (reader mode, no user-supplied queue).
+        // Deleting a queue that was declared by the broker (sender mode) would cause a channel exception
+        // that closes the channel before CloseAsync, leaking the connection.
+        if (_ownedDefaultQueueWasDeclared)
+            _channel.QueueDeleteAsync(_defaultQueueName).GetAwaiter().GetResult();
         _channel.CloseAsync().GetAwaiter().GetResult();
         _connection.CloseAsync().GetAwaiter().GetResult();
     }

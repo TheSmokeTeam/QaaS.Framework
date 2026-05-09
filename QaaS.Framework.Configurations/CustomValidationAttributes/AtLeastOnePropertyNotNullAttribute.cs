@@ -8,10 +8,10 @@ namespace QaaS.Framework.Configurations.CustomValidationAttributes;
 /// checks all properties in the object
 /// checks the properties of the object the attribute is put over
 /// </summary>
-public class AtLeastOnePropertyNotNullAttribute: ValidationAttribute
+public class AtLeastOnePropertyNotNullAttribute : ValidationAttribute
 {
     private readonly IEnumerable<string>? _propertyNamesToCheck;
-        
+
     /// <summary>
     /// Initiate attribute with a few specific properties to check and not the whole object
     /// </summary>
@@ -31,7 +31,7 @@ public class AtLeastOnePropertyNotNullAttribute: ValidationAttribute
     {
         _propertyNamesToCheck = null;
     }
-        
+
     /// <inheritdoc />
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
     {
@@ -42,24 +42,33 @@ public class AtLeastOnePropertyNotNullAttribute: ValidationAttribute
 
         var valueType = value.GetType();
         var allObjectProperties = valueType.GetProperties(
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
-            
+            BindingFlags.Public
+                | BindingFlags.NonPublic
+                | BindingFlags.Instance
+                | BindingFlags.Static
+        );
+
         // If there are no specific properties to check, check them all
         if (_propertyNamesToCheck == null)
         {
-            return allObjectProperties.Any(property => property.GetValue(value) != null) ?
-                ValidationResult.Success : new ValidationResult(
-                    $"All properties in {valueType.Name} are null," +
-                    $" at least 1 of them must contain a value");
+            return allObjectProperties.Any(property => property.GetValue(value) != null)
+                ? ValidationResult.Success
+                : new ValidationResult(
+                    $"All properties in {valueType.Name} are null,"
+                        + $" at least 1 of them must contain a value"
+                );
         }
-            
-        var specificPropertiesToCheck = allObjectProperties.Where(
-            property => _propertyNamesToCheck.Contains(property.Name)).ToArray();
 
-        return specificPropertiesToCheck.Any(property => property.GetValue(value) != null) ?
-            ValidationResult.Success : new ValidationResult(
-                "All of the following properties: " +
-                $"[{string.Join(", ", specificPropertiesToCheck.Select(property => property.Name))}] " +
-                $"in {valueType.Name} are null, at least 1 of them must contain a value");
+        var specificPropertiesToCheck = allObjectProperties
+            .Where(property => _propertyNamesToCheck.Contains(property.Name))
+            .ToArray();
+
+        return specificPropertiesToCheck.Any(property => property.GetValue(value) != null)
+            ? ValidationResult.Success
+            : new ValidationResult(
+                "All of the following properties: "
+                    + $"[{string.Join(", ", specificPropertiesToCheck.Select(property => property.Name))}] "
+                    + $"in {valueType.Name} are null, at least 1 of them must contain a value"
+            );
     }
 }

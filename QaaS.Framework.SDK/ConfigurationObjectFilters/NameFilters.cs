@@ -15,7 +15,7 @@ public static class NameFilters
     /// <param name="filterName"> the name to filter by </param>
     /// <returns> True if passed the filter, False otherwise. </returns>
     public static bool DataSource(DataSource data, string filterName) => data.Name == filterName;
-    
+
     /// <summary>
     /// RegexFilter for the SessionData objects using the SessionData's name.
     /// </summary>

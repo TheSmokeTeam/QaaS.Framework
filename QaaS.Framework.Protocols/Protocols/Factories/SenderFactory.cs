@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using QaaS.Framework.Protocols.ConfigurationObjects;
 using QaaS.Framework.Protocols.ConfigurationObjects.Elastic;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
@@ -8,7 +9,6 @@ using QaaS.Framework.Protocols.ConfigurationObjects.S3;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
 using QaaS.Framework.Protocols.ConfigurationObjects.Socket;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
-using Microsoft.Extensions.Logging;
 using QaaS.Framework.SDK.Session;
 
 namespace QaaS.Framework.Protocols.Protocols.Factories;
@@ -36,39 +36,54 @@ public static class SenderFactory
         ISenderConfig type,
         ILogger logger,
         DataFilter? dataFilter,
-        string? timeZoneId = null)
+        string? timeZoneId = null
+    )
     {
-       var effectiveDataFilter = dataFilter ?? new DataFilter();
+        var effectiveDataFilter = dataFilter ?? new DataFilter();
 
-       IConnectable connectable = type switch
-       {
-           // Singular senders
-           RedisSenderConfig config => new RedisProtocol(config, logger),
-           MsSqlSenderConfig config => new MsSqlProtocol(config, logger, timeZoneId: timeZoneId),
-           OracleSenderConfig config => new OracleSqlProtocol(config, logger, timeZoneId: timeZoneId),
-           MongoDbCollectionSenderConfig config => new MongoDbProtocol(config, logger),
-           ElasticSenderConfig config => new ElasticProtocol(config, effectiveDataFilter, logger),
-           
-           // Chunkable senders
-           RabbitMqSenderConfig config => new RabbitMqProtocol(config, logger),
-           KafkaTopicSenderConfig config => new KafkaTopicProtocol(config, logger),
-           SftpSenderConfig config => new SftpProtocol(config, logger),
-           SocketSenderConfig config => new SocketProtocol(config, logger),
-           S3BucketSenderConfig config => new S3Protocol(config, logger),
-           
-           // Senders which support both
-           PostgreSqlSenderConfig config => new PostgreSqlProtocol(config, logger, timeZoneId: timeZoneId),
-           
-           _ => throw new InvalidOperationException($"Protocol type {type.GetType().Name} is not supported")
-       };
+        IConnectable connectable = type switch
+        {
+            // Singular senders
+            RedisSenderConfig config => new RedisProtocol(config, logger),
+            MsSqlSenderConfig config => new MsSqlProtocol(config, logger, timeZoneId: timeZoneId),
+            OracleSenderConfig config => new OracleSqlProtocol(
+                config,
+                logger,
+                timeZoneId: timeZoneId
+            ),
+            MongoDbCollectionSenderConfig config => new MongoDbProtocol(config, logger),
+            ElasticSenderConfig config => new ElasticProtocol(config, effectiveDataFilter, logger),
 
-       if (isChunkable)
-           return connectable is IChunkSender chunkSender
-               ? (null, chunkSender)
-               : throw new InvalidOperationException($"Protocol type {type.GetType().Name} does not support chunk sending");
+            // Chunkable senders
+            RabbitMqSenderConfig config => new RabbitMqProtocol(config, logger),
+            KafkaTopicSenderConfig config => new KafkaTopicProtocol(config, logger),
+            SftpSenderConfig config => new SftpProtocol(config, logger),
+            SocketSenderConfig config => new SocketProtocol(config, logger),
+            S3BucketSenderConfig config => new S3Protocol(config, logger),
 
-       return connectable is ISender sender
-           ? (sender, null)
-           : throw new InvalidOperationException($"Protocol type {type.GetType().Name} does not support singular sending");
+            // Senders which support both
+            PostgreSqlSenderConfig config => new PostgreSqlProtocol(
+                config,
+                logger,
+                timeZoneId: timeZoneId
+            ),
+
+            _ => throw new InvalidOperationException(
+                $"Protocol type {type.GetType().Name} is not supported"
+            ),
+        };
+
+        if (isChunkable)
+            return connectable is IChunkSender chunkSender
+                ? (null, chunkSender)
+                : throw new InvalidOperationException(
+                    $"Protocol type {type.GetType().Name} does not support chunk sending"
+                );
+
+        return connectable is ISender sender
+            ? (sender, null)
+            : throw new InvalidOperationException(
+                $"Protocol type {type.GetType().Name} does not support singular sending"
+            );
     }
 }

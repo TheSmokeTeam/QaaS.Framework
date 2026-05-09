@@ -7,5 +7,4 @@ public interface IChunkSender : IConnectable
 {
     public IEnumerable<DetailedData<object>> SendChunk(IEnumerable<Data<object>> chunkDataToSend);
     public SerializationType? GetSerializationType();
-
 }

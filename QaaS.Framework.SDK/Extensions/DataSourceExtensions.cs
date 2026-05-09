@@ -17,16 +17,23 @@ public static class DataSourceExtensions
     /// <param name="dataSourceName"> The name of the DataSource to search for in the DataSources enumerable </param>
     /// <returns> The DataSource that has the given name </returns>
     /// <exception cref="ArgumentException"> If less or more than 1 DataSources were found with the given name </exception>
-    public static DataSource GetDataSourceByName
-        (this IEnumerable<DataSource>? dataSourceEnumerable, string dataSourceName)
+    public static DataSource GetDataSourceByName(
+        this IEnumerable<DataSource>? dataSourceEnumerable,
+        string dataSourceName
+    )
     {
-        var itemsWithName = dataSourceEnumerable?.Where(dataSource =>
-            dataSource.Name == dataSourceName).ToArray();
-        
+        var itemsWithName = dataSourceEnumerable
+            ?.Where(dataSource => dataSource.Name == dataSourceName)
+            .ToArray();
+
         if (itemsWithName == null || itemsWithName.Length < 1)
-            throw new ArgumentException($"No DataSource by the name of '{dataSourceName}' was found.");
+            throw new ArgumentException(
+                $"No DataSource by the name of '{dataSourceName}' was found."
+            );
         if (itemsWithName.Length > 1)
-            throw new ArgumentException($"More than 1 DataSources by the name of '{dataSourceName}' were found.");
+            throw new ArgumentException(
+                $"More than 1 DataSources by the name of '{dataSourceName}' were found."
+            );
 
         return itemsWithName.First();
     }
@@ -40,20 +47,27 @@ public static class DataSourceExtensions
     /// <typeparam name="TCastTo"> The type to cast the DataSource to </typeparam>
     /// <returns> DataSource casted to the given type </returns>
     /// <exception cref="InvalidCastException"> If cast fails for any reason </exception>
-    public static IEnumerable<Data<TCastTo>> RetrieveAndCast<TCastTo>
-        (this DataSource dataSource, IImmutableList<SessionData>? ranSessionsDataList = null)
+    public static IEnumerable<Data<TCastTo>> RetrieveAndCast<TCastTo>(
+        this DataSource dataSource,
+        IImmutableList<SessionData>? ranSessionsDataList = null
+    )
     {
-        return dataSource.Retrieve(ranSessionsDataList).Select(retrievedData =>
-        {
-            try
+        return dataSource
+            .Retrieve(ranSessionsDataList)
+            .Select(retrievedData =>
             {
-                return retrievedData.CastObjectData<TCastTo>();
-            }
-            catch (Exception e)
-            {
-                throw new InvalidCastException($"Failed to cast data generated from data source " +
-                                               $"`{dataSource.Name}` to type {typeof(TCastTo)}.", e);
-            }
-        });
+                try
+                {
+                    return retrievedData.CastObjectData<TCastTo>();
+                }
+                catch (Exception e)
+                {
+                    throw new InvalidCastException(
+                        $"Failed to cast data generated from data source "
+                            + $"`{dataSource.Name}` to type {typeof(TCastTo)}.",
+                        e
+                    );
+                }
+            });
     }
 }

@@ -9,19 +9,31 @@ namespace QaaS.Framework.Protocols.Protocols;
 [ExcludeFromCodeCoverage]
 public class MsSqlProtocol : BaseSqlProtocol<SqlConnection>
 {
-    public MsSqlProtocol(MsSqlReaderConfig configurations, ILogger logger,
+    public MsSqlProtocol(
+        MsSqlReaderConfig configurations,
+        ILogger logger,
         SqlConnection? dbConnection = null,
-        string? timeZoneId = null) : base(configurations, logger,
-        dbConnection ?? new SqlConnection(configurations.ConnectionString), timeZoneId)
-    {
-    }
+        string? timeZoneId = null
+    )
+        : base(
+            configurations,
+            logger,
+            dbConnection ?? new SqlConnection(configurations.ConnectionString),
+            timeZoneId
+        ) { }
 
-    public MsSqlProtocol(MsSqlSenderConfig configurations, ILogger logger,
+    public MsSqlProtocol(
+        MsSqlSenderConfig configurations,
+        ILogger logger,
         SqlConnection? dbConnection = null,
-        string? timeZoneId = null) : base(configurations, logger,
-        dbConnection ?? new SqlConnection(configurations.ConnectionString), timeZoneId)
-    {
-    }
+        string? timeZoneId = null
+    )
+        : base(
+            configurations,
+            logger,
+            dbConnection ?? new SqlConnection(configurations.ConnectionString),
+            timeZoneId
+        ) { }
 
     protected override void InsertChunkToTable(DataTable chunkData)
     {
@@ -52,7 +64,8 @@ public class MsSqlProtocol : BaseSqlProtocol<SqlConnection>
     protected override string GetLatestTableRowQuery() =>
         $"select top 1 * from {TableName} {BuildWhereStatement()} order by {InsertionTimeField} desc";
 
-    protected override string GetTimeFieldSqlFormat(DateTime time) => $"{time:yyyy-MM-dd HH:mm:ss.fff}";
+    protected override string GetTimeFieldSqlFormat(DateTime time) =>
+        $"{time:yyyy-MM-dd HH:mm:ss.fff}";
 
     private string BuildWhereStatement()
     {
@@ -65,4 +78,3 @@ public class MsSqlProtocol : BaseSqlProtocol<SqlConnection>
             : $"where {WhereStatement}";
     }
 }
-

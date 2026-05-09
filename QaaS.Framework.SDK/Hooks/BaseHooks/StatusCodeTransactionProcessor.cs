@@ -13,6 +13,12 @@ namespace QaaS.Framework.SDK.Hooks.BaseHooks;
 public class StatusCodeTransactionProcessor : BaseTransactionProcessor<StatusCodeConfiguration>
 {
     /// <inheritdoc />
-    public override Data<object> Process(IImmutableList<DataSource> dataSourceList, Data<object> requestData)
-        => new() { MetaData = new MetaData { Http = new Http { StatusCode = Configuration.StatusCode } } };
+    public override Data<object> Process(
+        IImmutableList<DataSource> dataSourceList,
+        Data<object> requestData
+    ) =>
+        new()
+        {
+            MetaData = new MetaData { Http = new Http { StatusCode = Configuration.StatusCode } },
+        };
 }

@@ -17,5 +17,4 @@ public interface IRunningSessions
     /// <param name="sessionName">The name of the session</param>
     /// <returns>The running <see cref="RunningSessionData{TInput,TOutput}"/></returns>
     public RunningSessionData<object, object> GetSessionByName(string sessionName);
-
 }

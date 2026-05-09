@@ -9,18 +9,19 @@ using QaaS.Framework.Serialization;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
-public class MongoDbProtocol(MongoDbCollectionSenderConfig configuration, ILogger logger) : IChunkSender
+public class MongoDbProtocol(MongoDbCollectionSenderConfig configuration, ILogger logger)
+    : IChunkSender
 {
     // The client that holds all the Db's in the mongo server
     private IMongoCollection<BsonDocument>? _mongoCollection;
-
 
     public SerializationType? GetSerializationType() => SerializationType.Json;
 
     public IEnumerable<DetailedData<object>> SendChunk(IEnumerable<Data<object>> chunkDataToSend)
     {
         var dataToSend = chunkDataToSend.ToList();
-        if (!dataToSend.Any()) return [];
+        if (!dataToSend.Any())
+            return [];
         var chunkInsertionTime = DateTime.UtcNow;
         // create the documents to send in one time
         var bsonDocuments = dataToSend.Select(message =>
@@ -37,13 +38,18 @@ public class MongoDbProtocol(MongoDbCollectionSenderConfig configuration, ILogge
         }
         catch (Exception ex)
         {
-            logger.LogError("Error while sending chunk to MongoDB collection {CollectionName}: {Exception}",
-                configuration.CollectionName, ex);
+            logger.LogError(
+                "Error while sending chunk to MongoDB collection {CollectionName}: {Exception}",
+                configuration.CollectionName,
+                ex
+            );
             throw;
         }
 
         logger.LogDebug("Finished sending chunk");
-        return dataToSend.Select(message => message.CloneDetailed(chunkInsertionTime)).ToImmutableList();
+        return dataToSend
+            .Select(message => message.CloneDetailed(chunkInsertionTime))
+            .ToImmutableList();
     }
 
     public void Connect()
@@ -53,7 +59,5 @@ public class MongoDbProtocol(MongoDbCollectionSenderConfig configuration, ILogge
         _mongoCollection = mongoDb.GetCollection<BsonDocument>(configuration.CollectionName);
     }
 
-    public void Disconnect()
-    {
-    }
+    public void Disconnect() { }
 }

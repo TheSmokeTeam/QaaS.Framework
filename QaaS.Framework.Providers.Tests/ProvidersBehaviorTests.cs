@@ -20,20 +20,18 @@ public class ProvidersBehaviorTests
     {
         public Context Context { get; set; } = null!;
 
-        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
-            => [];
+        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration) =>
+            [];
     }
 
-    private sealed class NotAHook
-    {
-    }
+    private sealed class NotAHook { }
 
     private sealed class ValidationHook : IHook
     {
         public Context Context { get; set; } = null!;
 
-        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration)
-            => [new ValidationResult("invalid configuration")];
+        public List<ValidationResult>? LoadAndValidateConfiguration(IConfiguration configuration) =>
+            [new ValidationResult("invalid configuration")];
     }
 
     private sealed class StaticHookProvider(IHook hook) : IHookProvider<IHook>
@@ -43,21 +41,25 @@ public class ProvidersBehaviorTests
 
     private sealed class ThrowingHookProvider : IHookProvider<IHook>
     {
-        public IHook GetSupportedInstanceByName(string instanceName)
-            => throw new ArgumentException("missing hook");
+        public IHook GetSupportedInstanceByName(string instanceName) =>
+            throw new ArgumentException("missing hook");
     }
 
-    private static Context CreateContext() => new()
-    {
-        Logger = NullLogger.Instance,
-        RootConfiguration = new ConfigurationBuilder().Build(),
-        CurrentRunningSessions = new RunningSessions(new Dictionary<string, RunningSessionData<object, object>>())
-    };
+    private static Context CreateContext() =>
+        new()
+        {
+            Logger = NullLogger.Instance,
+            RootConfiguration = new ConfigurationBuilder().Build(),
+            CurrentRunningSessions = new RunningSessions(
+                new Dictionary<string, RunningSessionData<object, object>>()
+            ),
+        };
 
     private static void OverrideProviderDiscoveryState(
         HookProvider<IHook> provider,
         Assembly[] hookAssemblies,
-        Type[] supportedHookTypes)
+        Type[] supportedHookTypes
+    )
     {
         typeof(HookProvider<IHook>)
             .GetField("_hookAssemblies", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -71,27 +73,38 @@ public class ProvidersBehaviorTests
     {
         var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(
             new AssemblyName(assemblyName),
-            AssemblyBuilderAccess.Run);
+            AssemblyBuilderAccess.Run
+        );
         var moduleBuilder = assemblyBuilder.DefineDynamicModule($"{assemblyName}.dll");
         var typeBuilder = moduleBuilder.DefineType(
             fullTypeName,
-            TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed);
+            TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed
+        );
 
         typeBuilder.AddInterfaceImplementation(typeof(IHook));
 
-        var contextField = typeBuilder.DefineField("_context", typeof(Context), FieldAttributes.Private);
+        var contextField = typeBuilder.DefineField(
+            "_context",
+            typeof(Context),
+            FieldAttributes.Private
+        );
 
         var contextProperty = typeBuilder.DefineProperty(
             nameof(IHook.Context),
             PropertyAttributes.None,
             typeof(Context),
-            null);
+            null
+        );
 
         var getContextMethod = typeBuilder.DefineMethod(
             $"get_{nameof(IHook.Context)}",
-            MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.SpecialName | MethodAttributes.HideBySig,
+            MethodAttributes.Public
+                | MethodAttributes.Virtual
+                | MethodAttributes.SpecialName
+                | MethodAttributes.HideBySig,
             typeof(Context),
-            Type.EmptyTypes);
+            Type.EmptyTypes
+        );
         var getContextIl = getContextMethod.GetILGenerator();
         getContextIl.Emit(OpCodes.Ldarg_0);
         getContextIl.Emit(OpCodes.Ldfld, contextField);
@@ -99,9 +112,13 @@ public class ProvidersBehaviorTests
 
         var setContextMethod = typeBuilder.DefineMethod(
             $"set_{nameof(IHook.Context)}",
-            MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.SpecialName | MethodAttributes.HideBySig,
+            MethodAttributes.Public
+                | MethodAttributes.Virtual
+                | MethodAttributes.SpecialName
+                | MethodAttributes.HideBySig,
             null,
-            [typeof(Context)]);
+            [typeof(Context)]
+        );
         var setContextIl = setContextMethod.GetILGenerator();
         setContextIl.Emit(OpCodes.Ldarg_0);
         setContextIl.Emit(OpCodes.Ldarg_1);
@@ -110,20 +127,31 @@ public class ProvidersBehaviorTests
 
         contextProperty.SetGetMethod(getContextMethod);
         contextProperty.SetSetMethod(setContextMethod);
-        typeBuilder.DefineMethodOverride(getContextMethod, typeof(IHook).GetProperty(nameof(IHook.Context))!.GetMethod!);
-        typeBuilder.DefineMethodOverride(setContextMethod, typeof(IHook).GetProperty(nameof(IHook.Context))!.SetMethod!);
+        typeBuilder.DefineMethodOverride(
+            getContextMethod,
+            typeof(IHook).GetProperty(nameof(IHook.Context))!.GetMethod!
+        );
+        typeBuilder.DefineMethodOverride(
+            setContextMethod,
+            typeof(IHook).GetProperty(nameof(IHook.Context))!.SetMethod!
+        );
 
         var loadMethod = typeBuilder.DefineMethod(
             nameof(IHook.LoadAndValidateConfiguration),
             MethodAttributes.Public | MethodAttributes.Virtual,
             typeof(List<ValidationResult>),
-            [typeof(IConfiguration)]);
+            [typeof(IConfiguration)]
+        );
         var loadIl = loadMethod.GetILGenerator();
-        loadIl.Emit(OpCodes.Newobj, typeof(List<ValidationResult>).GetConstructor(Type.EmptyTypes)!);
+        loadIl.Emit(
+            OpCodes.Newobj,
+            typeof(List<ValidationResult>).GetConstructor(Type.EmptyTypes)!
+        );
         loadIl.Emit(OpCodes.Ret);
         typeBuilder.DefineMethodOverride(
             loadMethod,
-            typeof(IHook).GetMethod(nameof(IHook.LoadAndValidateConfiguration))!);
+            typeof(IHook).GetMethod(nameof(IHook.LoadAndValidateConfiguration))!
+        );
 
         return typeBuilder.CreateType()!;
     }
@@ -144,7 +172,8 @@ public class ProvidersBehaviorTests
 
         var instance = creator.GetInstanceOfSubClassOfTByNameFromAssemblies<IHook>(
             nameof(TestHook),
-            new[] { Assembly.GetExecutingAssembly() });
+            new[] { Assembly.GetExecutingAssembly() }
+        );
 
         Assert.That(instance, Is.InstanceOf<TestHook>());
     }
@@ -157,7 +186,9 @@ public class ProvidersBehaviorTests
         Assert.Throws<UnsupportedSubClassException>(() =>
             creator.GetInstanceOfSubClassOfTByNameFromAssemblies<IHook>(
                 "DoesNotExist",
-                new[] { Assembly.GetExecutingAssembly() }));
+                new[] { Assembly.GetExecutingAssembly() }
+            )
+        );
     }
 
     [Test]
@@ -168,7 +199,9 @@ public class ProvidersBehaviorTests
         var exception = Assert.Throws<AmbiguousMatchException>(() =>
             creator.GetInstanceOfSubClassOfTByNameFromAssemblies<IHook>(
                 nameof(NamespaceA.DuplicateHook),
-                new[] { Assembly.GetExecutingAssembly() }));
+                new[] { Assembly.GetExecutingAssembly() }
+            )
+        );
 
         Assert.That(exception!.Message, Does.Contain(typeof(NamespaceA.DuplicateHook).FullName));
         Assert.That(exception.Message, Does.Contain(typeof(NamespaceB.DuplicateHook).FullName));
@@ -181,7 +214,8 @@ public class ProvidersBehaviorTests
 
         var instance = creator.GetInstanceOfSubClassOfTByNameFromAssemblies<IHook>(
             typeof(NamespaceB.DuplicateHook).FullName!,
-            new[] { Assembly.GetExecutingAssembly() });
+            new[] { Assembly.GetExecutingAssembly() }
+        );
 
         Assert.That(instance, Is.InstanceOf<NamespaceB.DuplicateHook>());
     }
@@ -190,7 +224,10 @@ public class ProvidersBehaviorTests
     public void HookProvider_GetSupportedInstanceByName_ReturnsConfiguredHook()
     {
         var context = CreateContext();
-        var provider = new HookProvider<IHook>(context, new ByNameObjectCreator(NullLogger.Instance));
+        var provider = new HookProvider<IHook>(
+            context,
+            new ByNameObjectCreator(NullLogger.Instance)
+        );
 
         var instance = provider.GetSupportedInstanceByName(nameof(TestHook));
 
@@ -202,10 +239,14 @@ public class ProvidersBehaviorTests
     public void HookProvider_GetSupportedInstanceByName_WhenSimpleNameIsAmbiguous_Throws()
     {
         var context = CreateContext();
-        var provider = new HookProvider<IHook>(context, new ByNameObjectCreator(NullLogger.Instance));
+        var provider = new HookProvider<IHook>(
+            context,
+            new ByNameObjectCreator(NullLogger.Instance)
+        );
 
         var exception = Assert.Throws<ArgumentException>(() =>
-            provider.GetSupportedInstanceByName(nameof(NamespaceA.DuplicateHook)));
+            provider.GetSupportedInstanceByName(nameof(NamespaceA.DuplicateHook))
+        );
 
         Assert.That(exception!.Message, Does.Contain(typeof(NamespaceA.DuplicateHook).FullName));
         Assert.That(exception.Message, Does.Contain(typeof(NamespaceB.DuplicateHook).FullName));
@@ -215,9 +256,14 @@ public class ProvidersBehaviorTests
     public void HookProvider_GetSupportedInstanceByName_WhenFullNameIsProvided_ReturnsExpectedHook()
     {
         var context = CreateContext();
-        var provider = new HookProvider<IHook>(context, new ByNameObjectCreator(NullLogger.Instance));
+        var provider = new HookProvider<IHook>(
+            context,
+            new ByNameObjectCreator(NullLogger.Instance)
+        );
 
-        var instance = provider.GetSupportedInstanceByName(typeof(NamespaceA.DuplicateHook).FullName!);
+        var instance = provider.GetSupportedInstanceByName(
+            typeof(NamespaceA.DuplicateHook).FullName!
+        );
 
         Assert.That(instance, Is.InstanceOf<NamespaceA.DuplicateHook>());
         Assert.That(instance.Context, Is.SameAs(context));
@@ -227,7 +273,10 @@ public class ProvidersBehaviorTests
     public void HookProvider_GetSupportedInstanceByName_WhenFullNameMatchesMultipleAssemblies_Throws()
     {
         var context = CreateContext();
-        var provider = new HookProvider<IHook>(context, new ByNameObjectCreator(NullLogger.Instance));
+        var provider = new HookProvider<IHook>(
+            context,
+            new ByNameObjectCreator(NullLogger.Instance)
+        );
         var duplicateTypeName = "QaaS.Framework.Providers.Tests.Generated.DuplicateHook";
         var firstType = CreateDynamicHookType("GeneratedHooksA", duplicateTypeName);
         var secondType = CreateDynamicHookType("GeneratedHooksB", duplicateTypeName);
@@ -235,10 +284,12 @@ public class ProvidersBehaviorTests
         OverrideProviderDiscoveryState(
             provider,
             [firstType.Assembly, secondType.Assembly],
-            [firstType, secondType]);
+            [firstType, secondType]
+        );
 
         var exception = Assert.Throws<ArgumentException>(() =>
-            provider.GetSupportedInstanceByName(duplicateTypeName));
+            provider.GetSupportedInstanceByName(duplicateTypeName)
+        );
 
         Assert.That(exception!.Message, Does.Contain("assembly-qualified name"));
         Assert.That(exception.Message, Does.Contain(firstType.Assembly.FullName));
@@ -248,16 +299,15 @@ public class ProvidersBehaviorTests
     [Test]
     public void HookData_AssignsMetadata()
     {
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["k"] = "v"
-        }).Build();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["k"] = "v" })
+            .Build();
 
         var hookData = new HookData<IHook>
         {
             Name = "my-hook",
             Type = "test",
-            Configuration = configuration
+            Configuration = configuration,
         };
 
         Assert.That(hookData.Name, Is.EqualTo("my-hook"));
@@ -269,7 +319,10 @@ public class ProvidersBehaviorTests
     public void HooksFromProvidersLoader_LoadAndValidate_PrefixesValidationErrors()
     {
         var context = CreateContext();
-        var loader = new HooksFromProvidersLoader<IHook>(context, new StaticHookProvider(new ValidationHook()));
+        var loader = new HooksFromProvidersLoader<IHook>(
+            context,
+            new StaticHookProvider(new ValidationHook())
+        );
         var validationResults = new List<ValidationResult>();
 
         var loaded = loader.LoadAndValidate(
@@ -278,16 +331,20 @@ public class ProvidersBehaviorTests
                 {
                     Name = "hook-a",
                     Type = nameof(ValidationHook),
-                    Configuration = new ConfigurationBuilder().Build()
-                }
+                    Configuration = new ConfigurationBuilder().Build(),
+                },
             ],
-            validationResults);
+            validationResults
+        );
 
         Assert.Multiple(() =>
         {
             Assert.That(loaded, Has.Count.EqualTo(1));
             Assert.That(validationResults, Has.Count.EqualTo(1));
-            Assert.That(validationResults[0].ErrorMessage, Does.Contain("In Hook of IHook named hook-a"));
+            Assert.That(
+                validationResults[0].ErrorMessage,
+                Does.Contain("In Hook of IHook named hook-a")
+            );
             Assert.That(validationResults[0].ErrorMessage, Does.Contain(nameof(ValidationHook)));
             Assert.That(validationResults[0].ErrorMessage, Does.Contain("invalid configuration"));
         });
@@ -300,15 +357,18 @@ public class ProvidersBehaviorTests
         var loader = new HooksFromProvidersLoader<IHook>(context, new ThrowingHookProvider());
         var validationResults = new List<ValidationResult>();
 
-        Assert.Throws<ArgumentException>(() => loader.LoadAndValidate(
-            [
-                new HookData<IHook>
-                {
-                    Name = "hook-a",
-                    Type = nameof(TestHook),
-                    Configuration = new ConfigurationBuilder().Build()
-                }
-            ],
-            validationResults));
+        Assert.Throws<ArgumentException>(() =>
+            loader.LoadAndValidate(
+                [
+                    new HookData<IHook>
+                    {
+                        Name = "hook-a",
+                        Type = nameof(TestHook),
+                        Configuration = new ConfigurationBuilder().Build(),
+                    },
+                ],
+                validationResults
+            )
+        );
     }
 }

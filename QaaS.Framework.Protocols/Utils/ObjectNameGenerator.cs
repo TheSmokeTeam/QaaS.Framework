@@ -1,5 +1,3 @@
-
-
 using QaaS.Framework.Protocols.ConfigurationObjects;
 
 namespace QaaS.Framework.Protocols.Utils;
@@ -24,8 +22,11 @@ public class ObjectNameGenerator(ObjectNamingGeneratorType namingType, string pr
         {
             ObjectNamingGeneratorType.RandomGuid => prefix + Guid.NewGuid(),
             ObjectNamingGeneratorType.GrowingNumericalSeries => prefix + _objectIndex++,
-            _ => throw new ArgumentOutOfRangeException(nameof(namingType), namingType,
-                "object sender naming type mechanism is not supported")
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(namingType),
+                namingType,
+                "object sender naming type mechanism is not supported"
+            ),
         };
     }
 }

@@ -16,21 +16,24 @@ internal static class ListUtils
     /// <exception cref="ArgumentException">Thrown when list can't be created from the given type</exception>
     internal static (Type, IList?) GetListItemsTypeAndInstance(Type listType, string parentPath)
     {
-        var listItemsType = listType.IsGenericType ?
-            listType.GetGenericArguments().FirstOrDefault() :
-            listType.GetElementType();
+        var listItemsType = listType.IsGenericType
+            ? listType.GetGenericArguments().FirstOrDefault()
+            : listType.GetElementType();
 
-        var listInstance = (IList?)Activator.CreateInstance(typeof(List<>).MakeGenericType(
-            listItemsType ?? throw new ArgumentException($"Failed to get list type for {parentPath}")));
+        var listInstance = (IList?)
+            Activator.CreateInstance(
+                typeof(List<>).MakeGenericType(
+                    listItemsType
+                        ?? throw new ArgumentException($"Failed to get list type for {parentPath}")
+                )
+            );
 
         return (listItemsType, listInstance);
     }
-    
+
     /// <summary>
     /// Returns true if the type is a list
     /// </summary>
     internal static bool IsTypeList(this Type type) =>
-        type == typeof(IList) ||
-        typeof(IList).IsAssignableFrom(type);
-
+        type == typeof(IList) || typeof(IList).IsAssignableFrom(type);
 }

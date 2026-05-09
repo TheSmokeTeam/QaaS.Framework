@@ -8,7 +8,7 @@ public static class DataExtensions
         {
             Timestamp = datetime ?? DateTime.UtcNow,
             Body = data.Body,
-            MetaData = data.MetaData
+            MetaData = data.MetaData,
         };
     }
 }

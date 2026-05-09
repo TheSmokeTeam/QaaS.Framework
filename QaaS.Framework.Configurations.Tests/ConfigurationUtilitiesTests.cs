@@ -15,7 +15,7 @@ public class ConfigurationUtilitiesTests
     private enum ExampleMode
     {
         First,
-        Second
+        Second,
     }
 
     private sealed class NestedSettings
@@ -101,8 +101,12 @@ public class ConfigurationUtilitiesTests
         internal NonPublicRecursiveValidationChild Child { get; set; } = new();
     }
 
-    [PropertyComparison(nameof(Min), nameof(Max), PropertyComparisonOperator.LessThanOrEqual,
-        ErrorMessage = "'Min' cannot be greater than 'Max'.")]
+    [PropertyComparison(
+        nameof(Min),
+        nameof(Max),
+        PropertyComparisonOperator.LessThanOrEqual,
+        ErrorMessage = "'Min' cannot be greater than 'Max'."
+    )]
     private sealed class NonPublicRecursiveValidationChild
     {
         [Required]
@@ -117,11 +121,9 @@ public class ConfigurationUtilitiesTests
     public void BuildConfigurationAsYaml_UsesRequestedSectionOrder()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["zeta:value"] = "1",
-                ["alpha:value"] = "2"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["zeta:value"] = "1", ["alpha:value"] = "2" }
+            )
             .Build();
 
         var yaml = configuration.BuildConfigurationAsYaml(["alpha", "zeta"]);
@@ -144,7 +146,7 @@ public class ConfigurationUtilitiesTests
             Map = new Dictionary<string, object?> { ["k"] = "v" },
             Section = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["inner:value"] = "x" })
-                .Build()
+                .Build(),
         };
 
         var flat = ConfigurationUtils.GetInMemoryCollectionFromObject(configurationObject);
@@ -163,30 +165,36 @@ public class ConfigurationUtilitiesTests
     [Test]
     public void GetInMemoryCollectionFromObject_WithNonClass_Throws()
     {
-        Assert.Throws<ArgumentException>(() => ConfigurationUtils.GetInMemoryCollectionFromObject(5));
+        Assert.Throws<ArgumentException>(() =>
+            ConfigurationUtils.GetInMemoryCollectionFromObject(5)
+        );
     }
 
     [Test]
     public void BindToObject_BindsNestedCollectionsDictionariesAndEnums()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Number"] = "7",
-                ["Mode"] = "Second",
-                ["Child:Name"] = "child",
-                ["Values:0"] = "1",
-                ["Values:1"] = "2",
-                ["Map:a"] = "A",
-                ["Section:inner"] = "v"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Number"] = "7",
+                    ["Mode"] = "Second",
+                    ["Child:Name"] = "child",
+                    ["Values:0"] = "1",
+                    ["Values:1"] = "2",
+                    ["Map:a"] = "A",
+                    ["Section:inner"] = "v",
+                }
+            )
             .Build();
 
-        var bound = configuration.BindToObject<ComplexSettings>(new BinderOptions
-        {
-            ErrorOnUnknownConfiguration = true,
-            BindNonPublicProperties = false
-        });
+        var bound = configuration.BindToObject<ComplexSettings>(
+            new BinderOptions
+            {
+                ErrorOnUnknownConfiguration = true,
+                BindNonPublicProperties = false,
+            }
+        );
 
         Assert.Multiple(() =>
         {
@@ -209,11 +217,13 @@ public class ConfigurationUtilitiesTests
         {
             var configuration = new ConfigurationBuilder().AddYaml(filePath).Build();
 
-            var bound = configuration.BindToObject<StringValueHolder>(new BinderOptions
-            {
-                ErrorOnUnknownConfiguration = true,
-                BindNonPublicProperties = false
-            });
+            var bound = configuration.BindToObject<StringValueHolder>(
+                new BinderOptions
+                {
+                    ErrorOnUnknownConfiguration = true,
+                    BindNonPublicProperties = false,
+                }
+            );
 
             Assert.That(bound.Value, Is.EqualTo(string.Empty));
         }
@@ -233,11 +243,13 @@ public class ConfigurationUtilitiesTests
         {
             var configuration = new ConfigurationBuilder().AddYaml(filePath).Build();
 
-            var bound = configuration.BindToObject<NullableValueHolder>(new BinderOptions
-            {
-                ErrorOnUnknownConfiguration = true,
-                BindNonPublicProperties = false
-            });
+            var bound = configuration.BindToObject<NullableValueHolder>(
+                new BinderOptions
+                {
+                    ErrorOnUnknownConfiguration = true,
+                    BindNonPublicProperties = false,
+                }
+            );
 
             Assert.Multiple(() =>
             {
@@ -256,10 +268,14 @@ public class ConfigurationUtilitiesTests
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection().Build();
 
-        var exception = Assert.Throws<InvalidConfigurationsException>(
-            () => configuration.LoadAndValidateConfiguration<RequiredSettings>());
+        var exception = Assert.Throws<InvalidConfigurationsException>(() =>
+            configuration.LoadAndValidateConfiguration<RequiredSettings>()
+        );
 
-        Assert.That(exception!.Message, Does.Contain("Configuration binding failed for RequiredSettings."));
+        Assert.That(
+            exception!.Message,
+            Does.Contain("Configuration binding failed for RequiredSettings.")
+        );
         Assert.That(exception.Message, Does.Contain("Top-level configuration keys: <none>"));
         Assert.That(exception.Message, Does.Contain("The Name field is required."));
     }
@@ -280,14 +296,16 @@ public class ConfigurationUtilitiesTests
     public void PlaceholderParser_ResolvesStringDefaultsAndObjectCopy()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["source:value"] = "live",
-                ["target"] = "${source:value}",
-                ["fallback"] = "${missing??default-value}",
-                ["obj:child:id"] = "42",
-                ["objCopy"] = "${obj}"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["source:value"] = "live",
+                    ["target"] = "${source:value}",
+                    ["fallback"] = "${missing??default-value}",
+                    ["obj:child:id"] = "42",
+                    ["objCopy"] = "${obj}",
+                }
+            )
             .Build();
 
         var parsed = new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders();
@@ -304,40 +322,41 @@ public class ConfigurationUtilitiesTests
     public void PlaceholderParser_CircularReference_Throws()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["a"] = "${b}",
-                ["b"] = "${a}"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["a"] = "${b}", ["b"] = "${a}" }
+            )
             .Build();
 
-        Assert.Throws<InvalidOperationException>(
-            () => new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders());
+        Assert.Throws<InvalidOperationException>(() =>
+            new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders()
+        );
     }
 
     [Test]
     public void PlaceholderParser_ObjectPlaceholderUsedAsSubstring_Throws()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["obj:child:id"] = "42",
-                ["target"] = "prefix-${obj}-suffix"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["obj:child:id"] = "42",
+                    ["target"] = "prefix-${obj}-suffix",
+                }
+            )
             .Build();
 
-        Assert.Throws<InvalidOperationException>(
-            () => new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders());
+        Assert.Throws<InvalidOperationException>(() =>
+            new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders()
+        );
     }
 
     [Test]
     public void PlaceholderParser_MissingPlaceholderWithoutDefault_RemainsUnchanged()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["target"] = "${missing:path}"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["target"] = "${missing:path}" }
+            )
             .Build();
 
         var parsed = new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders();
@@ -355,10 +374,12 @@ public class ConfigurationUtilitiesTests
         {
             Environment.SetEnvironmentVariable(environmentVariableName, "from-env");
             var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["root:value"] = $"${{{environmentVariableName}}}"
-                })
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["root:value"] = $"${{{environmentVariableName}}}",
+                    }
+                )
                 .EnrichedBuild(addEnvironmentVariables: true);
 
             Assert.Multiple(() =>
@@ -377,16 +398,23 @@ public class ConfigurationUtilitiesTests
     public void EnrichedBuild_WithEnvironmentVariableSectionCopy_CopiesDestinationWithoutKeepingSourceSection()
     {
         const string environmentSectionRoot = "QAAS_FRAMEWORK_ENV_SECTION_TEST";
-        var originalValue = Environment.GetEnvironmentVariable($"{environmentSectionRoot}__child__value");
+        var originalValue = Environment.GetEnvironmentVariable(
+            $"{environmentSectionRoot}__child__value"
+        );
 
         try
         {
-            Environment.SetEnvironmentVariable($"{environmentSectionRoot}__child__value", "from-env");
+            Environment.SetEnvironmentVariable(
+                $"{environmentSectionRoot}__child__value",
+                "from-env"
+            );
             var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["resolvedSection"] = $"${{{environmentSectionRoot}}}"
-                })
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["resolvedSection"] = $"${{{environmentSectionRoot}}}",
+                    }
+                )
                 .EnrichedBuild(addEnvironmentVariables: true);
 
             Assert.Multiple(() =>
@@ -397,7 +425,10 @@ public class ConfigurationUtilitiesTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable($"{environmentSectionRoot}__child__value", originalValue);
+            Environment.SetEnvironmentVariable(
+                $"{environmentSectionRoot}__child__value",
+                originalValue
+            );
         }
     }
 
@@ -405,11 +436,13 @@ public class ConfigurationUtilitiesTests
     public void CollapseShiftLeftArrowsInConfiguration_CollapsesChildren()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["root:<<:shared:value"] = "1",
-                ["root:local:value"] = "2"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["root:<<:shared:value"] = "1",
+                    ["root:local:value"] = "2",
+                }
+            )
             .Build();
 
         var collapsed = configuration.CollapseShiftLeftArrowsInConfiguration();
@@ -425,31 +458,34 @@ public class ConfigurationUtilitiesTests
     public void CollapseShiftLeftArrowsInConfiguration_WithValueUnderCollapseKey_Throws()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["root:<<"] = "invalid"
-            })
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["root:<<"] = "invalid" })
             .Build();
 
-        Assert.Throws<InvalidConfigurationsException>(() => configuration.CollapseShiftLeftArrowsInConfiguration());
+        Assert.Throws<InvalidConfigurationsException>(() =>
+            configuration.CollapseShiftLeftArrowsInConfiguration()
+        );
     }
 
     [Test]
     public void ResolveReferencesInConfiguration_ReplacesKeywordAndShiftsIndexes()
     {
         var referenceFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
-        File.WriteAllText(referenceFile,
-            "items:\n  - id: ref-a\n    v: 1\n  - id: ref-b\n    v: 2\n");
+        File.WriteAllText(
+            referenceFile,
+            "items:\n  - id: ref-a\n    v: 1\n  - id: ref-b\n    v: 2\n"
+        );
 
         try
         {
             var baseConfiguration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["items:0:id"] = "local",
-                    ["items:1:id"] = "__REF__",
-                    ["items:2:id"] = "tail"
-                })
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["items:0:id"] = "local",
+                        ["items:1:id"] = "__REF__",
+                        ["items:2:id"] = "tail",
+                    }
+                )
                 .Build();
 
             var resolved = baseConfiguration.ResolveReferencesInConfiguration(
@@ -458,12 +494,13 @@ public class ConfigurationUtilitiesTests
                     new ReferenceConfig
                     {
                         ReferenceReplaceKeyword = "__REF__",
-                        ReferenceFilesPaths = [referenceFile]
-                    }
+                        ReferenceFilesPaths = [referenceFile],
+                    },
                 },
                 ["items"],
                 [@"items:\d+:id"],
-                resolveReferencesWithEnvironmentVariables: false);
+                resolveReferencesWithEnvironmentVariables: false
+            );
 
             Assert.Multiple(() =>
             {
@@ -488,11 +525,13 @@ public class ConfigurationUtilitiesTests
         try
         {
             var baseConfiguration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["items:0:id"] = "__REF__",
-                    ["items:1:id"] = "__REF__"
-                })
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["items:0:id"] = "__REF__",
+                        ["items:1:id"] = "__REF__",
+                    }
+                )
                 .Build();
 
             Assert.Throws<InvalidConfigurationsException>(() =>
@@ -502,12 +541,14 @@ public class ConfigurationUtilitiesTests
                         new ReferenceConfig
                         {
                             ReferenceReplaceKeyword = "__REF__",
-                            ReferenceFilesPaths = [referenceFile]
-                        }
+                            ReferenceFilesPaths = [referenceFile],
+                        },
                     },
                     ["items"],
                     null,
-                    resolveReferencesWithEnvironmentVariables: false));
+                    resolveReferencesWithEnvironmentVariables: false
+                )
+            );
         }
         finally
         {
@@ -536,18 +577,25 @@ public class ConfigurationUtilitiesTests
     public void AddYaml_WithMalformedYaml_ThrowsInvalidConfigurationsExceptionWithParserDetails()
     {
         var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
-        File.WriteAllText(filePath,
+        File.WriteAllText(
+            filePath,
             """
             MetaData:
               Team: Smoke
               System: [broken
-            """);
+            """
+        );
 
         try
         {
-            var ex = Assert.Throws<InvalidConfigurationsException>(() => new ConfigurationBuilder().AddYaml(filePath).Build());
+            var ex = Assert.Throws<InvalidConfigurationsException>(() =>
+                new ConfigurationBuilder().AddYaml(filePath).Build()
+            );
 
-            Assert.That(ex!.Message, Does.Contain("YAML configuration file is invalid and QaaS cannot continue."));
+            Assert.That(
+                ex!.Message,
+                Does.Contain("YAML configuration file is invalid and QaaS cannot continue.")
+            );
             Assert.That(ex.Message, Does.Contain($"Resolved local path: {filePath}"));
             Assert.That(ex.Message, Does.Contain("Parser location: line "));
             Assert.That(ex.Message, Does.Contain("Parser detail: While parsing a flow sequence"));
@@ -563,7 +611,9 @@ public class ConfigurationUtilitiesTests
     {
         var missingPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
 
-        var ex = Assert.Throws<CouldNotFindConfigurationException>(() => new ConfigurationBuilder().AddYaml(missingPath).Build());
+        var ex = Assert.Throws<CouldNotFindConfigurationException>(() =>
+            new ConfigurationBuilder().AddYaml(missingPath).Build()
+        );
 
         Assert.That(ex!.Message, Does.Contain("YAML configuration file was not found."));
         Assert.That(ex.Message, Does.Contain($"Resolved local path: {missingPath}"));
@@ -572,8 +622,10 @@ public class ConfigurationUtilitiesTests
     [Test]
     public void AddYamlFromHttpGet_WithInvalidUrl_ThrowsCouldNotFindConfigurationException()
     {
-        var configurationBuilder = new ConfigurationBuilder()
-            .AddYamlFromHttpGet("http://127.0.0.1:1/non-existing.yaml", TimeSpan.FromMilliseconds(100));
+        var configurationBuilder = new ConfigurationBuilder().AddYamlFromHttpGet(
+            "http://127.0.0.1:1/non-existing.yaml",
+            TimeSpan.FromMilliseconds(100)
+        );
 
         Assert.Throws<CouldNotFindConfigurationException>(() => configurationBuilder.Build());
     }
@@ -592,9 +644,14 @@ public class ConfigurationUtilitiesTests
     [Test]
     public void EnumerateYamlFilesInDirectory_WithMissingDirectory_ThrowsIndicativeDirectoryNotFoundException()
     {
-        var missingDirectory = Path.Combine(Path.GetTempPath(), $"qaas-missing-dir-{Guid.NewGuid():N}");
+        var missingDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"qaas-missing-dir-{Guid.NewGuid():N}"
+        );
 
-        var ex = Assert.Throws<DirectoryNotFoundException>(() => PathUtils.EnumerateYamlFilesInDirectory(missingDirectory).ToList());
+        var ex = Assert.Throws<DirectoryNotFoundException>(() =>
+            PathUtils.EnumerateYamlFilesInDirectory(missingDirectory).ToList()
+        );
 
         Assert.That(ex!.Message, Does.Contain("Overwrite folder was not found."));
         Assert.That(ex.Message, Does.Contain($"Configured overwrite folder: {missingDirectory}"));
@@ -604,10 +661,15 @@ public class ConfigurationUtilitiesTests
     [Test]
     public void EnumerateYamlFilesInDirectory_WithHttpPath_ThrowsIndicativeArgumentException()
     {
-        var ex = Assert.Throws<ArgumentException>(() => PathUtils.EnumerateYamlFilesInDirectory("https://example.com/overwrites").ToList());
+        var ex = Assert.Throws<ArgumentException>(() =>
+            PathUtils.EnumerateYamlFilesInDirectory("https://example.com/overwrites").ToList()
+        );
 
         Assert.That(ex!.Message, Does.Contain("Overwrite folders must be local directories."));
-        Assert.That(ex.Message, Does.Contain("Configured overwrite folder: https://example.com/overwrites"));
+        Assert.That(
+            ex.Message,
+            Does.Contain("Configured overwrite folder: https://example.com/overwrites")
+        );
         Assert.That(ex.Message, Does.Contain("Use --with-files for individual YAML files."));
     }
 
@@ -617,10 +679,7 @@ public class ConfigurationUtilitiesTests
         var root = new RecursiveValidationRoot
         {
             Items = [new InvalidChild()],
-            ByName = new Dictionary<string, InvalidChild>
-            {
-                ["node-a"] = new()
-            }
+            ByName = new Dictionary<string, InvalidChild> { ["node-a"] = new() },
         };
         var results = new List<ValidationResult>();
 
@@ -631,7 +690,10 @@ public class ConfigurationUtilitiesTests
             Assert.That(valid, Is.False);
             Assert.That(results, Is.Not.Empty);
             Assert.That(results.Any(r => r.ErrorMessage?.Contains("Items:0") == true), Is.True);
-            Assert.That(results.Any(r => r.ErrorMessage?.Contains("ByName:node-a") == true), Is.True);
+            Assert.That(
+                results.Any(r => r.ErrorMessage?.Contains("ByName:node-a") == true),
+                Is.True
+            );
         });
     }
 
@@ -644,22 +706,36 @@ public class ConfigurationUtilitiesTests
             {
                 RequiredValue = null,
                 Min = 5,
-                Max = 3
-            }
+                Max = 3,
+            },
         };
         var results = new List<ValidationResult>();
 
-        var valid = ValidationUtils.TryValidateObjectRecursive(root, results,
-            bindingFlags: System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
-                          System.Reflection.BindingFlags.Instance);
+        var valid = ValidationUtils.TryValidateObjectRecursive(
+            root,
+            results,
+            bindingFlags: System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance
+        );
 
         Assert.Multiple(() =>
         {
             Assert.That(valid, Is.False);
-            Assert.That(results.Any(result => result.ErrorMessage?.Contains("Child - The RequiredValue field is required.") == true),
-                Is.True);
-            Assert.That(results.Any(result => result.ErrorMessage?.Contains("Child - 'Min' cannot be greater than 'Max'.") == true),
-                Is.True);
+            Assert.That(
+                results.Any(result =>
+                    result.ErrorMessage?.Contains("Child - The RequiredValue field is required.")
+                    == true
+                ),
+                Is.True
+            );
+            Assert.That(
+                results.Any(result =>
+                    result.ErrorMessage?.Contains("Child - 'Min' cannot be greater than 'Max'.")
+                    == true
+                ),
+                Is.True
+            );
         });
     }
 
@@ -667,20 +743,24 @@ public class ConfigurationUtilitiesTests
     public void IConfigurationUtils_BindConfigurationObjectToIConfiguration_MergesOnlyNonDefaultPatchFields()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Url"] = "https://existing",
-                ["Enabled"] = "True",
-                ["Retries"] = "7",
-                ["Child:Name"] = "original-child"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Url"] = "https://existing",
+                    ["Enabled"] = "True",
+                    ["Retries"] = "7",
+                    ["Child:Name"] = "original-child",
+                }
+            )
             .Build();
 
-        var rebound = configuration.BindConfigurationObjectToIConfiguration(new MergePatchSettings
-        {
-            Enabled = false,
-            Child = new NestedSettings { Name = "updated-child" }
-        });
+        var rebound = configuration.BindConfigurationObjectToIConfiguration(
+            new MergePatchSettings
+            {
+                Enabled = false,
+                Child = new NestedSettings { Name = "updated-child" },
+            }
+        );
 
         Assert.Multiple(() =>
         {
@@ -695,25 +775,26 @@ public class ConfigurationUtilitiesTests
     public void IConfigurationUtils_BindConfigurationObjectToIConfiguration_MergesKeysCaseInsensitively()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Metadata:Team"] = "existing-team"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["Metadata:Team"] = "existing-team" }
+            )
             .Build();
 
-        var rebound = configuration.BindConfigurationObjectToIConfiguration(new MetaDataContainer
-        {
-            MetaData = new MetaDataSettings
-            {
-                Team = "updated-team"
-            }
-        });
+        var rebound = configuration.BindConfigurationObjectToIConfiguration(
+            new MetaDataContainer { MetaData = new MetaDataSettings { Team = "updated-team" } }
+        );
 
         Assert.Multiple(() =>
         {
             Assert.That(rebound["MetaData:Team"], Is.EqualTo("updated-team"));
-            Assert.That(rebound.AsEnumerable()
-                .Count(pair => string.Equals(pair.Key, "MetaData:Team", StringComparison.OrdinalIgnoreCase)), Is.EqualTo(1));
+            Assert.That(
+                rebound
+                    .AsEnumerable()
+                    .Count(pair =>
+                        string.Equals(pair.Key, "MetaData:Team", StringComparison.OrdinalIgnoreCase)
+                    ),
+                Is.EqualTo(1)
+            );
         });
     }
 
@@ -725,15 +806,17 @@ public class ConfigurationUtilitiesTests
             Url = "https://existing",
             Enabled = true,
             Retries = 8,
-            Child = new NestedSettings { Name = "original-child" }
+            Child = new NestedSettings { Name = "original-child" },
         };
 
-        var mergedConfiguration = currentConfiguration.MergeConfiguration(new MergePatchSettings
-        {
-            Enabled = false,
-            Retries = 0,
-            Child = new NestedSettings { Name = "updated-child" }
-        });
+        var mergedConfiguration = currentConfiguration.MergeConfiguration(
+            new MergePatchSettings
+            {
+                Enabled = false,
+                Retries = 0,
+                Child = new NestedSettings { Name = "updated-child" },
+            }
+        );
 
         Assert.Multiple(() =>
         {
@@ -749,17 +832,14 @@ public class ConfigurationUtilitiesTests
     public void IConfigurationUtils_BindConfigurationObjectToIConfiguration_IgnoresReadOnlyComputedProperties()
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Value"] = "kept",
-                ["UpdatedName"] = "original"
-            })
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["Value"] = "kept", ["UpdatedName"] = "original" }
+            )
             .Build();
 
-        var rebound = configuration.BindConfigurationObjectToIConfiguration(new ComputedSettings
-        {
-            UpdatedName = "updated"
-        });
+        var rebound = configuration.BindConfigurationObjectToIConfiguration(
+            new ComputedSettings { UpdatedName = "updated" }
+        );
 
         Assert.Multiple(() =>
         {
@@ -775,13 +855,12 @@ public class ConfigurationUtilitiesTests
         var currentConfiguration = new ThrowingComputedSettings
         {
             Value = null,
-            UpdatedName = "original"
+            UpdatedName = "original",
         };
 
-        var mergedConfiguration = currentConfiguration.MergeConfiguration(new ThrowingComputedSettings
-        {
-            UpdatedName = "updated"
-        });
+        var mergedConfiguration = currentConfiguration.MergeConfiguration(
+            new ThrowingComputedSettings { UpdatedName = "updated" }
+        );
 
         Assert.Multiple(() =>
         {

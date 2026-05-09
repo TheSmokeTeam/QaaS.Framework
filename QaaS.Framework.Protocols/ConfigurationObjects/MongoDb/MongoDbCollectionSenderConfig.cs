@@ -7,10 +7,10 @@ public record MongoDbCollectionSenderConfig : ISenderConfig
 {
     [Required, Description("The connection string to the MongoDb server")]
     public string? ConnectionString { get; set; }
-        
+
     [Required, Description("The DB to insert data to")]
     public string? DatabaseName { get; set; }
-    
+
     [Required, Description("The collection to insert data to")]
     public string? CollectionName { get; set; }
 

@@ -19,7 +19,8 @@ public static class ContextGlobalDictionaryExtensions
     public static void LoadConfigurationSectionIntoGlobalDictionary<TExecutionData>(
         this BaseContext<TExecutionData> context,
         string configurationSectionPath,
-        List<string>? destinationPath = null)
+        List<string>? destinationPath = null
+    )
         where TExecutionData : class, IExecutionData, new()
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -28,7 +29,8 @@ public static class ContextGlobalDictionaryExtensions
         var section = context.RootConfiguration.GetSection(configurationSectionPath);
         if (!section.Exists())
             throw new KeyNotFoundException(
-                $"Configuration section '{configurationSectionPath}' was not found on the current context.");
+                $"Configuration section '{configurationSectionPath}' was not found on the current context."
+            );
 
         var path = destinationPath is { Count: > 0 }
             ? destinationPath
@@ -37,7 +39,10 @@ public static class ContextGlobalDictionaryExtensions
                 .ToList();
 
         if (path.Count == 0)
-            throw new ArgumentException("Destination path cannot be empty.", nameof(destinationPath));
+            throw new ArgumentException(
+                "Destination path cannot be empty.",
+                nameof(destinationPath)
+            );
 
         context.InsertValueIntoGlobalDictionary(path, ConvertConfigurationSectionToObject(section));
     }

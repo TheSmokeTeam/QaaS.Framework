@@ -38,8 +38,11 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 public class ProtocolBehaviorTests
 {
     private sealed class UnsupportedReaderConfig : IReaderConfig;
+
     private sealed class UnsupportedSenderConfig : ISenderConfig;
+
     private sealed class UnsupportedTransactorConfig : ITransactorConfig;
+
     private sealed class UnsupportedFetcherConfig : IFetcherConfig;
 
     private sealed class StubPrometheusProtocol(PrometheusFetcherConfig fetcherConfig, string body)
@@ -57,7 +60,10 @@ public class ProtocolBehaviorTests
     [Test]
     public void ObjectNameGenerator_GeneratesExpectedNames()
     {
-        var sequential = new ObjectNameGenerator(ObjectNamingGeneratorType.GrowingNumericalSeries, "pref-");
+        var sequential = new ObjectNameGenerator(
+            ObjectNamingGeneratorType.GrowingNumericalSeries,
+            "pref-"
+        );
         var guid = new ObjectNameGenerator(ObjectNamingGeneratorType.RandomGuid, "pref-");
         var invalid = new ObjectNameGenerator((ObjectNamingGeneratorType)999, "x-");
 
@@ -84,7 +90,8 @@ public class ProtocolBehaviorTests
     public void RunS3OperationWithRetryMechanism_RetriesTooManyRequestsAndStopsOnLimit()
     {
         var attempts = 0;
-        var result = S3Extentions.RunS3OperationWithRetryMechanism(() =>
+        var result = S3Extentions.RunS3OperationWithRetryMechanism(
+            () =>
             {
                 attempts++;
                 if (attempts < 3)
@@ -96,7 +103,8 @@ public class ProtocolBehaviorTests
             },
             "retry-test",
             maxRetryCount: 5,
-            logger: NullLogger.Instance);
+            logger: NullLogger.Instance
+        );
 
         Assert.That(result, Is.EqualTo(7));
         Assert.That(attempts, Is.EqualTo(3));
@@ -104,7 +112,9 @@ public class ProtocolBehaviorTests
         Assert.Throws<AmazonS3Exception>(() =>
             S3Extentions.RunS3OperationWithRetryMechanism<int>(
                 () => throw new AmazonS3Exception("fail") { ErrorCode = "AccessDenied" },
-                "no-retry"));
+                "no-retry"
+            )
+        );
 
         Assert.Throws<AmazonS3Exception>(() =>
         {
@@ -116,7 +126,8 @@ public class ProtocolBehaviorTests
                     throw new AmazonS3Exception("limited") { ErrorCode = "TooManyRequests" };
                 },
                 "limit",
-                maxRetryCount: 1);
+                maxRetryCount: 1
+            );
         });
     }
 
@@ -134,7 +145,9 @@ public class ProtocolBehaviorTests
                 },
                 "limit",
                 maxRetryCount: 0,
-                logger: NullLogger.Instance));
+                logger: NullLogger.Instance
+            )
+        );
 
         Assert.That(attempts, Is.EqualTo(1));
     }
@@ -147,11 +160,11 @@ public class ProtocolBehaviorTests
             Url = "http://prometheus.local",
             Expression = "up",
             SampleIntervalMs = 1000,
-            TimeoutMs = 1000
+            TimeoutMs = 1000,
         };
         const string body = """
-                            {"status":"success","data":{"resultType":"matrix","result":[{"metric":{"job":"api"},"values":[[1710000000,"1"],[1710000001,"2"]]}]}}
-                            """;
+            {"status":"success","data":{"resultType":"matrix","result":[{"metric":{"job":"api"},"values":[[1710000000,"1"],[1710000001,"2"]]}]}}
+            """;
         var protocol = new StubPrometheusProtocol(config, body);
 
         var result = protocol.Collect(DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow).ToList();
@@ -159,10 +172,16 @@ public class ProtocolBehaviorTests
         Assert.Multiple(() =>
         {
             Assert.That(result, Has.Count.EqualTo(2));
-            Assert.That(result[0].Timestamp!.Value, Is.LessThanOrEqualTo(result[1].Timestamp!.Value));
+            Assert.That(
+                result[0].Timestamp!.Value,
+                Is.LessThanOrEqualTo(result[1].Timestamp!.Value)
+            );
             Assert.That(result[0].Body!.ToString(), Does.Contain("metric"));
             Assert.That(protocol.LastQueryUri, Does.Contain("/api/v1/query_range"));
-            Assert.That(protocol.GetSerializationType(), Is.EqualTo(QaaS.Framework.Serialization.SerializationType.Json));
+            Assert.That(
+                protocol.GetSerializationType(),
+                Is.EqualTo(QaaS.Framework.Serialization.SerializationType.Json)
+            );
         });
     }
 
@@ -172,20 +191,32 @@ public class ProtocolBehaviorTests
         var config = new PrometheusFetcherConfig
         {
             Url = "http://prometheus.local",
-            Expression = "up"
+            Expression = "up",
         };
 
-        var invalidStatus = new StubPrometheusProtocol(config,
-            """{"status":"error","data":{"resultType":"matrix","result":[]}}""");
-        Assert.Throws<Exception>(() => invalidStatus.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList());
+        var invalidStatus = new StubPrometheusProtocol(
+            config,
+            """{"status":"error","data":{"resultType":"matrix","result":[]}}"""
+        );
+        Assert.Throws<Exception>(() =>
+            invalidStatus.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList()
+        );
 
-        var invalidType = new StubPrometheusProtocol(config,
-            """{"status":"success","data":{"resultType":"vector","result":[]}}""");
-        Assert.Throws<ArgumentOutOfRangeException>(() => invalidType.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList());
+        var invalidType = new StubPrometheusProtocol(
+            config,
+            """{"status":"success","data":{"resultType":"vector","result":[]}}"""
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            invalidType.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList()
+        );
 
-        var invalidTimestamp = new StubPrometheusProtocol(config,
-            """{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"job":"api"},"values":[["bad","1"]]}]}}""");
-        Assert.Throws<ArgumentException>(() => invalidTimestamp.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList());
+        var invalidTimestamp = new StubPrometheusProtocol(
+            config,
+            """{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"job":"api"},"values":[["bad","1"]]}]}}"""
+        );
+        Assert.Throws<ArgumentException>(() =>
+            invalidTimestamp.Collect(DateTime.UtcNow, DateTime.UtcNow).ToList()
+        );
     }
 
     [Test]
@@ -204,28 +235,37 @@ public class ProtocolBehaviorTests
             context.Response.Close();
         });
 
-        using var protocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Post,
-            BaseAddress = "http://127.0.0.1",
-            Port = port,
-            Route = "/",
-            Headers = new Dictionary<string, string> { ["Content-Type"] = "application/octet-stream" },
-            RequestHeaders = new Dictionary<string, string> { ["X-Req"] = "1" },
-            Retries = 1
-        }, Globals.Logger, TimeSpan.FromSeconds(5));
-
-        var result = protocol.Transact(new Data<object>
-        {
-            Body = Encoding.UTF8.GetBytes("ping"),
-            MetaData = new MetaData
+        using var protocol = new HttpProtocol(
+            new HttpTransactorConfig
             {
-                Http = new Http
+                Method = HttpMethods.Post,
+                BaseAddress = "http://127.0.0.1",
+                Port = port,
+                Route = "/",
+                Headers = new Dictionary<string, string>
                 {
-                    Headers = new Dictionary<string, string> { ["X-Data"] = "d" }
-                }
+                    ["Content-Type"] = "application/octet-stream",
+                },
+                RequestHeaders = new Dictionary<string, string> { ["X-Req"] = "1" },
+                Retries = 1,
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(5)
+        );
+
+        var result = protocol.Transact(
+            new Data<object>
+            {
+                Body = Encoding.UTF8.GetBytes("ping"),
+                MetaData = new MetaData
+                {
+                    Http = new Http
+                    {
+                        Headers = new Dictionary<string, string> { ["X-Data"] = "d" },
+                    },
+                },
             }
-        });
+        );
 
         serverTask.GetAwaiter().GetResult();
         var response = result.Item2!;
@@ -255,14 +295,18 @@ public class ProtocolBehaviorTests
             context.Response.Close();
         });
 
-        using var protocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Post,
-            BaseAddress = "http://127.0.0.1",
-            Port = port,
-            Route = "/",
-            Retries = 0
-        }, Globals.Logger, TimeSpan.FromSeconds(5));
+        using var protocol = new HttpProtocol(
+            new HttpTransactorConfig
+            {
+                Method = HttpMethods.Post,
+                BaseAddress = "http://127.0.0.1",
+                Port = port,
+                Route = "/",
+                Retries = 0,
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(5)
+        );
 
         var result = protocol.Transact(new Data<object> { Body = Encoding.UTF8.GetBytes("ping") });
 
@@ -280,14 +324,18 @@ public class ProtocolBehaviorTests
     public void HttpProtocol_Transact_WhenNoResponse_ReturnsNullOutput()
     {
         var closedPort = GetFreeTcpPort();
-        using var protocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Get,
-            BaseAddress = "http://127.0.0.1",
-            Port = closedPort,
-            Route = "/",
-            Retries = 1
-        }, Globals.Logger, TimeSpan.FromMilliseconds(200));
+        using var protocol = new HttpProtocol(
+            new HttpTransactorConfig
+            {
+                Method = HttpMethods.Get,
+                BaseAddress = "http://127.0.0.1",
+                Port = closedPort,
+                Route = "/",
+                Retries = 1,
+            },
+            Globals.Logger,
+            TimeSpan.FromMilliseconds(200)
+        );
 
         var result = protocol.Transact(new Data<object> { Body = Array.Empty<byte>() });
 
@@ -301,94 +349,142 @@ public class ProtocolBehaviorTests
     [Test]
     public void HttpProtocol_Dispose_PreventsFurtherUse()
     {
-        using var protocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Get,
-            BaseAddress = "http://127.0.0.1",
-            Port = 80
-        }, Globals.Logger, TimeSpan.FromSeconds(1));
+        using var protocol = new HttpProtocol(
+            new HttpTransactorConfig
+            {
+                Method = HttpMethods.Get,
+                BaseAddress = "http://127.0.0.1",
+                Port = 80,
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(1)
+        );
 
         protocol.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() =>
-            protocol.Transact(new Data<object> { Body = Array.Empty<byte>() }));
+            protocol.Transact(new Data<object> { Body = Array.Empty<byte>() })
+        );
     }
 
     [Test]
     public void HttpProtocol_AppliesJwtAuthConfiguration()
     {
-        var basicAuthProtocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Get,
-            BaseAddress = "http://127.0.0.1",
-            Port = 80,
-            JwtAuth = new JwtAuthConfig
+        var basicAuthProtocol = new HttpProtocol(
+            new HttpTransactorConfig
             {
-                BuildJwtConfig = false,
-                HttpAuthScheme = HttpAuthorizationSchemes.Basic,
-                Secret = "token"
-            }
-        }, Globals.Logger, TimeSpan.FromSeconds(1));
+                Method = HttpMethods.Get,
+                BaseAddress = "http://127.0.0.1",
+                Port = 80,
+                JwtAuth = new JwtAuthConfig
+                {
+                    BuildJwtConfig = false,
+                    HttpAuthScheme = HttpAuthorizationSchemes.Basic,
+                    Secret = "token",
+                },
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(1)
+        );
 
-        var jwtProtocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Get,
-            BaseAddress = "http://127.0.0.1",
-            Port = 80,
-            JwtAuth = new JwtAuthConfig
+        var jwtProtocol = new HttpProtocol(
+            new HttpTransactorConfig
             {
-                BuildJwtConfig = true,
-                Secret = "secret",
-                Claims = new Dictionary<string, string> { ["sub"] = "user" }
-            }
-        }, Globals.Logger, TimeSpan.FromSeconds(1));
+                Method = HttpMethods.Get,
+                BaseAddress = "http://127.0.0.1",
+                Port = 80,
+                JwtAuth = new JwtAuthConfig
+                {
+                    BuildJwtConfig = true,
+                    Secret = "secret",
+                    Claims = new Dictionary<string, string> { ["sub"] = "user" },
+                },
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(1)
+        );
 
-        var httpClientField = typeof(HttpProtocol).GetField("_httpClient", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var httpClientField = typeof(HttpProtocol).GetField(
+            "_httpClient",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
         var basicHttpClient = (HttpClient)httpClientField.GetValue(basicAuthProtocol)!;
         var jwtHttpClient = (HttpClient)httpClientField.GetValue(jwtProtocol)!;
 
         Assert.Multiple(() =>
         {
-            Assert.That(basicHttpClient.DefaultRequestHeaders.Authorization!.Scheme, Is.EqualTo("Basic"));
-            Assert.That(basicHttpClient.DefaultRequestHeaders.Authorization.Parameter, Is.EqualTo("token"));
-            Assert.That(jwtHttpClient.DefaultRequestHeaders.Authorization!.Scheme, Is.EqualTo("Bearer"));
-            Assert.That(jwtHttpClient.DefaultRequestHeaders.Authorization.Parameter, Is.Not.EqualTo("secret"));
+            Assert.That(
+                basicHttpClient.DefaultRequestHeaders.Authorization!.Scheme,
+                Is.EqualTo("Basic")
+            );
+            Assert.That(
+                basicHttpClient.DefaultRequestHeaders.Authorization.Parameter,
+                Is.EqualTo("token")
+            );
+            Assert.That(
+                jwtHttpClient.DefaultRequestHeaders.Authorization!.Scheme,
+                Is.EqualTo("Bearer")
+            );
+            Assert.That(
+                jwtHttpClient.DefaultRequestHeaders.Authorization.Parameter,
+                Is.Not.EqualTo("secret")
+            );
         });
     }
 
     [Test]
     public void HttpProtocol_InitializesBaseAddress_HierarchicalClaims_AndMethodMappings()
     {
-        var hierarchicalClaimsProtocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Delete,
-            BaseAddress = "http://127.0.0.1/api",
-            Port = null,
-            JwtAuth = new JwtAuthConfig
+        var hierarchicalClaimsProtocol = new HttpProtocol(
+            new HttpTransactorConfig
             {
-                BuildJwtConfig = true,
-                Secret = "secret",
-                HierarchicalClaims = "sub: user\nscope: api"
-            }
-        }, Globals.Logger, TimeSpan.FromSeconds(1));
-        var putProtocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Put,
-            BaseAddress = "http://127.0.0.1/",
-            Port = 8080
-        }, Globals.Logger, TimeSpan.FromSeconds(1));
+                Method = HttpMethods.Delete,
+                BaseAddress = "http://127.0.0.1/api",
+                Port = null,
+                JwtAuth = new JwtAuthConfig
+                {
+                    BuildJwtConfig = true,
+                    Secret = "secret",
+                    HierarchicalClaims = "sub: user\nscope: api",
+                },
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(1)
+        );
+        var putProtocol = new HttpProtocol(
+            new HttpTransactorConfig
+            {
+                Method = HttpMethods.Put,
+                BaseAddress = "http://127.0.0.1/",
+                Port = 8080,
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(1)
+        );
 
-        var httpClientField = typeof(HttpProtocol).GetField("_httpClient", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var httpClientField = typeof(HttpProtocol).GetField(
+            "_httpClient",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
         var deleteClient = (HttpClient)httpClientField.GetValue(hierarchicalClaimsProtocol)!;
         var putClient = (HttpClient)httpClientField.GetValue(putProtocol)!;
-        var getHttpMethod = typeof(HttpProtocol).GetMethod("GetHttpMethod", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var getHttpMethod = typeof(HttpProtocol).GetMethod(
+            "GetHttpMethod",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
 
         Assert.Multiple(() =>
         {
             Assert.That(deleteClient.BaseAddress, Is.EqualTo(new Uri("http://127.0.0.1/api")));
             Assert.That(putClient.BaseAddress, Is.EqualTo(new Uri("http://127.0.0.1:8080")));
-            Assert.That(deleteClient.DefaultRequestHeaders.Authorization!.Scheme, Is.EqualTo("Bearer"));
-            Assert.That(getHttpMethod.Invoke(hierarchicalClaimsProtocol, null), Is.EqualTo(HttpMethod.Delete));
+            Assert.That(
+                deleteClient.DefaultRequestHeaders.Authorization!.Scheme,
+                Is.EqualTo("Bearer")
+            );
+            Assert.That(
+                getHttpMethod.Invoke(hierarchicalClaimsProtocol, null),
+                Is.EqualTo(HttpMethod.Delete)
+            );
             Assert.That(getHttpMethod.Invoke(putProtocol, null), Is.EqualTo(HttpMethod.Put));
         });
     }
@@ -396,88 +492,123 @@ public class ProtocolBehaviorTests
     [Test]
     public void HttpProtocol_CreateRequest_AppliesUriAndHeaderFallbacks()
     {
-        var protocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Post,
-            BaseAddress = "http://127.0.0.1",
-            Port = 80,
-            Headers = new Dictionary<string, string> { ["X-Config-Content"] = "content" },
-            RequestHeaders = new Dictionary<string, string> { ["X-Config-Request"] = "request" }
-        }, Globals.Logger, TimeSpan.FromSeconds(1));
-        var createRequest = typeof(HttpProtocol).GetMethod("CreateRequest", BindingFlags.Instance | BindingFlags.NonPublic)!;
-
-        var metadataRequest = (HttpRequestMessage)createRequest.Invoke(protocol,
-        [
-            new Data<byte[]>
+        var protocol = new HttpProtocol(
+            new HttpTransactorConfig
             {
-                Body = Encoding.UTF8.GetBytes("payload"),
-                MetaData = new MetaData
+                Method = HttpMethods.Post,
+                BaseAddress = "http://127.0.0.1",
+                Port = 80,
+                Headers = new Dictionary<string, string> { ["X-Config-Content"] = "content" },
+                RequestHeaders = new Dictionary<string, string>
                 {
-                    Http = new Http
+                    ["X-Config-Request"] = "request",
+                },
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(1)
+        );
+        var createRequest = typeof(HttpProtocol).GetMethod(
+            "CreateRequest",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
+
+        var metadataRequest = (HttpRequestMessage)
+            createRequest.Invoke(
+                protocol,
+                [
+                    new Data<byte[]>
                     {
-                        Uri = new Uri("http://127.0.0.1/custom"),
-                        Headers = new Dictionary<string, string> { ["X-Body"] = "1" },
-                        RequestHeaders = new Dictionary<string, string> { ["X-Request"] = "2" }
-                    }
-                }
-            },
-            "http://127.0.0.1/fallback"
-        ])!;
-        var configFallbackRequest = (HttpRequestMessage)createRequest.Invoke(protocol,
-        [
-            new Data<byte[]>
-            {
-                Body = Encoding.UTF8.GetBytes("payload")
-            },
-            "http://127.0.0.1/fallback"
-        ])!;
+                        Body = Encoding.UTF8.GetBytes("payload"),
+                        MetaData = new MetaData
+                        {
+                            Http = new Http
+                            {
+                                Uri = new Uri("http://127.0.0.1/custom"),
+                                Headers = new Dictionary<string, string> { ["X-Body"] = "1" },
+                                RequestHeaders = new Dictionary<string, string>
+                                {
+                                    ["X-Request"] = "2",
+                                },
+                            },
+                        },
+                    },
+                    "http://127.0.0.1/fallback",
+                ]
+            )!;
+        var configFallbackRequest = (HttpRequestMessage)
+            createRequest.Invoke(
+                protocol,
+                [
+                    new Data<byte[]> { Body = Encoding.UTF8.GetBytes("payload") },
+                    "http://127.0.0.1/fallback",
+                ]
+            )!;
 
         Assert.Multiple(() =>
         {
             Assert.That(metadataRequest.RequestUri, Is.EqualTo(new Uri("http://127.0.0.1/custom")));
-            Assert.That(metadataRequest.Content!.Headers.GetValues("X-Body"), Is.EqualTo(new[] { "1" }));
+            Assert.That(
+                metadataRequest.Content!.Headers.GetValues("X-Body"),
+                Is.EqualTo(new[] { "1" })
+            );
             Assert.That(metadataRequest.Headers.GetValues("X-Request"), Is.EqualTo(new[] { "2" }));
-            Assert.That(configFallbackRequest.RequestUri, Is.EqualTo(new Uri("http://127.0.0.1/fallback")));
-            Assert.That(configFallbackRequest.Content!.Headers.GetValues("X-Config-Content"), Is.EqualTo(new[] { "content" }));
-            Assert.That(configFallbackRequest.Headers.GetValues("X-Config-Request"), Is.EqualTo(new[] { "request" }));
+            Assert.That(
+                configFallbackRequest.RequestUri,
+                Is.EqualTo(new Uri("http://127.0.0.1/fallback"))
+            );
+            Assert.That(
+                configFallbackRequest.Content!.Headers.GetValues("X-Config-Content"),
+                Is.EqualTo(new[] { "content" })
+            );
+            Assert.That(
+                configFallbackRequest.Headers.GetValues("X-Config-Request"),
+                Is.EqualTo(new[] { "request" })
+            );
         });
     }
 
     [Test]
     public void HttpProtocol_AddHeadersToRequest_HandlesNullAndSingleSourceHeaders()
     {
-        var protocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Post,
-            BaseAddress = "http://127.0.0.1",
-            Port = 80
-        }, Globals.Logger, TimeSpan.FromSeconds(1));
-        var addHeaders = typeof(HttpProtocol).GetMethod("AddHeadersToRequest", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var protocol = new HttpProtocol(
+            new HttpTransactorConfig
+            {
+                Method = HttpMethods.Post,
+                BaseAddress = "http://127.0.0.1",
+                Port = 80,
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(1)
+        );
+        var addHeaders = typeof(HttpProtocol).GetMethod(
+            "AddHeadersToRequest",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
 
-        HttpRequestMessage NewRequest() => new(HttpMethod.Post, "http://127.0.0.1")
-        {
-            Content = new ByteArrayContent([])
-        };
+        HttpRequestMessage NewRequest() =>
+            new(HttpMethod.Post, "http://127.0.0.1") { Content = new ByteArrayContent([]) };
 
-        var withoutHeaders = (HttpRequestMessage)addHeaders.Invoke(protocol, [NewRequest(), null, null])!;
-        var contentOnly = (HttpRequestMessage)addHeaders.Invoke(protocol,
-        [
-            NewRequest(),
-            new Dictionary<string, string> { ["X-Body"] = "1" },
-            null
-        ])!;
-        var requestOnly = (HttpRequestMessage)addHeaders.Invoke(protocol,
-        [
-            NewRequest(),
-            null,
-            new Dictionary<string, string> { ["X-Request"] = "2" }
-        ])!;
+        var withoutHeaders = (HttpRequestMessage)
+            addHeaders.Invoke(protocol, [NewRequest(), null, null])!;
+        var contentOnly = (HttpRequestMessage)
+            addHeaders.Invoke(
+                protocol,
+                [NewRequest(), new Dictionary<string, string> { ["X-Body"] = "1" }, null]
+            )!;
+        var requestOnly = (HttpRequestMessage)
+            addHeaders.Invoke(
+                protocol,
+                [NewRequest(), null, new Dictionary<string, string> { ["X-Request"] = "2" }]
+            )!;
 
         Assert.Multiple(() =>
         {
             Assert.That(withoutHeaders.Content!.Headers.Contains("X-Body"), Is.False);
             Assert.That(withoutHeaders.Headers.Contains("X-Request"), Is.False);
-            Assert.That(contentOnly.Content!.Headers.GetValues("X-Body"), Is.EqualTo(new[] { "1" }));
+            Assert.That(
+                contentOnly.Content!.Headers.GetValues("X-Body"),
+                Is.EqualTo(new[] { "1" })
+            );
             Assert.That(contentOnly.Headers.Contains("X-Request"), Is.False);
             Assert.That(requestOnly.Content!.Headers.Contains("X-Body"), Is.False);
             Assert.That(requestOnly.Headers.GetValues("X-Request"), Is.EqualTo(new[] { "2" }));
@@ -500,15 +631,19 @@ public class ProtocolBehaviorTests
             context.Response.Close();
         });
 
-        using var protocol = new HttpProtocol(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Post,
-            BaseAddress = "http://127.0.0.1",
-            Port = port,
-            Route = "/",
-            Retries = 4,
-            MessageSendRetriesIntervalMs = 200
-        }, Globals.Logger, TimeSpan.FromSeconds(2));
+        using var protocol = new HttpProtocol(
+            new HttpTransactorConfig
+            {
+                Method = HttpMethods.Post,
+                BaseAddress = "http://127.0.0.1",
+                Port = port,
+                Route = "/",
+                Retries = 4,
+                MessageSendRetriesIntervalMs = 200,
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(2)
+        );
 
         var result = protocol.Transact(new Data<object> { Body = null });
 
@@ -517,52 +652,67 @@ public class ProtocolBehaviorTests
         Assert.Multiple(() =>
         {
             Assert.That(result.Item1.Body, Is.Null);
-            Assert.That(result.Item2 == null ||
-                        Encoding.UTF8.GetString((byte[])result.Item2.Body!) == "retry-ok", Is.True);
+            Assert.That(
+                result.Item2 == null
+                    || Encoding.UTF8.GetString((byte[])result.Item2.Body!) == "retry-ok",
+                Is.True
+            );
         });
     }
 
     [Test]
     public void HttpProtocol_GetHttpMethod_ThrowsForInvalidValues()
     {
-        var protocol = new HttpProtocol(new HttpTransactorConfig
+        var protocol = new HttpProtocol(
+            new HttpTransactorConfig
+            {
+                Method = HttpMethods.Get,
+                BaseAddress = "http://127.0.0.1",
+                Port = 80,
+            },
+            Globals.Logger,
+            TimeSpan.FromSeconds(1)
+        )
         {
-            Method = HttpMethods.Get,
-            BaseAddress = "http://127.0.0.1",
-            Port = 80
-        }, Globals.Logger, TimeSpan.FromSeconds(1))
-        {
-            Method = (HttpMethods)999
+            Method = (HttpMethods)999,
         };
 
-        var getHttpMethod = typeof(HttpProtocol).GetMethod("GetHttpMethod", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var getHttpMethod = typeof(HttpProtocol).GetMethod(
+            "GetHttpMethod",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
         Assert.Throws<TargetInvocationException>(() => getHttpMethod.Invoke(protocol, null));
     }
 
     [Test]
     public void HttpExtensions_HierarchicalClaimsParsingAndValidation()
     {
-        var getClaimsMethod = typeof(HttpProtocol).Assembly
-            .GetType("QaaS.Framework.Protocols.Extentions.HttpExtentions")!
-            .GetMethod("GetClaimsFromHierarchicalClaims", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var getClaimsMethod = typeof(HttpProtocol)
+            .Assembly.GetType("QaaS.Framework.Protocols.Extentions.HttpExtentions")!
+            .GetMethod(
+                "GetClaimsFromHierarchicalClaims",
+                BindingFlags.Static | BindingFlags.NonPublic
+            )!;
 
         var claims = (Dictionary<string, object>)getClaimsMethod.Invoke(null, ["a: 1\nb: two"])!;
         Assert.That(claims["a"].ToString(), Is.EqualTo("1"));
 
         var exception = Assert.Throws<TargetInvocationException>(() =>
-            getClaimsMethod.Invoke(null, ["not: [yaml"]));
+            getClaimsMethod.Invoke(null, ["not: [yaml"])
+        );
         Assert.That(exception!.InnerException, Is.TypeOf<InvalidConfigurationsException>());
     }
 
     [Test]
     public void HttpExtensions_GetJwtAlgorithmFromJwtEnum_InvalidValue_Throws()
     {
-        var getAlgorithmMethod = typeof(HttpProtocol).Assembly
-            .GetType("QaaS.Framework.Protocols.Extentions.HttpExtentions")!
+        var getAlgorithmMethod = typeof(HttpProtocol)
+            .Assembly.GetType("QaaS.Framework.Protocols.Extentions.HttpExtentions")!
             .GetMethod("GetJwtAlgorithmFromJwtEnum", BindingFlags.Static | BindingFlags.NonPublic)!;
 
         var exception = Assert.Throws<TargetInvocationException>(() =>
-            getAlgorithmMethod.Invoke(null, [(JwtAlgorithms)999]));
+            getAlgorithmMethod.Invoke(null, [(JwtAlgorithms)999])
+        );
         Assert.That(exception!.InnerException, Is.TypeOf<ArgumentOutOfRangeException>());
     }
 
@@ -580,7 +730,7 @@ public class ProtocolBehaviorTests
             ClientName = "client",
             AsyncTimeout = 123,
             Ssl = true,
-            SslHost = "ssl-host"
+            SslHost = "ssl-host",
         };
 
         var options = config.CreateRedisConfigurationOptions();
@@ -604,11 +754,16 @@ public class ProtocolBehaviorTests
             Host = "localhost",
             Port = 1000,
             ProtocolType = ProtocolType.Udp,
-            NagleAlgorithm = true
+            NagleAlgorithm = true,
         };
         var results = new List<ValidationResult>();
 
-        var valid = Validator.TryValidateObject(config, new ValidationContext(config), results, true);
+        var valid = Validator.TryValidateObject(
+            config,
+            new ValidationContext(config),
+            results,
+            true
+        );
 
         Assert.That(valid, Is.False);
         Assert.That(results.Single().ErrorMessage, Does.Contain(nameof(ProtocolType.Tcp)));
@@ -619,62 +774,91 @@ public class ProtocolBehaviorTests
     {
         var logger = NullLogger.Instance;
 
-        var (sender, chunkSender) = SenderFactory.CreateSender(false, new PostgreSqlSenderConfig
-        {
-            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
-            TableName = "tbl"
-        }, logger, dataFilter: null);
-
-        var (sender2, chunkSender2) = SenderFactory.CreateSender(true, new PostgreSqlSenderConfig
-        {
-            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
-            TableName = "tbl"
-        }, logger, dataFilter: null);
-
-        var (reader, chunkReader) = ReaderFactory.CreateReader(new PostgreSqlReaderConfig
-        {
-            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
-            TableName = "tbl",
-            InsertionTimeField = "created_at"
-        }, logger, dataFilter: null);
-
-        var transactor = TransactorFactory.CreateTransactor(new HttpTransactorConfig
-        {
-            Method = HttpMethods.Get,
-            BaseAddress = "http://127.0.0.1",
-            Port = 80
-        }, logger, TimeSpan.FromSeconds(1));
-
-        var fetcher = FetcherFactory.CreateFetcher(new PrometheusFetcherConfig
-        {
-            Url = "http://prometheus.local",
-            Expression = "up"
-        }, logger);
-        var (elasticReaderWithDefaultFilter, elasticChunkReaderWithDefaultFilter) = ReaderFactory.CreateReader(
-            new ElasticReaderConfig
+        var (sender, chunkSender) = SenderFactory.CreateSender(
+            false,
+            new PostgreSqlSenderConfig
             {
-                Url = "http://localhost:9200",
-                Username = "u",
-                Password = "p",
-                IndexPattern = "logs-*"
-            }, logger, null);
-        var (elasticSenderWithDefaultFilter, elasticChunkSenderWithDefaultFilter) = SenderFactory.CreateSender(
+                ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+                TableName = "tbl",
+            },
+            logger,
+            dataFilter: null
+        );
+
+        var (sender2, chunkSender2) = SenderFactory.CreateSender(
             true,
-            new ElasticSenderConfig
+            new PostgreSqlSenderConfig
             {
-                Url = "http://localhost:9200",
-                Username = "u",
-                Password = "p",
-                IndexName = "idx"
-            }, logger, null);
-        var (s3ReaderWithDefaultFilter, s3ChunkReaderWithDefaultFilter) = ReaderFactory.CreateReader(
-            new S3BucketReaderConfig
+                ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+                TableName = "tbl",
+            },
+            logger,
+            dataFilter: null
+        );
+
+        var (reader, chunkReader) = ReaderFactory.CreateReader(
+            new PostgreSqlReaderConfig
             {
-                StorageBucket = "bucket",
-                ServiceURL = "http://localhost:9000",
-                AccessKey = "ak",
-                SecretKey = "sk"
-            }, logger, null);
+                ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+                TableName = "tbl",
+                InsertionTimeField = "created_at",
+            },
+            logger,
+            dataFilter: null
+        );
+
+        var transactor = TransactorFactory.CreateTransactor(
+            new HttpTransactorConfig
+            {
+                Method = HttpMethods.Get,
+                BaseAddress = "http://127.0.0.1",
+                Port = 80,
+            },
+            logger,
+            TimeSpan.FromSeconds(1)
+        );
+
+        var fetcher = FetcherFactory.CreateFetcher(
+            new PrometheusFetcherConfig { Url = "http://prometheus.local", Expression = "up" },
+            logger
+        );
+        var (elasticReaderWithDefaultFilter, elasticChunkReaderWithDefaultFilter) =
+            ReaderFactory.CreateReader(
+                new ElasticReaderConfig
+                {
+                    Url = "http://localhost:9200",
+                    Username = "u",
+                    Password = "p",
+                    IndexPattern = "logs-*",
+                },
+                logger,
+                null
+            );
+        var (elasticSenderWithDefaultFilter, elasticChunkSenderWithDefaultFilter) =
+            SenderFactory.CreateSender(
+                true,
+                new ElasticSenderConfig
+                {
+                    Url = "http://localhost:9200",
+                    Username = "u",
+                    Password = "p",
+                    IndexName = "idx",
+                },
+                logger,
+                null
+            );
+        var (s3ReaderWithDefaultFilter, s3ChunkReaderWithDefaultFilter) =
+            ReaderFactory.CreateReader(
+                new S3BucketReaderConfig
+                {
+                    StorageBucket = "bucket",
+                    ServiceURL = "http://localhost:9000",
+                    AccessKey = "ak",
+                    SecretKey = "sk",
+                },
+                logger,
+                null
+            );
 
         Assert.Multiple(() =>
         {
@@ -688,13 +872,21 @@ public class ProtocolBehaviorTests
             Assert.That(fetcher, Is.TypeOf<PrometheusProtocol>());
 
             Assert.Throws<InvalidOperationException>(() =>
-                ReaderFactory.CreateReader(new UnsupportedReaderConfig(), logger, null));
+                ReaderFactory.CreateReader(new UnsupportedReaderConfig(), logger, null)
+            );
             Assert.Throws<InvalidOperationException>(() =>
-                SenderFactory.CreateSender(false, new UnsupportedSenderConfig(), logger, null));
+                SenderFactory.CreateSender(false, new UnsupportedSenderConfig(), logger, null)
+            );
             Assert.Throws<InvalidOperationException>(() =>
-                TransactorFactory.CreateTransactor(new UnsupportedTransactorConfig(), logger, TimeSpan.FromSeconds(1)));
+                TransactorFactory.CreateTransactor(
+                    new UnsupportedTransactorConfig(),
+                    logger,
+                    TimeSpan.FromSeconds(1)
+                )
+            );
             Assert.Throws<InvalidOperationException>(() =>
-                FetcherFactory.CreateFetcher(new UnsupportedFetcherConfig(), logger));
+                FetcherFactory.CreateFetcher(new UnsupportedFetcherConfig(), logger)
+            );
             Assert.That(elasticReaderWithDefaultFilter, Is.Null);
             Assert.That(elasticChunkReaderWithDefaultFilter, Is.Not.Null);
             Assert.That(elasticSenderWithDefaultFilter, Is.Null);
@@ -702,13 +894,19 @@ public class ProtocolBehaviorTests
             Assert.That(s3ReaderWithDefaultFilter, Is.Null);
             Assert.That(s3ChunkReaderWithDefaultFilter, Is.Not.Null);
             Assert.Throws<InvalidOperationException>(() =>
-                SenderFactory.CreateSender(true, new S3BucketSenderConfig
-                {
-                    StorageBucket = "bucket",
-                    ServiceURL = "http://localhost:9000",
-                    AccessKey = "ak",
-                    SecretKey = "sk"
-                }, logger, new DataFilter()));
+                SenderFactory.CreateSender(
+                    true,
+                    new S3BucketSenderConfig
+                    {
+                        StorageBucket = "bucket",
+                        ServiceURL = "http://localhost:9000",
+                        AccessKey = "ak",
+                        SecretKey = "sk",
+                    },
+                    logger,
+                    new DataFilter()
+                )
+            );
         });
     }
 
@@ -718,155 +916,245 @@ public class ProtocolBehaviorTests
         var logger = NullLogger.Instance;
         var dataFilter = new DataFilter { Body = true };
 
-        var (redisSender, redisChunk) = SenderFactory.CreateSender(true, new RedisSenderConfig
-        {
-            HostNames = ["localhost:6379"],
-            RedisDataType = RedisDataType.SetString
-        }, logger, dataFilter);
-        var (msSqlSender, msSqlChunk) = SenderFactory.CreateSender(true, new MsSqlSenderConfig
-        {
-            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
-            TableName = "tbl"
-        }, logger, dataFilter);
-        var (oracleSender, oracleChunk) = SenderFactory.CreateSender(false, new OracleSenderConfig
-        {
-            ConnectionString = "Data Source=localhost;User Id=u;Password=p;",
-            TableName = "tbl"
-        }, logger, dataFilter);
-        var (mongoSender, mongoChunk) = SenderFactory.CreateSender(true, new MongoDbCollectionSenderConfig
-        {
-            ConnectionString = "mongodb://localhost:27017",
-            DatabaseName = "db",
-            CollectionName = "col"
-        }, logger, dataFilter);
-        var (elasticSender, elasticChunk) = SenderFactory.CreateSender(true, new ElasticSenderConfig
-        {
-            Url = "http://localhost:9200",
-            Username = "u",
-            Password = "p",
-            IndexName = "idx"
-        }, logger, dataFilter);
+        var (redisSender, redisChunk) = SenderFactory.CreateSender(
+            true,
+            new RedisSenderConfig
+            {
+                HostNames = ["localhost:6379"],
+                RedisDataType = RedisDataType.SetString,
+            },
+            logger,
+            dataFilter
+        );
+        var (msSqlSender, msSqlChunk) = SenderFactory.CreateSender(
+            true,
+            new MsSqlSenderConfig
+            {
+                ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
+                TableName = "tbl",
+            },
+            logger,
+            dataFilter
+        );
+        var (oracleSender, oracleChunk) = SenderFactory.CreateSender(
+            false,
+            new OracleSenderConfig
+            {
+                ConnectionString = "Data Source=localhost;User Id=u;Password=p;",
+                TableName = "tbl",
+            },
+            logger,
+            dataFilter
+        );
+        var (mongoSender, mongoChunk) = SenderFactory.CreateSender(
+            true,
+            new MongoDbCollectionSenderConfig
+            {
+                ConnectionString = "mongodb://localhost:27017",
+                DatabaseName = "db",
+                CollectionName = "col",
+            },
+            logger,
+            dataFilter
+        );
+        var (elasticSender, elasticChunk) = SenderFactory.CreateSender(
+            true,
+            new ElasticSenderConfig
+            {
+                Url = "http://localhost:9200",
+                Username = "u",
+                Password = "p",
+                IndexName = "idx",
+            },
+            logger,
+            dataFilter
+        );
 
-        var (rabbitSender, rabbitChunk) = SenderFactory.CreateSender(false, new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            QueueName = "q"
-        }, logger, dataFilter);
-        var (kafkaSender, kafkaChunk) = SenderFactory.CreateSender(false, new KafkaTopicSenderConfig
-        {
-            HostNames = ["localhost:9092"],
-            Username = "u",
-            Password = "p",
-            TopicName = "topic"
-        }, logger, dataFilter);
-        var (sftpSender, sftpChunk) = SenderFactory.CreateSender(false, new SftpSenderConfig
-        {
-            Hostname = "localhost",
-            Username = "u",
-            Password = "p",
-            Path = "/tmp"
-        }, logger, dataFilter);
-        var (socketSender, socketChunk) = SenderFactory.CreateSender(false, new SocketSenderConfig
-        {
-            Host = "127.0.0.1",
-            Port = 1001,
-            ProtocolType = ProtocolType.Tcp
-        }, logger, dataFilter);
-        var (s3Sender, s3Chunk) = SenderFactory.CreateSender(false, new S3BucketSenderConfig
-        {
-            StorageBucket = "bucket",
-            ServiceURL = "http://localhost:9000",
-            AccessKey = "ak",
-            SecretKey = "sk"
-        }, logger, dataFilter);
+        var (rabbitSender, rabbitChunk) = SenderFactory.CreateSender(
+            false,
+            new RabbitMqSenderConfig { Host = "localhost", QueueName = "q" },
+            logger,
+            dataFilter
+        );
+        var (kafkaSender, kafkaChunk) = SenderFactory.CreateSender(
+            false,
+            new KafkaTopicSenderConfig
+            {
+                HostNames = ["localhost:9092"],
+                Username = "u",
+                Password = "p",
+                TopicName = "topic",
+            },
+            logger,
+            dataFilter
+        );
+        var (sftpSender, sftpChunk) = SenderFactory.CreateSender(
+            false,
+            new SftpSenderConfig
+            {
+                Hostname = "localhost",
+                Username = "u",
+                Password = "p",
+                Path = "/tmp",
+            },
+            logger,
+            dataFilter
+        );
+        var (socketSender, socketChunk) = SenderFactory.CreateSender(
+            false,
+            new SocketSenderConfig
+            {
+                Host = "127.0.0.1",
+                Port = 1001,
+                ProtocolType = ProtocolType.Tcp,
+            },
+            logger,
+            dataFilter
+        );
+        var (s3Sender, s3Chunk) = SenderFactory.CreateSender(
+            false,
+            new S3BucketSenderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://localhost:9000",
+                AccessKey = "ak",
+                SecretKey = "sk",
+            },
+            logger,
+            dataFilter
+        );
 
-        var (rabbitReader, rabbitChunkReader) = ReaderFactory.CreateReader(new RabbitMqReaderConfig
-        {
-            Host = "localhost",
-            QueueName = "q"
-        }, logger, dataFilter);
-        var (kafkaReader, kafkaChunkReader) = ReaderFactory.CreateReader(new KafkaTopicReaderConfig
-        {
-            HostNames = ["localhost:9092"],
-            Username = "u",
-            Password = "p",
-            TopicName = "topic",
-            GroupId = "g"
-        }, logger, dataFilter);
-        var (socketReader, socketChunkReader) = ReaderFactory.CreateReader(new SocketReaderConfig
-        {
-            Host = "127.0.0.1",
-            Port = 1001,
-            ProtocolType = ProtocolType.Tcp
-        }, logger, dataFilter);
-        var (ibmReader, ibmChunkReader) = ReaderFactory.CreateReader(new IbmMqReaderConfig
-        {
-            HostName = "h",
-            Port = 1414,
-            Channel = "c",
-            Manager = "m",
-            QueueName = "q"
-        }, logger, dataFilter);
-        var (postgresReader, postgresChunkReader) = ReaderFactory.CreateReader(new PostgreSqlReaderConfig
-        {
-            ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
-            TableName = "tbl",
-            InsertionTimeField = "created_at"
-        }, logger, dataFilter);
-        var (oracleReader, oracleChunkReader) = ReaderFactory.CreateReader(new OracleReaderConfig
-        {
-            ConnectionString = "Data Source=localhost;User Id=u;Password=p;",
-            TableName = "tbl",
-            InsertionTimeField = "created_at"
-        }, logger, dataFilter);
-        var (msSqlReader, msSqlChunkReader) = ReaderFactory.CreateReader(new MsSqlReaderConfig
-        {
-            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
-            TableName = "tbl",
-            InsertionTimeField = "created_at"
-        }, logger, dataFilter);
-        var (trinoReader, trinoChunkReader) = ReaderFactory.CreateReader(new TrinoReaderConfig
-        {
-            ConnectionString = string.Empty,
-            TableName = "tbl",
-            InsertionTimeField = "created_at",
-            Username = "u",
-            Password = "p",
-            ClientTag = "tag",
-            Schema = "sch",
-            Catalog = "cat",
-            Hostname = "http://localhost:8080"
-        }, logger, dataFilter);
-        var (elasticReader, elasticChunkReader) = ReaderFactory.CreateReader(new ElasticReaderConfig
-        {
-            Url = "http://localhost:9200",
-            Username = "u",
-            Password = "p",
-            IndexPattern = "logs-*"
-        }, logger, dataFilter);
-        var (s3Reader, s3ChunkReader) = ReaderFactory.CreateReader(new S3BucketReaderConfig
-        {
-            StorageBucket = "bucket",
-            ServiceURL = "http://localhost:9000",
-            AccessKey = "ak",
-            SecretKey = "sk"
-        }, logger, dataFilter);
-        var (redisReader, redisChunkReader) = ReaderFactory.CreateReader(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "queue",
-            RedisDataType = RedisDataType.ListLeftPush
-        }, logger, dataFilter);
+        var (rabbitReader, rabbitChunkReader) = ReaderFactory.CreateReader(
+            new RabbitMqReaderConfig { Host = "localhost", QueueName = "q" },
+            logger,
+            dataFilter
+        );
+        var (kafkaReader, kafkaChunkReader) = ReaderFactory.CreateReader(
+            new KafkaTopicReaderConfig
+            {
+                HostNames = ["localhost:9092"],
+                Username = "u",
+                Password = "p",
+                TopicName = "topic",
+                GroupId = "g",
+            },
+            logger,
+            dataFilter
+        );
+        var (socketReader, socketChunkReader) = ReaderFactory.CreateReader(
+            new SocketReaderConfig
+            {
+                Host = "127.0.0.1",
+                Port = 1001,
+                ProtocolType = ProtocolType.Tcp,
+            },
+            logger,
+            dataFilter
+        );
+        var (ibmReader, ibmChunkReader) = ReaderFactory.CreateReader(
+            new IbmMqReaderConfig
+            {
+                HostName = "h",
+                Port = 1414,
+                Channel = "c",
+                Manager = "m",
+                QueueName = "q",
+            },
+            logger,
+            dataFilter
+        );
+        var (postgresReader, postgresChunkReader) = ReaderFactory.CreateReader(
+            new PostgreSqlReaderConfig
+            {
+                ConnectionString = "Host=localhost;Username=u;Password=p;Database=db",
+                TableName = "tbl",
+                InsertionTimeField = "created_at",
+            },
+            logger,
+            dataFilter
+        );
+        var (oracleReader, oracleChunkReader) = ReaderFactory.CreateReader(
+            new OracleReaderConfig
+            {
+                ConnectionString = "Data Source=localhost;User Id=u;Password=p;",
+                TableName = "tbl",
+                InsertionTimeField = "created_at",
+            },
+            logger,
+            dataFilter
+        );
+        var (msSqlReader, msSqlChunkReader) = ReaderFactory.CreateReader(
+            new MsSqlReaderConfig
+            {
+                ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
+                TableName = "tbl",
+                InsertionTimeField = "created_at",
+            },
+            logger,
+            dataFilter
+        );
+        var (trinoReader, trinoChunkReader) = ReaderFactory.CreateReader(
+            new TrinoReaderConfig
+            {
+                ConnectionString = string.Empty,
+                TableName = "tbl",
+                InsertionTimeField = "created_at",
+                Username = "u",
+                Password = "p",
+                ClientTag = "tag",
+                Schema = "sch",
+                Catalog = "cat",
+                Hostname = "http://localhost:8080",
+            },
+            logger,
+            dataFilter
+        );
+        var (elasticReader, elasticChunkReader) = ReaderFactory.CreateReader(
+            new ElasticReaderConfig
+            {
+                Url = "http://localhost:9200",
+                Username = "u",
+                Password = "p",
+                IndexPattern = "logs-*",
+            },
+            logger,
+            dataFilter
+        );
+        var (s3Reader, s3ChunkReader) = ReaderFactory.CreateReader(
+            new S3BucketReaderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://localhost:9000",
+                AccessKey = "ak",
+                SecretKey = "sk",
+            },
+            logger,
+            dataFilter
+        );
+        var (redisReader, redisChunkReader) = ReaderFactory.CreateReader(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "queue",
+                RedisDataType = RedisDataType.ListLeftPush,
+            },
+            logger,
+            dataFilter
+        );
 
-        var transactor = TransactorFactory.CreateTransactor(new GrpcTransactorConfig
-        {
-            Host = "localhost",
-            Port = 5001,
-            AssemblyName = typeof(FakeGrpcService).Assembly.GetName().Name!,
-            ProtoNameSpace = "QaaS.Framework.Protocols.Tests.ProtocolsTests",
-            ServiceName = nameof(FakeGrpcService),
-            RpcName = nameof(FakeGrpcService.FakeGrpcServiceClient.Echo)
-        }, logger, TimeSpan.FromSeconds(1));
+        var transactor = TransactorFactory.CreateTransactor(
+            new GrpcTransactorConfig
+            {
+                Host = "localhost",
+                Port = 5001,
+                AssemblyName = typeof(FakeGrpcService).Assembly.GetName().Name!,
+                ProtoNameSpace = "QaaS.Framework.Protocols.Tests.ProtocolsTests",
+                ServiceName = nameof(FakeGrpcService),
+                RpcName = nameof(FakeGrpcService.FakeGrpcServiceClient.Echo),
+            },
+            logger,
+            TimeSpan.FromSeconds(1)
+        );
 
         Assert.Multiple(() =>
         {

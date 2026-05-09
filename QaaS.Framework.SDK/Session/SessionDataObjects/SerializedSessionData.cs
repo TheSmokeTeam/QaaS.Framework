@@ -11,9 +11,9 @@ public record SerializedSessionData : BaseSessionData
     /// The list of serialized data produced from all input producing communication actions in this session
     /// </summary>
     public List<SerializedCommunicationData>? Inputs { get; init; }
-    
+
     /// <summary>
     /// The list of serialized data produced from all output producing communication actions in this session
     /// </summary>
-    public List<SerializedCommunicationData>? Outputs { get; init; } 
+    public List<SerializedCommunicationData>? Outputs { get; init; }
 }

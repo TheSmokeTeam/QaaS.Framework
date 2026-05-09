@@ -17,20 +17,25 @@ public static class SessionDataExtensions
     /// <typeparam name="TOutput"> The Type of the output data of the SessionData in the enumerable </typeparam>
     /// <returns> The SessionData that has the given name </returns>
     /// <exception cref="ArgumentException"> If less or more than 1 SessionData were found with the given name </exception>
-    public static GenericSessionData<TInput, TOutput> GetSessionDataByName<TInput, TOutput>
-        (this IEnumerable<GenericSessionData<TInput, TOutput>>? sessionDataEnumerable, string sessionName)
+    public static GenericSessionData<TInput, TOutput> GetSessionDataByName<TInput, TOutput>(
+        this IEnumerable<GenericSessionData<TInput, TOutput>>? sessionDataEnumerable,
+        string sessionName
+    )
     {
-        var itemsWithName = sessionDataEnumerable?.Where(sessionData =>
-            sessionData.Name == sessionName).ToArray();
-        
+        var itemsWithName = sessionDataEnumerable
+            ?.Where(sessionData => sessionData.Name == sessionName)
+            .ToArray();
+
         if (itemsWithName == null || itemsWithName.Length < 1)
             throw new ArgumentException($"No SessionData with the name '{sessionName}' was found.");
         if (itemsWithName.Length > 1)
-            throw new ArgumentException($"More than 1 SessionData with the name '{sessionName}' were found.");
+            throw new ArgumentException(
+                $"More than 1 SessionData with the name '{sessionName}' were found."
+            );
 
         return itemsWithName.First();
     }
-    
+
     /// <summary>
     /// Retrieves an input CommunicationData from SessionData by its name
     /// </summary>
@@ -40,12 +45,14 @@ public static class SessionDataExtensions
     /// <typeparam name="TOutput"> The Type of the output data of the SessionData </typeparam>
     /// <returns> The input CommunicationData that has the given name </returns>
     /// <exception cref="ArgumentException"> If less or more than 1 inputs were found with the given name </exception>
-    public static CommunicationData<TInput> GetInputByName<TInput, TOutput>
-    (this GenericSessionData<TInput, TOutput>? sessionData, string inputName)
+    public static CommunicationData<TInput> GetInputByName<TInput, TOutput>(
+        this GenericSessionData<TInput, TOutput>? sessionData,
+        string inputName
+    )
     {
         return (sessionData?.Inputs).GetCommunicationDataByName(inputName, "Inputs");
     }
-    
+
     /// <summary>
     /// Retrieves an input <see cref="CommunicationData{TData}"/> from <see cref="SessionData"/> by its name to inputValue
     /// </summary>
@@ -55,8 +62,11 @@ public static class SessionDataExtensions
     /// <typeparam name="TOutput"> The Type of the output data of the SessionData </typeparam>
     /// <param name="inputValue"> The input CommunicationData that has the given name </param>
     /// <returns> Returns `true` if found - else `false` </returns>
-    public static bool TryGetInputByName<TInput, TOutput>(this GenericSessionData<TInput, TOutput>? sessionData,
-        string inputName, out CommunicationData<TInput>? inputValue)
+    public static bool TryGetInputByName<TInput, TOutput>(
+        this GenericSessionData<TInput, TOutput>? sessionData,
+        string inputName,
+        out CommunicationData<TInput>? inputValue
+    )
     {
         try
         {
@@ -79,12 +89,14 @@ public static class SessionDataExtensions
     /// <typeparam name="TOutput"> The Type of the output data of the SessionData </typeparam>
     /// <returns> The output CommunicationData that has the given name </returns>
     /// <exception cref="ArgumentException"> If less or more than 1 outputs were found with the given name </exception>
-    public static CommunicationData<TOutput> GetOutputByName<TInput, TOutput>
-        (this GenericSessionData<TInput, TOutput>? sessionData, string outputName)
+    public static CommunicationData<TOutput> GetOutputByName<TInput, TOutput>(
+        this GenericSessionData<TInput, TOutput>? sessionData,
+        string outputName
+    )
     {
         return (sessionData?.Outputs).GetCommunicationDataByName(outputName, "Outputs");
     }
-    
+
     /// <summary>
     /// Retrieves an input <see cref="CommunicationData{TData}"/> from <see cref="SessionData"/> by its name to inputValue
     /// </summary>
@@ -94,8 +106,11 @@ public static class SessionDataExtensions
     /// <typeparam name="TOutput"> The Type of the output data of the SessionData </typeparam>
     /// <param name="outputValue"> The input CommunicationData that has the given name </param>
     /// <returns> Returns `true` if found - else `false` </returns>
-    public static bool TryGetOutputByName<TInput, TOutput>(this GenericSessionData<TInput, TOutput>? sessionData,
-        string outputName, out CommunicationData<TOutput>? outputValue)
+    public static bool TryGetOutputByName<TInput, TOutput>(
+        this GenericSessionData<TInput, TOutput>? sessionData,
+        string outputName,
+        out CommunicationData<TOutput>? outputValue
+    )
     {
         try
         {
@@ -108,5 +123,4 @@ public static class SessionDataExtensions
             return false;
         }
     }
-
 }

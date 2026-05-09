@@ -17,7 +17,7 @@ public record ReferenceConfig
     /// </summary>
     [Required, MinLength(1)]
     public string ReferenceReplaceKeyword { get; init; } = null!;
-    
+
     /// <summary>
     /// The paths to the YAML configuration files that create the referenced configuration
     /// </summary>

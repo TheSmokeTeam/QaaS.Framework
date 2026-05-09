@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
-using QaaS.Framework.Configurations.CustomExceptions;
 using QaaS.Framework.Configurations.ConfigurationBuilderExtensions;
+using QaaS.Framework.Configurations.CustomExceptions;
 
 namespace QaaS.Framework.Configurations.References;
 
@@ -26,50 +26,80 @@ public static class ConfigurationReferencesParser
     /// <returns> The built configuration with all of its references resolved </returns>
     /// <exception cref="InvalidConfigurationsException">
     /// While loading the references invalidity in the configuration was observed </exception>
-    public static IConfiguration ResolveReferencesInConfiguration(this IConfiguration builtConfiguration,
+    public static IConfiguration ResolveReferencesInConfiguration(
+        this IConfiguration builtConfiguration,
         ICollection<ReferenceConfig>? referenceConfigs,
         IList<string>? referenceResolutionPaths,
-        IList<string>? uniqueIdPathRegexes, bool resolveReferencesWithEnvironmentVariables)
+        IList<string>? uniqueIdPathRegexes,
+        bool resolveReferencesWithEnvironmentVariables
+    )
     {
         if ((referenceResolutionPaths?.Count ?? 0) == 0 || (referenceConfigs?.Count ?? 0) == 0)
             return builtConfiguration;
-        
+
         foreach (var referenceConfig in referenceConfigs ?? Enumerable.Empty<ReferenceConfig>())
         {
-            var referenceLoadedConfiguration = BuildReferencesConfiguration(referenceConfig,
-                resolveReferencesWithEnvironmentVariables);
-            foreach (var referencePath in 
-                     referenceResolutionPaths ?? Enumerable.Empty<string>())
+            var referenceLoadedConfiguration = BuildReferencesConfiguration(
+                referenceConfig,
+                resolveReferencesWithEnvironmentVariables
+            );
+            foreach (var referencePath in referenceResolutionPaths ?? Enumerable.Empty<string>())
             {
-                var referenceList = referenceLoadedConfiguration.GetSection(referencePath)
-                    .GetChildren().ToArray();
-                var referenceListItems = referenceList
-                    .SelectMany(config=> config.AsEnumerable())
-                    // Handle unique Id path regexes in references
-                    .Select(itemPair => (uniqueIdPathRegexes ?? Enumerable.Empty<string>())
-                        .Any(pathRegex => Regex.IsMatch(itemPair.Key, pathRegex))
-                        ? new KeyValuePair<string, string?>(itemPair.Key,
-                            referenceConfig.ReferenceReplaceKeyword + itemPair.Value)
-                        : new KeyValuePair<string, string?>(itemPair.Key, itemPair.Value))
+                var referenceList = referenceLoadedConfiguration
+                    .GetSection(referencePath)
+                    .GetChildren()
                     .ToArray();
-                
-                var existingConfigList = builtConfiguration.GetSection(referencePath)
-                    .GetChildren().ToArray();
-                var existingConfigListItems = existingConfigList
-                    .SelectMany(config=> config.AsEnumerable()).ToArray();
+                if (referenceList.Length == 0)
+                    continue;
+                var referenceListItems = referenceList
+                    .SelectMany(config => config.AsEnumerable())
+                    // Handle unique Id path regexes in references
+                    .Select(itemPair =>
+                        (uniqueIdPathRegexes ?? Enumerable.Empty<string>()).Any(pathRegex =>
+                            Regex.IsMatch(itemPair.Key, pathRegex)
+                        )
+                            ? new KeyValuePair<string, string?>(
+                                itemPair.Key,
+                                referenceConfig.ReferenceReplaceKeyword + itemPair.Value
+                            )
+                            : new KeyValuePair<string, string?>(itemPair.Key, itemPair.Value)
+                    )
+                    .ToArray();
 
-                var listIndexPattern = $@"(?<={referencePath + ConfigurationConstants.PathSeparator})\d+";
-                    
-                var listWithReferencedItems = 
-                    ResolveReferenceWithReplaceKeyword(referenceConfig, existingConfigListItems, referenceListItems,
-                        referenceList, referencePath, listIndexPattern) 
-                    ?? existingConfigListItems;
-                
-                var allConfigurationExceptListInReferencePath = builtConfiguration.AsEnumerable()
-                    .Where(pair => !pair.Key.StartsWith(referencePath));
+                var existingConfigList = builtConfiguration
+                    .GetSection(referencePath)
+                    .GetChildren()
+                    .ToArray();
+                var existingConfigListItems = existingConfigList
+                    .SelectMany(config => config.AsEnumerable())
+                    .ToArray();
+
+                var listIndexPattern =
+                    $@"(?<={referencePath + ConfigurationConstants.PathSeparator})\d+";
+
+                var listWithReferencedItems =
+                    ResolveReferenceWithReplaceKeyword(
+                        referenceConfig,
+                        existingConfigListItems,
+                        referenceListItems,
+                        referenceList,
+                        referencePath,
+                        listIndexPattern
+                    ) ?? existingConfigListItems;
+
+                var allConfigurationExceptListInReferencePath = builtConfiguration
+                    .AsEnumerable()
+                    .Where(pair =>
+                        !pair.Key.Equals(referencePath, StringComparison.Ordinal)
+                        && !pair.Key.StartsWith(
+                            referencePath + ConfigurationConstants.PathSeparator,
+                            StringComparison.Ordinal
+                        )
+                    );
                 builtConfiguration = new ConfigurationBuilder()
                     .AddInMemoryCollection(allConfigurationExceptListInReferencePath)
-                    .AddInMemoryCollection(listWithReferencedItems).Build();
+                    .AddInMemoryCollection(listWithReferencedItems)
+                    .Build();
             }
         }
         return builtConfiguration;
@@ -80,52 +110,90 @@ public static class ConfigurationReferencesParser
     /// </summary>
     /// <returns> The list after resolving the reference as an in memory collection,
     /// if no replace keyword was found returns null </returns>
-    private static IEnumerable<KeyValuePair<string,string?>>? ResolveReferenceWithReplaceKeyword(
+    private static IEnumerable<KeyValuePair<string, string?>>? ResolveReferenceWithReplaceKeyword(
         ReferenceConfig referenceConfig,
-        KeyValuePair<string,string?>[] existingConfigListItems,
-        KeyValuePair<string,string?>[] referenceListItems,
+        KeyValuePair<string, string?>[] existingConfigListItems,
+        KeyValuePair<string, string?>[] referenceListItems,
         IConfigurationSection[] referenceList,
         string referencePath,
-        string listIndexPattern)
+        string listIndexPattern
+    )
     {
-        var configListItemWithReferenceReplaceKeyword = existingConfigListItems.Where(
-            existingConfigItem =>
-                existingConfigItem.Value == referenceConfig.ReferenceReplaceKeyword).ToArray();
-        
+        var configListItemWithReferenceReplaceKeyword = existingConfigListItems
+            .Where(existingConfigItem =>
+                existingConfigItem.Value == referenceConfig.ReferenceReplaceKeyword
+            )
+            .ToArray();
+
         // Check only 1 Replace KeyWord is present in configuration list
         switch (configListItemWithReferenceReplaceKeyword.Length)
         {
             case > 1:
                 throw new InvalidConfigurationsException(
-                    $"Found more than 1 instance of the replace keyword" +
-                    $" `{referenceConfig.ReferenceReplaceKeyword}` in list at path `{referencePath}`");
+                    $"Found more than 1 instance of the replace keyword"
+                        + $" `{referenceConfig.ReferenceReplaceKeyword}` in list at path `{referencePath}`"
+                );
             case < 1:
                 return null;
         }
 
         var existingConfigItem = configListItemWithReferenceReplaceKeyword.First();
-        var replaceKeywordIndex = int.Parse(Regex.Match(existingConfigItem.Key, listIndexPattern).Value);
-        
-       // Move existing list items to make place for the reference list items to be inserted 
+        var replaceKeywordIndex = -1;
+        if (
+            !int.TryParse(
+                Regex.Match(existingConfigItem.Key, listIndexPattern).Value,
+                out replaceKeywordIndex
+            )
+        )
+            throw new InvalidConfigurationsException(
+                $"Could not parse list index from key '{existingConfigItem.Key}' using pattern '{listIndexPattern}'. "
+                    + "Ensure the replace keyword appears at a valid list index."
+            );
+
+        // Move existing list items to make place for the reference list items to be inserted
         var shiftedExistingConfigListItems = existingConfigListItems
             // Remove replaced keyword from list
-            .Where(pair => int.Parse(Regex.Match(pair.Key, listIndexPattern).Value) != replaceKeywordIndex)
+            .Where(pair =>
+            {
+                if (!int.TryParse(Regex.Match(pair.Key, listIndexPattern).Value, out var idx))
+                    return true;
+                return idx != replaceKeywordIndex;
+            })
             .Select(pair =>
             {
-                var currentIndexInList = int.Parse(Regex.Match(pair.Key, listIndexPattern).Value);
-                if (currentIndexInList < replaceKeywordIndex) return pair;
-                var key = Regex.Replace(pair.Key, listIndexPattern, match =>
-                    // Current index minus the replace key word (which takes 1 list item slot)
-                    // plus the length of all added references instead of the keyword
-                    (int.Parse(match.Value) - 1 + referenceList.Length)
-                    .ToString());
+                if (
+                    !int.TryParse(
+                        Regex.Match(pair.Key, listIndexPattern).Value,
+                        out var currentIndexInList
+                    )
+                )
+                    return pair;
+                if (currentIndexInList < replaceKeywordIndex)
+                    return pair;
+                var key = Regex.Replace(
+                    pair.Key,
+                    listIndexPattern,
+                    match =>
+                    {
+                        if (!int.TryParse(match.Value, out var idx))
+                            return match.Value;
+                        // Current index minus the replace key word (which takes 1 list item slot)
+                        // plus the length of all added references instead of the keyword
+                        return Math.Max(0, idx - 1 + referenceList.Length).ToString();
+                    }
+                );
                 return new KeyValuePair<string, string?>(key, pair.Value);
             });
-        
+
         // Insert reference list items in place of the replace keyword
-        var additionalReferenceItems = referenceListItems
-            .Select(pair => IncrementReferenceConfigurationListItemIndex(pair, listIndexPattern, replaceKeywordIndex));
-        
+        var additionalReferenceItems = referenceListItems.Select(pair =>
+            IncrementReferenceConfigurationListItemIndex(
+                pair,
+                listIndexPattern,
+                replaceKeywordIndex
+            )
+        );
+
         return shiftedExistingConfigListItems.Concat(additionalReferenceItems);
     }
 
@@ -133,20 +201,32 @@ public static class ConfigurationReferencesParser
     /// increment the given reference configuration list item (pair's) index
     /// </summary>
     private static KeyValuePair<string, string?> IncrementReferenceConfigurationListItemIndex(
-        KeyValuePair<string, string?> pair, string listIndexPattern, int indexIncrease) =>
-         new(key: Regex.Replace(pair.Key, listIndexPattern, match =>
-                (int.Parse(match.Value) + indexIncrease).ToString()),
-            value: pair.Value);
+        KeyValuePair<string, string?> pair,
+        string listIndexPattern,
+        int indexIncrease
+    ) =>
+        new(
+            key: Regex.Replace(
+                pair.Key,
+                listIndexPattern,
+                match => (int.Parse(match.Value) + indexIncrease).ToString()
+            ),
+            value: pair.Value
+        );
 
     /// <summary>
     /// Builds a references configuration from a reference config
     /// </summary>
-    private static IConfiguration BuildReferencesConfiguration(ReferenceConfig referenceConfig, 
-        bool resolveReferencesWithEnvironmentVariables)
+    private static IConfiguration BuildReferencesConfiguration(
+        ReferenceConfig referenceConfig,
+        bool resolveReferencesWithEnvironmentVariables
+    )
     {
         var referenceConfigurationBuilder = new ConfigurationBuilder();
         foreach (var path in referenceConfig.ReferenceFilesPaths ?? Enumerable.Empty<string>())
             referenceConfigurationBuilder.AddYaml(path);
-        return referenceConfigurationBuilder.EnrichedBuild(resolveReferencesWithEnvironmentVariables);
+        return referenceConfigurationBuilder.EnrichedBuild(
+            resolveReferencesWithEnvironmentVariables
+        );
     }
 }

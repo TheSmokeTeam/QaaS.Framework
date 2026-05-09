@@ -5,17 +5,25 @@ namespace QaaS.Framework.Policies.AdvancedLoadBalance;
 
 public class AdvancedLoadBalancePolicy : LoadBalancePolicy
 {
+    // Index 2: runs after LoadBalancePolicy (Index 1) in the chain.
+    protected override uint Index { get; set; } = 2;
+
     private int _currStage;
     private ulong _amountPassed;
     private readonly Stopwatch _timePassed = new();
     private readonly LoadBalanceStage[] _stages;
 
-    public AdvancedLoadBalancePolicy(StageConfig[] stages) : base(stages[0].Rate!.Value, stages[0].TimeIntervalMs)
+    public AdvancedLoadBalancePolicy(StageConfig[] stages)
+        : base(stages[0].Rate!.Value, stages[0].TimeIntervalMs)
     {
         _stages = stages
             .Select(config => new LoadBalanceStage(
-                rate: config.Rate!.Value, intervalMs: config!.TimeIntervalMs,
-                config.Amount, config.TimeoutMs)).ToArray();
+                rate: config.Rate!.Value,
+                intervalMs: config!.TimeIntervalMs,
+                config.Amount,
+                config.TimeoutMs
+            ))
+            .ToArray();
     }
 
     protected override void SetupThis()
@@ -41,7 +49,8 @@ public class AdvancedLoadBalancePolicy : LoadBalancePolicy
 
         if (!hasAmountLimit && !hasTimeLimit)
             throw new InvalidOperationException(
-                "Exception: You must set 'Amount To Next Stage' or 'Time To Next Stage' in the AdvancedLoadBalance stages.");
+                "Exception: You must set 'Amount To Next Stage' or 'Time To Next Stage' in the AdvancedLoadBalance stages."
+            );
 
         if (hasAmountLimit && stage.AmountToNextStage <= _amountPassed)
             return true;

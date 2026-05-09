@@ -9,8 +9,13 @@ public class IncreasingLoadBalancePolicy : LoadBalancePolicy
     private readonly double _rateIncreaseIntervalMs;
     private readonly Stopwatch _increaseTimer = new();
 
-    public IncreasingLoadBalancePolicy(double rate, ulong intervalMs, ulong maxRate,
-        ulong rateIncreaseMessagesPerSecond, double rateIncreaseIntervalMs)
+    public IncreasingLoadBalancePolicy(
+        double rate,
+        ulong intervalMs,
+        ulong maxRate,
+        ulong rateIncreaseMessagesPerSecond,
+        double rateIncreaseIntervalMs
+    )
         : base(rate, intervalMs)
     {
         _rateIncreaseMessagesPerSecond = rateIncreaseMessagesPerSecond;
@@ -31,9 +36,15 @@ public class IncreasingLoadBalancePolicy : LoadBalancePolicy
     {
         // Only increase the rate after the configured interval has elapsed; otherwise the
         // previous implementation could ramp immediately on every execution.
-        if (MessagesPerSecond < _maxMsgPerSec && _increaseTimer.Elapsed.TotalMilliseconds >= _rateIncreaseIntervalMs)
+        if (
+            MessagesPerSecond < _maxMsgPerSec
+            && _increaseTimer.Elapsed.TotalMilliseconds >= _rateIncreaseIntervalMs
+        )
         {
-            MessagesPerSecond = Math.Min(MessagesPerSecond + _rateIncreaseMessagesPerSecond, _maxMsgPerSec);
+            MessagesPerSecond = Math.Min(
+                MessagesPerSecond + _rateIncreaseMessagesPerSecond,
+                _maxMsgPerSec
+            );
             MessageIntervalMilliseconds = 1000 / (double)MessagesPerSecond;
             _increaseTimer.Restart();
         }

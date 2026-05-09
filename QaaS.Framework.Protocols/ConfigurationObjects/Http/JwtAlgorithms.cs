@@ -5,5 +5,5 @@
 /// </summary>
 public enum JwtAlgorithms
 {
-    HMACSHA256Algorithm
+    HMACSHA256Algorithm,
 }

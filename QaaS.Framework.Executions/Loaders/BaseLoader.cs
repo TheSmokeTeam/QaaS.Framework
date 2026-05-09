@@ -14,7 +14,9 @@ namespace QaaS.Framework.Executions.Loaders;
 /// <summary>
 /// Responsible for loading <see cref="IRunner"/> objects based on the provided options
 /// </summary>
-public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptions where TRunner : IRunner
+public abstract class BaseLoader<TOptions, TRunner>
+    where TOptions : LoggerOptions
+    where TRunner : IRunner
 {
     protected readonly TOptions Options;
     protected ILogger Logger;
@@ -34,16 +36,21 @@ public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptio
     {
         var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(options);
         var configuredLogLevel = resolvedOptions.LoggerLevel ?? LogEventLevel.Information;
-        var loggerConfiguration = resolvedOptions.LoggerConfigurationFilePath != null
-            ? CreateLoggerConfigurationFromLoggerConfigurationFile(
-                resolvedOptions.LoggerConfigurationFilePath,
-                resolvedOptions.LoggerLevel)
-            : new LoggerConfiguration()
-                .MinimumLevel.Is(resolvedOptions.SendLogs ? LogEventLevel.Verbose : configuredLogLevel)
-                .WriteTo.Console(configuredLogLevel);
+        var loggerConfiguration =
+            resolvedOptions.LoggerConfigurationFilePath != null
+                ? CreateLoggerConfigurationFromLoggerConfigurationFile(
+                    resolvedOptions.LoggerConfigurationFilePath,
+                    resolvedOptions.LoggerLevel
+                )
+                : new LoggerConfiguration()
+                    .MinimumLevel.Is(
+                        resolvedOptions.SendLogs ? LogEventLevel.Verbose : configuredLogLevel
+                    )
+                    .WriteTo.Console(configuredLogLevel);
 
         var warnings = new List<string>();
-        var serilogLogger = AddElasticSinkIfEnabled(loggerConfiguration, resolvedOptions, warnings).CreateLogger();
+        var serilogLogger = AddElasticSinkIfEnabled(loggerConfiguration, resolvedOptions, warnings)
+            .CreateLogger();
         foreach (var warning in warnings)
         {
             serilogLogger.Warning("{WarningMessage}", warning);
@@ -55,9 +62,15 @@ public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptio
     private LoggerConfiguration AddElasticSinkIfEnabled(
         LoggerConfiguration config,
         ResolvedElasticLoggingOptions options,
-        ICollection<string> warnings)
-        => options.SendLogs
-            ? config.AddQaaSElasticSink(options.ElasticUri, options.ElasticUsername, options.ElasticPassword, warnings.Add)
+        ICollection<string> warnings
+    ) =>
+        options.SendLogs
+            ? config.AddQaaSElasticSink(
+                options.ElasticUri,
+                options.ElasticUsername,
+                options.ElasticPassword,
+                warnings.Add
+            )
             : config;
 
     private ILogger BuildLogger(Serilog.ILogger serilogLogger) =>
@@ -65,13 +78,17 @@ public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptio
 
     private static LoggerConfiguration CreateLoggerConfigurationFromLoggerConfigurationFile(
         string loggerConfigurationFilePath,
-        LogEventLevel? loggerLevel) =>
+        LogEventLevel? loggerLevel
+    ) =>
         loggerLevel != null
             ? new LoggerConfiguration()
-                .ReadFrom.Configuration(new ConfigurationBuilder().AddYaml(loggerConfigurationFilePath).Build())
+                .ReadFrom.Configuration(
+                    new ConfigurationBuilder().AddYaml(loggerConfigurationFilePath).Build()
+                )
                 .MinimumLevel.Is(loggerLevel.Value)
-            : new LoggerConfiguration()
-                .ReadFrom.Configuration(new ConfigurationBuilder().AddYaml(loggerConfigurationFilePath).Build());
+            : new LoggerConfiguration().ReadFrom.Configuration(
+                new ConfigurationBuilder().AddYaml(loggerConfigurationFilePath).Build()
+            );
 
     private static void ValidateOptions(TOptions options)
     {
@@ -86,15 +103,15 @@ public abstract class BaseLoader<TOptions, TRunner> where TOptions : LoggerOptio
                 commandLineValidationResults.Select(result => result.ErrorMessage),
                 [
                     "Fix the listed flag values or missing arguments and retry.",
-                    "When a path is shown, it uses the QaaS option object property name."
-                ]);
+                    "When a path is shown, it uses the QaaS option object property name.",
+                ]
+            );
             throw new InvalidConfigurationsException(message);
         }
     }
 
-
     /// <summary>
-    /// Gets the loaded <see cref="IRunner"/> object based on the provided options 
+    /// Gets the loaded <see cref="IRunner"/> object based on the provided options
     /// </summary>
     /// <returns></returns>
     public abstract TRunner GetLoadedRunner();

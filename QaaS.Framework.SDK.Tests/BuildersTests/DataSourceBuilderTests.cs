@@ -12,8 +12,10 @@ namespace QaaS.Framework.SDK.Tests.BuildersTests;
 [TestFixture]
 public class DataSourceBuilderTests
 {
-    private static PropertyInfo _generatorInfo =
-        typeof(DataSourceBuilder).GetProperty("Generator", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
+    private static PropertyInfo _generatorInfo = typeof(DataSourceBuilder).GetProperty(
+        "Generator",
+        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+    )!;
 
     private static IEnumerable<TestCaseData> GetDataSourcesBuilders()
     {
@@ -53,9 +55,7 @@ public class DataSourceBuilderTests
             .WithSerializer(jsonSerializerConfig)
             .HookNamed("TestGenerator");
 
-        var builder6 = new DataSourceBuilder()
-            .Named("source-6")
-            .HookNamed("TestGenerator");
+        var builder6 = new DataSourceBuilder().Named("source-6").HookNamed("TestGenerator");
 
         yield return new TestCaseData(
             new List<DataSourceBuilder> { builder4, builder5, builder6 },
@@ -86,14 +86,18 @@ public class DataSourceBuilderTests
 
     [Test]
     [TestCaseSource(nameof(GetDataSourcesBuilders))]
-    public void
-        TestBuild_CallOnDataSourcesWithReferencesToOthers_ExpectAllDataSourcesToBuildAndTheReferencedToBeInDataSourceList(
-            List<DataSourceBuilder> builders, List<string>? expectedReferences)
+    public void TestBuild_CallOnDataSourcesWithReferencesToOthers_ExpectAllDataSourcesToBuildAndTheReferencedToBeInDataSourceList(
+        List<DataSourceBuilder> builders,
+        List<string>? expectedReferences
+    )
     {
         // arrange
         // Create test generators
         var generators = builders
-            .Select(dsb => new KeyValuePair<string, IGenerator>((string)_generatorInfo.GetValue(dsb)!, new TestGenerator()))
+            .Select(dsb => new KeyValuePair<string, IGenerator>(
+                (string)_generatorInfo.GetValue(dsb)!,
+                new TestGenerator()
+            ))
             .ToList();
 
         // Register all builders
@@ -103,13 +107,24 @@ public class DataSourceBuilderTests
         DataSource? firstDataSource = null;
         try
         {
-            firstDataSource = builders.Select(builder => builder.Build(Globals.GetContextWithMetadata(), registeredDataSources, generators))
-                .ToList().FirstOrDefault();
+            firstDataSource = builders
+                .Select(builder =>
+                    builder.Build(
+                        Globals.GetContextWithMetadata(),
+                        registeredDataSources,
+                        generators
+                    )
+                )
+                .ToList()
+                .FirstOrDefault();
         }
-        catch (ArgumentException e) when (e.Message.Contains("Item") && e.Message.Contains("not found in"))
+        catch (ArgumentException e)
+            when (e.Message.Contains("Item") && e.Message.Contains("not found in"))
         {
-            Globals.Logger.LogDebug("Configured item not found in generators as expected - {ExceptionMessage}",
-                e.Message);
+            Globals.Logger.LogDebug(
+                "Configured item not found in generators as expected - {ExceptionMessage}",
+                e.Message
+            );
         }
 
         // assert
@@ -117,10 +132,17 @@ public class DataSourceBuilderTests
         {
             var resultedNames = firstDataSource.DataSourceList.Select(ds => ds.Name).ToList();
             Assert.That(resultedNames.All(expectedReferences!.Contains));
-            Assert.That(resultedNames.All((builders.FirstOrDefault()?.DataSourceNames.ToList() ?? []).Contains));
+            Assert.That(
+                resultedNames.All(
+                    (builders.FirstOrDefault()?.DataSourceNames.ToList() ?? []).Contains
+                )
+            );
             Assert.That(firstDataSource.DataSourceList.All(registeredDataSources.Contains));
-            Assert.That(firstDataSource.DataSourceList.Select(source => source.Generator)
-                .All(generators.Select(pair => pair.Value).Contains));
+            Assert.That(
+                firstDataSource
+                    .DataSourceList.Select(source => source.Generator)
+                    .All(generators.Select(pair => pair.Value).Contains)
+            );
         }
         else
         {
@@ -167,14 +189,22 @@ public class DataSourceBuilderTests
         // Create test generators
         var generators = new Dictionary<string, IGenerator>
         {
-            ["test-generator"] = new TestGenerator()
+            ["test-generator"] = new TestGenerator(),
         };
 
         // Create test data sources
         var dataSources = new List<DataSource>
         {
-            new() { Name = "source-a", Serializer = SerializerFactory.BuildSerializer(SerializationType.Binary) },
-            new() { Name = "source-b", Deserializer = DeserializerFactory.BuildDeserializer(SerializationType.Json) }
+            new()
+            {
+                Name = "source-a",
+                Serializer = SerializerFactory.BuildSerializer(SerializationType.Binary),
+            },
+            new()
+            {
+                Name = "source-b",
+                Deserializer = DeserializerFactory.BuildDeserializer(SerializationType.Json),
+            },
         };
 
         var builder = new DataSourceBuilder()
@@ -184,36 +214,32 @@ public class DataSourceBuilderTests
             .AddDataSourceName("source-b");
 
         var dataSource = builder.Register();
-        var builtDataSource = builder.Build(Globals.GetContextWithMetadata(), dataSources, generators);
+        var builtDataSource = builder.Build(
+            Globals.GetContextWithMetadata(),
+            dataSources,
+            generators
+        );
 
         Assert.That(builtDataSource, Is.Not.Null);
         Assert.That(builtDataSource.Name, Is.EqualTo("test-source"));
         Assert.That(builtDataSource.Generator, Is.Not.Null);
         Assert.That(builtDataSource.DataSourceList, Has.Count.EqualTo(2));
-        Assert.That(builtDataSource.DataSourceList.All(dataSourceFiltered => dataSources.Contains(dataSourceFiltered)));
+        Assert.That(
+            builtDataSource.DataSourceList.All(dataSourceFiltered =>
+                dataSources.Contains(dataSourceFiltered)
+            )
+        );
     }
 
     [Test]
     public void ConfigurationCrud_ReadUpdateAndDelete_WorkAsExpected()
     {
-        var builder = new DataSourceBuilder()
-            .Configure(new
-            {
-                Existing = "value",
-                Nested = new
-                {
-                    Before = "keep"
-                }
-            });
+        var builder = new DataSourceBuilder().Configure(
+            new { Existing = "value", Nested = new { Before = "keep" } }
+        );
 
         var initialConfiguration = builder.GeneratorConfiguration;
-        builder.UpdateConfiguration(new
-        {
-            Nested = new
-            {
-                Added = "new"
-            }
-        });
+        builder.UpdateConfiguration(new { Nested = new { Added = "new" } });
         var updatedConfiguration = builder.GeneratorConfiguration;
         builder.RemoveConfiguration();
 
@@ -265,8 +291,7 @@ public class DataSourceBuilderTests
             .AddDataSourcePattern("^source-a$")
             .AddDataSourcePattern("^source-b$");
 
-        builder.RemoveDataSourceNameAt(0)
-            .RemoveDataSourcePatternAt(1);
+        builder.RemoveDataSourceNameAt(0).RemoveDataSourcePatternAt(1);
 
         Assert.Multiple(() =>
         {
@@ -283,15 +308,17 @@ public class DataSourceBuilderTests
         var deserializerBuilder = new DataSourceBuilder()
             .Named("typed-source")
             .HookNamed("typed-generator")
-            .WithDeserializer(new DeserializeConfig
-            {
-                Deserializer = SerializationType.Json,
-                SpecificType = new SpecificTypeConfig
+            .WithDeserializer(
+                new DeserializeConfig
                 {
-                    AssemblyName = typeof(TestGenerator).Assembly.FullName,
-                    TypeFullName = typeof(TestGenerator).FullName
+                    Deserializer = SerializationType.Json,
+                    SpecificType = new SpecificTypeConfig
+                    {
+                        AssemblyName = typeof(TestGenerator).Assembly.FullName,
+                        TypeFullName = typeof(TestGenerator).FullName,
+                    },
                 }
-            });
+            );
         var serializerBuilder = new DataSourceBuilder()
             .Named("serializer-source")
             .HookNamed("typed-generator")
@@ -312,8 +339,10 @@ public class DataSourceBuilderTests
 
 public class TestGenerator : BaseGenerator<object>
 {
-    public override IEnumerable<Data<object>> Generate(IImmutableList<SessionData> sessionDataList,
-        IImmutableList<DataSource> dataSourceList)
+    public override IEnumerable<Data<object>> Generate(
+        IImmutableList<SessionData> sessionDataList,
+        IImmutableList<DataSource> dataSourceList
+    )
     {
         return [];
     }

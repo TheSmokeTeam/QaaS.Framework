@@ -6,7 +6,8 @@ namespace QaaS.Framework.Configurations.CustomExceptions;
 public class CouldNotFindConfigurationException : Exception
 {
     /// <summary>
-    /// Constructor 
+    /// Constructor
     /// </summary>
-    public CouldNotFindConfigurationException(string message, Exception innerException) : base(message, innerException) { }
+    public CouldNotFindConfigurationException(string message, Exception innerException)
+        : base(message, innerException) { }
 }

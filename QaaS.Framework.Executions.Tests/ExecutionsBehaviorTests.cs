@@ -1,5 +1,5 @@
-using CommandLine;
 using System.ComponentModel.DataAnnotations;
+using CommandLine;
 using QaaS.Framework.Configurations.CustomExceptions;
 using QaaS.Framework.Executions.CommandLineBuilders;
 using QaaS.Framework.Executions.Loaders;
@@ -15,7 +15,8 @@ namespace QaaS.Framework.Executions.Tests;
 [TestFixture]
 public class ExecutionsBehaviorTests
 {
-    private sealed class TestDefaultsProvider(ElasticLoggingDefaults defaults) : IElasticLoggingDefaultsProvider
+    private sealed class TestDefaultsProvider(ElasticLoggingDefaults defaults)
+        : IElasticLoggingDefaultsProvider
     {
         public ElasticLoggingDefaults GetDefaults() => defaults;
     }
@@ -23,12 +24,11 @@ public class ExecutionsBehaviorTests
     private sealed class TestRunner : IRunner
     {
         public bool DidRun { get; private set; }
+
         public void Run() => DidRun = true;
     }
 
-    private sealed record TestLoaderOptions : LoggerOptions
-    {
-    }
+    private sealed record TestLoaderOptions : LoggerOptions { }
 
     private sealed record InvalidLoaderOptions : LoggerOptions
     {
@@ -36,7 +36,8 @@ public class ExecutionsBehaviorTests
         public string? RequiredField { get; init; }
     }
 
-    private sealed class TestLoader(TestLoaderOptions options) : BaseLoader<TestLoaderOptions, TestRunner>(options)
+    private sealed class TestLoader(TestLoaderOptions options)
+        : BaseLoader<TestLoaderOptions, TestRunner>(options)
     {
         public override TestRunner GetLoadedRunner() => new();
     }
@@ -61,9 +62,7 @@ public class ExecutionsBehaviorTests
         public List<DataSource> DataSources { get; set; } = [];
     }
 
-    private sealed class TestContext : BaseContext<TestExecutionData>
-    {
-    }
+    private sealed class TestContext : BaseContext<TestExecutionData> { }
 
     private sealed class TestExecutionBuilder : BaseExecutionBuilder<TestContext, TestExecutionData>
     {
@@ -130,7 +129,7 @@ public class ExecutionsBehaviorTests
             SendLogs = true,
             ElasticUri = "http://elastic.local:9200",
             ElasticUsername = "elastic",
-            ElasticPassword = "secret"
+            ElasticPassword = "secret",
         };
         var provider = new TestDefaultsProvider(defaults);
 
@@ -146,9 +145,12 @@ public class ExecutionsBehaviorTests
             sendLogs: true,
             elasticUri: "http://elastic.local:9200",
             elasticUsername: "elastic",
-            elasticPassword: "secret");
+            elasticPassword: "secret"
+        );
 
-        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions());
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(
+            new TestLoaderOptions()
+        );
 
         Assert.Multiple(() =>
         {
@@ -164,10 +166,9 @@ public class ExecutionsBehaviorTests
     {
         ExecutionLogging.RegisterDefaults(sendLogs: true, elasticUri: "http://elastic.local:9200");
 
-        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions
-        {
-            LoggerConfigurationFilePath = "logger.yaml"
-        });
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(
+            new TestLoaderOptions { LoggerConfigurationFilePath = "logger.yaml" }
+        );
 
         Assert.Multiple(() =>
         {
@@ -182,10 +183,9 @@ public class ExecutionsBehaviorTests
     {
         ExecutionLogging.RegisterDefaults(sendLogs: true, elasticUri: "http://elastic.local:9200");
 
-        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions
-        {
-            ElasticUri = "http://manual.local:9200"
-        });
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(
+            new TestLoaderOptions { ElasticUri = "http://manual.local:9200" }
+        );
 
         Assert.Multiple(() =>
         {
@@ -201,10 +201,9 @@ public class ExecutionsBehaviorTests
     {
         ExecutionLogging.RegisterDefaults(sendLogs: false);
 
-        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions
-        {
-            SendLogs = true
-        });
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(
+            new TestLoaderOptions { SendLogs = true }
+        );
 
         Assert.That(resolvedOptions.SendLogs, Is.True);
     }
@@ -214,10 +213,9 @@ public class ExecutionsBehaviorTests
     {
         ExecutionLogging.RegisterDefaults(sendLogs: true, elasticUri: "http://elastic.local:9200");
 
-        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions
-        {
-            DisableElasticDefaults = true
-        });
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(
+            new TestLoaderOptions { DisableElasticDefaults = true }
+        );
 
         Assert.Multiple(() =>
         {
@@ -241,10 +239,14 @@ public class ExecutionsBehaviorTests
     [Test]
     public void BaseLoader_InvalidOptions_ThrowsInvalidConfigurationsException()
     {
-        var exception =
-            Assert.Throws<InvalidConfigurationsException>(() => _ = new InvalidOptionsLoader(new InvalidLoaderOptions()));
+        var exception = Assert.Throws<InvalidConfigurationsException>(() =>
+            _ = new InvalidOptionsLoader(new InvalidLoaderOptions())
+        );
 
-        Assert.That(exception!.Message, Does.Contain("Command arguments are invalid for InvalidLoaderOptions."));
+        Assert.That(
+            exception!.Message,
+            Does.Contain("Command arguments are invalid for InvalidLoaderOptions.")
+        );
         Assert.That(exception.Message, Does.Contain("The RequiredField field is required."));
     }
 
@@ -312,11 +314,19 @@ public class ExecutionsBehaviorTests
         var warnings = new List<string>();
         var config = new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Console();
 
-        _ = config.AddQaaSElasticSink("http://localhost:9200", username: "user", password: null,
-            warningLogger: warnings.Add);
+        _ = config.AddQaaSElasticSink(
+            "http://localhost:9200",
+            username: "user",
+            password: null,
+            warningLogger: warnings.Add
+        );
 
-        Assert.That(warnings.Any(warning => warning.Contains("Only one Elasticsearch credential was provided")),
-            Is.True);
+        Assert.That(
+            warnings.Any(warning =>
+                warning.Contains("Only one Elasticsearch credential was provided")
+            ),
+            Is.True
+        );
     }
 
     [Test]
@@ -325,10 +335,17 @@ public class ExecutionsBehaviorTests
         var warnings = new List<string>();
         var config = new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Console();
 
-        _ = config.AddQaaSElasticSink("http://localhost:9200", username: null, password: null,
-            warningLogger: warnings.Add);
+        _ = config.AddQaaSElasticSink(
+            "http://localhost:9200",
+            username: null,
+            password: null,
+            warningLogger: warnings.Add
+        );
 
-        Assert.That(warnings.Any(warning => warning.Contains("without basic authentication")), Is.True);
+        Assert.That(
+            warnings.Any(warning => warning.Contains("without basic authentication")),
+            Is.True
+        );
     }
 
     [Test]
@@ -337,8 +354,12 @@ public class ExecutionsBehaviorTests
         var warnings = new List<string>();
         var config = new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Console();
 
-        _ = config.AddQaaSElasticSink("http://localhost:9200", username: "user", password: "pass",
-            warningLogger: warnings.Add);
+        _ = config.AddQaaSElasticSink(
+            "http://localhost:9200",
+            username: "user",
+            password: "pass",
+            warningLogger: warnings.Add
+        );
 
         Assert.That(warnings, Is.Empty);
     }

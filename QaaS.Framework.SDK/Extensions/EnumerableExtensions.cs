@@ -17,19 +17,23 @@ public static class EnumerableExtensions
     public static TItem AsSingle<TItem>(this IEnumerable<TItem> enumerable)
     {
         if (enumerable == null)
-            throw new ArgumentNullException(nameof(enumerable), 
-                $"The enumerable of type {typeof(TItem)} requested as a single item is null.");
-        
+            throw new ArgumentNullException(
+                nameof(enumerable),
+                $"The enumerable of type {typeof(TItem)} requested as a single item is null."
+            );
+
         using var enumerator = enumerable.GetEnumerator();
         if (!enumerator.MoveNext())
             throw new ArgumentException(
-                $"The enumerable of type {typeof(TItem)} requested as a single item contains no items.");
-        
+                $"The enumerable of type {typeof(TItem)} requested as a single item contains no items."
+            );
+
         var singleItem = enumerator.Current;
-        
+
         if (enumerator.MoveNext())
             throw new ArgumentException(
-                $"The enumerable of type {typeof(TItem)} requested as a single item contains more than 1 item.");
+                $"The enumerable of type {typeof(TItem)} requested as a single item contains more than 1 item."
+            );
 
         return singleItem;
     }
@@ -42,10 +46,11 @@ public static class EnumerableExtensions
     /// </remarks>
     /// <qaas-docs group="Utilities" subgroup="Enumerables" />
     public static IList<TData> GetFilteredConfigurationObjectList<TData, TPattern>(
-             IImmutableList<TData> dataList,
-             IEnumerable<TPattern>? conditionFieldItemEnumerable, 
-             Func<TData, TPattern, bool> filter,
-             string nameOfDataList)
+        IImmutableList<TData> dataList,
+        IEnumerable<TPattern>? conditionFieldItemEnumerable,
+        Func<TData, TPattern, bool> filter,
+        string nameOfDataList
+    )
     {
         var datasWithConditionFieldItem = new List<TData>();
         if (conditionFieldItemEnumerable == null)
@@ -53,13 +58,15 @@ public static class EnumerableExtensions
         foreach (var conditionFieldItem in conditionFieldItemEnumerable)
         {
             var dataForConditionFieldItem = dataList.Where(data =>
-                filter.Invoke(data, conditionFieldItem));
-            
+                filter.Invoke(data, conditionFieldItem)
+            );
+
             var dataAsArray = dataForConditionFieldItem.ToArray();
             // throw exception if data matching conditionFieldItem not existing
             if (dataAsArray.Length == 0)
                 throw new ArgumentException(
-                    $"Item {conditionFieldItem} not found in {nameOfDataList}");
+                    $"Item {conditionFieldItem} not found in {nameOfDataList}"
+                );
             datasWithConditionFieldItem.AddRange(dataAsArray);
         }
 

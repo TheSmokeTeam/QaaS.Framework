@@ -7,5 +7,5 @@ public enum HttpAuthorizationSchemes
     Digest,
     JWT,
     ApiKey,
-    Token
+    Token,
 }

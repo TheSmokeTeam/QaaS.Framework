@@ -6,17 +6,16 @@ using QaaS.Framework.SDK.Session.DataObjects;
 using QaaS.Framework.Serialization;
 using Renci.SshNet;
 
-
 namespace QaaS.Framework.Protocols.Protocols;
 
 public class SftpProtocol : ISender
 {
     private readonly ILogger _logger;
     private readonly SftpSenderConfig _senderConfig;
-    
+
     private readonly ISftpClient _producer;
     private ObjectNameGenerator Generator { get; set; }
-    
+
     public SftpProtocol(SftpSenderConfig configuration, ILogger logger)
     {
         _logger = logger;
@@ -26,14 +25,18 @@ public class SftpProtocol : ISender
             host: _senderConfig.Hostname,
             port: _senderConfig.Port,
             username: _senderConfig.Username,
-            password: _senderConfig.Password);
+            password: _senderConfig.Password
+        );
     }
 
     public SerializationType? GetSerializationType() => null;
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        _producer.WriteAllBytes(GetCurrentFilePath(dataToSend), dataToSend.CastObjectData<byte[]>().Body!); // Assumes data is byte[]
+        _producer.WriteAllBytes(
+            GetCurrentFilePath(dataToSend),
+            dataToSend.CastObjectData<byte[]>().Body!
+        ); // Assumes data is byte[]
         return dataToSend.CloneDetailed();
     }
 
@@ -42,9 +45,11 @@ public class SftpProtocol : ISender
     /// </summary>
     /// <param name="data"></param>
     /// <returns> The file path for the current file </returns>
-    private string GetCurrentFilePath(Data<object> data) => Path.Combine(_senderConfig.Path,
-        data.MetaData?.Storage?.Key ?? Generator.GenerateObjectName());
-
+    private string GetCurrentFilePath(Data<object> data) =>
+        Path.Combine(
+            _senderConfig.Path,
+            data.MetaData?.Storage?.Key ?? Generator.GenerateObjectName()
+        );
 
     public void Connect()
     {

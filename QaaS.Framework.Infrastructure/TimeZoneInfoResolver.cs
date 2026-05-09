@@ -28,7 +28,8 @@ public static class TimeZoneInfoResolver
         }
 
         throw new TimeZoneNotFoundException(
-            $"Could not resolve default time zone '{DefaultTimeZoneId}' or its Windows fallback '{DefaultWindowsTimeZoneId}'.");
+            $"Could not resolve default time zone '{DefaultTimeZoneId}' or its Windows fallback '{DefaultWindowsTimeZoneId}'."
+        );
     }
 
     private static IEnumerable<string> GetDefaultTimeZoneCandidates()
@@ -44,12 +45,16 @@ public static class TimeZoneInfoResolver
         if (TryFindSystemTimeZone(timeZoneId, out timeZoneInfo))
             return true;
 
-        if (TimeZoneInfo.TryConvertIanaIdToWindowsId(timeZoneId, out var windowsTimeZoneId) &&
-            TryFindSystemTimeZone(windowsTimeZoneId, out timeZoneInfo))
+        if (
+            TimeZoneInfo.TryConvertIanaIdToWindowsId(timeZoneId, out var windowsTimeZoneId)
+            && TryFindSystemTimeZone(windowsTimeZoneId, out timeZoneInfo)
+        )
             return true;
 
-        if (TimeZoneInfo.TryConvertWindowsIdToIanaId(timeZoneId, out var ianaTimeZoneId) &&
-            TryFindSystemTimeZone(ianaTimeZoneId, out timeZoneInfo))
+        if (
+            TimeZoneInfo.TryConvertWindowsIdToIanaId(timeZoneId, out var ianaTimeZoneId)
+            && TryFindSystemTimeZone(ianaTimeZoneId, out timeZoneInfo)
+        )
             return true;
 
         timeZoneInfo = null!;

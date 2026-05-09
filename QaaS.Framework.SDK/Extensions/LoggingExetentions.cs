@@ -13,10 +13,11 @@ public static class SerilogExtensions
     /// </summary>
     /// <param name="enrichmentConfiguration">The <see cref="LoggerEnrichmentConfiguration"/> to enrich.</param>
     /// <returns>The enriched <see cref="LoggerEnrichmentConfiguration"/>.</returns>
-    public static LoggerConfiguration WithHostname(this LoggerEnrichmentConfiguration enrichmentConfiguration)
+    public static LoggerConfiguration WithHostname(
+        this LoggerEnrichmentConfiguration enrichmentConfiguration
+    )
     {
-        return enrichmentConfiguration
-            .WithProperty("Hostname", Dns.GetHostName());
+        return enrichmentConfiguration.WithProperty("Hostname", Dns.GetHostName());
     }
 
     /// <summary>
@@ -24,13 +25,15 @@ public static class SerilogExtensions
     /// </summary>
     /// <param name="enrichmentConfiguration">The <see cref="LoggerEnrichmentConfiguration"/> to enrich.</param>
     /// <returns>The enriched <see cref="LoggerEnrichmentConfiguration"/>.</returns>
-    public static LoggerConfiguration WithEnvironment(this LoggerEnrichmentConfiguration enrichmentConfiguration)
+    public static LoggerConfiguration WithEnvironment(
+        this LoggerEnrichmentConfiguration enrichmentConfiguration
+    )
     {
-        return enrichmentConfiguration
-            .WithProperty("Environment",
-                Environment.GetEnvironmentVariable("KUBERNETES_SERVICE_HOST") != null ? "CI" : "Local");
+        return enrichmentConfiguration.WithProperty(
+            "Environment",
+            Environment.GetEnvironmentVariable("KUBERNETES_SERVICE_HOST") != null ? "CI" : "Local"
+        );
     }
-
 
     /// <summary>
     /// Extension Methods for ILogger
@@ -41,10 +44,16 @@ public static class SerilogExtensions
         /// <summary>
         /// Logs information log with added metadata object
         /// </summary>
-        public void LogInformationWithMetaData(string message, object metadata,
-            params object?[] propertyValues)
+        public void LogInformationWithMetaData(
+            string message,
+            object metadata,
+            params object?[] propertyValues
+        )
         {
-            var metaDataDict = metadata.GetType().GetProperties().Where(property => property.CanRead)
+            var metaDataDict = metadata
+                .GetType()
+                .GetProperties()
+                .Where(property => property.CanRead)
                 .ToDictionary(property => property.Name, property => property.GetValue(metadata));
             using (logger.BeginScope(metaDataDict))
             {
@@ -55,10 +64,16 @@ public static class SerilogExtensions
         /// <summary>
         /// Logs Warning log with added metadata object
         /// </summary>
-        public void LogWarningWithMetaData(string message, object metadata,
-            params object?[] propertyValues)
+        public void LogWarningWithMetaData(
+            string message,
+            object metadata,
+            params object?[] propertyValues
+        )
         {
-            var metaDataDict = metadata.GetType().GetProperties().Where(property => property.CanRead)
+            var metaDataDict = metadata
+                .GetType()
+                .GetProperties()
+                .Where(property => property.CanRead)
                 .ToDictionary(property => property.Name, property => property.GetValue(metadata));
             using (logger.BeginScope(metaDataDict))
             {
@@ -69,10 +84,16 @@ public static class SerilogExtensions
         /// <summary>
         /// Logs Error log with added metadata object
         /// </summary>
-        public void LogErrorWithMetaData(string message, object metadata,
-            params object?[] propertyValues)
+        public void LogErrorWithMetaData(
+            string message,
+            object metadata,
+            params object?[] propertyValues
+        )
         {
-            var metaDataDict = metadata.GetType().GetProperties().Where(property => property.CanRead)
+            var metaDataDict = metadata
+                .GetType()
+                .GetProperties()
+                .Where(property => property.CanRead)
                 .ToDictionary(property => property.Name, property => property.GetValue(metadata));
             using (logger.BeginScope(metaDataDict))
             {
@@ -83,10 +104,16 @@ public static class SerilogExtensions
         /// <summary>
         /// Logs Critical log with added metadata object
         /// </summary>
-        public void LogCriticalWithMetaData(string message, object metadata,
-            params object?[] propertyValues)
+        public void LogCriticalWithMetaData(
+            string message,
+            object metadata,
+            params object?[] propertyValues
+        )
         {
-            var metaDataDict = metadata.GetType().GetProperties().Where(property => property.CanRead)
+            var metaDataDict = metadata
+                .GetType()
+                .GetProperties()
+                .Where(property => property.CanRead)
                 .ToDictionary(property => property.Name, property => property.GetValue(metadata));
             using (logger.BeginScope(metaDataDict))
             {
@@ -97,10 +124,16 @@ public static class SerilogExtensions
         /// <summary>
         /// Logs Debug log with added metadata object
         /// </summary>
-        public void LogDebugWithMetaData(string message, object metadata,
-            params object?[] propertyValues)
+        public void LogDebugWithMetaData(
+            string message,
+            object metadata,
+            params object?[] propertyValues
+        )
         {
-            var metaDataDict = metadata.GetType().GetProperties().Where(property => property.CanRead)
+            var metaDataDict = metadata
+                .GetType()
+                .GetProperties()
+                .Where(property => property.CanRead)
                 .ToDictionary(property => property.Name, property => property.GetValue(metadata));
             using (logger.BeginScope(metaDataDict))
             {
@@ -111,10 +144,16 @@ public static class SerilogExtensions
         /// <summary>
         /// Logs Trace log with added metadata object
         /// </summary>
-        public void LogTraceWithMetaData(string message, object metadata,
-            params object?[] propertyValues)
+        public void LogTraceWithMetaData(
+            string message,
+            object metadata,
+            params object?[] propertyValues
+        )
         {
-            var metaDataDict = metadata.GetType().GetProperties().Where(property => property.CanRead)
+            var metaDataDict = metadata
+                .GetType()
+                .GetProperties()
+                .Where(property => property.CanRead)
                 .ToDictionary(property => property.Name, property => property.GetValue(metadata));
             using (logger.BeginScope(metaDataDict))
             {

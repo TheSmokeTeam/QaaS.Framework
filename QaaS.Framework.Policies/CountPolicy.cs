@@ -10,13 +10,13 @@ public class CountPolicy : Policy
     public CountPolicy(int maxAmountOfMessages) => _maxAmountOfMessages = maxAmountOfMessages;
 
     protected override uint Index { get; set; } = 0;
-    
+
     protected override void SetupThis() => _counter = 0;
 
     protected override void RunThis()
     {
         _counter++;
-        if (_counter >= _maxAmountOfMessages)
+        if (_counter > _maxAmountOfMessages)
             throw new CountStopException(_counter, CommunicationType.read);
     }
 }

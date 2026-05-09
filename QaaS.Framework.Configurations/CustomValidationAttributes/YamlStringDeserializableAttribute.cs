@@ -40,7 +40,8 @@ public sealed class YamlStringDeserializableAttribute : ValidationAttribute
         catch (YamlException ex)
         {
             return new ValidationResult(
-                $"{validationContext.DisplayName} must be valid YAML deserializable to {_targetType.Name}. {ex.Message}");
+                $"{validationContext.DisplayName} must be valid YAML deserializable to {_targetType.Name}. {ex.Message}"
+            );
         }
     }
 }

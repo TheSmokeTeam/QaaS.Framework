@@ -44,7 +44,8 @@ public record DataSource
         {
             if (value is not null && _deserializer is not null)
                 throw new InvalidOperationException(
-                    $"{nameof(DataSource)} object can't have both Serializer and Deserializer");
+                    $"{nameof(DataSource)} object can't have both Serializer and Deserializer"
+                );
             _serializer = value;
         }
     }
@@ -61,7 +62,8 @@ public record DataSource
         {
             if (value is not null && _serializer is not null)
                 throw new InvalidOperationException(
-                    $"{nameof(DataSource)} object can't have both Serializer and Deserializer");
+                    $"{nameof(DataSource)} object can't have both Serializer and Deserializer"
+                );
             _deserializer = value;
         }
     }
@@ -78,7 +80,8 @@ public record DataSource
         {
             if (value is not null && _deserializer is null)
                 throw new InvalidOperationException(
-                    $"{nameof(DataSource)} object can have {nameof(DeserializerSpecificType)} only if it has Deserializer");
+                    $"{nameof(DataSource)} object can have {nameof(DeserializerSpecificType)} only if it has Deserializer"
+                );
             _deserializerSpecificType = value;
         }
     }
@@ -95,17 +98,22 @@ public record DataSource
     /// <param name="ranSessionsDataList"> A list of the data of sessions already ran before this data source was
     /// called, by default no sessions are passed </param>
     /// <returns> The retrieved data from this data source </returns>
-    public IEnumerable<Data<object>> Retrieve(IImmutableList<SessionData>? ranSessionsDataList = null)
+    public IEnumerable<Data<object>> Retrieve(
+        IImmutableList<SessionData>? ranSessionsDataList = null
+    )
     {
         // If data source is not configured as lazy and the data was already generated once before,
         // return the already generated data
-        if (!Lazy && _generatedData != null) return _generatedData;
-        
+        if (!Lazy && _generatedData != null)
+            return _generatedData;
+
         ranSessionsDataList ??= Array.Empty<SessionData>().ToImmutableList();
         var generatedData =
-            Generator.Generate(ranSessionsDataList, DataSourceList) ??
-            throw new ArgumentNullException(Generator.GetType().Name, 
-                $"Data generated in data source {Name} by generator {Generator.GetType().Name} is null");
+            Generator.Generate(ranSessionsDataList, DataSourceList)
+            ?? throw new ArgumentNullException(
+                Generator.GetType().Name,
+                $"Data generated in data source {Name} by generator {Generator.GetType().Name} is null"
+            );
 
         // If Serializer has been configured, serialize the data
         // If a data's specific serializer has been configured, serialize the data with the specific serializer
@@ -117,34 +125,41 @@ public record DataSource
                 return new Data<object>
                 {
                     MetaData = data.MetaData,
-                    Body = serializer.Serialize(data.Body)
+                    Body = serializer.Serialize(data.Body),
                 };
             });
         }
-        
+
         // If Deserialize has been configured, deserialize the data into the configured type
         // If a data's specific deserializer has been configured, deserialize the data with the specific deserializer
         if (_deserializer != null)
         {
-            generatedData = generatedData.Select((data, index) =>
-            {
-                var deserializer = data.MetaData?.Deserializer ?? _deserializer;
-                if (data.Body is not (byte[] or null))
-                    throw new InvalidOperationException(
-                        $"Data at index {index} generated in data source {Name}" +
-                        $" by generator {Generator.GetType().Name} is of type {data.Body?.GetType().Name}" +
-                        $" and not byte[], cannot be deserialized.");
-            
-                return new Data<object>
+            generatedData = generatedData.Select(
+                (data, index) =>
                 {
-                    MetaData = data.MetaData,
-                    Body = deserializer.Deserialize((byte[]?)data.Body, _deserializerSpecificType) 
-                };
-            });
+                    var deserializer = data.MetaData?.Deserializer ?? _deserializer;
+                    if (data.Body is not (byte[] or null))
+                        throw new InvalidOperationException(
+                            $"Data at index {index} generated in data source {Name}"
+                                + $" by generator {Generator.GetType().Name} is of type {data.Body?.GetType().Name}"
+                                + $" and not byte[], cannot be deserialized."
+                        );
+
+                    return new Data<object>
+                    {
+                        MetaData = data.MetaData,
+                        Body = deserializer.Deserialize(
+                            (byte[]?)data.Body,
+                            _deserializerSpecificType
+                        ),
+                    };
+                }
+            );
         }
-        
+
         // If data source is configured as lazy return the new generated data on every `Retrieve` call
-        if (Lazy) return generatedData;
+        if (Lazy)
+            return generatedData;
 
         _generatedData = generatedData.ToList();
         return _generatedData;

@@ -8,7 +8,7 @@ namespace QaaS.Framework.Policies.Extentions.Stopwatch;
 public class Timer : ITimer
 {
     private readonly System.Diagnostics.Stopwatch _stopwatch = new();
-    
+
     /// <inheritdoc />
     public void Restart() => _stopwatch.Restart();
 

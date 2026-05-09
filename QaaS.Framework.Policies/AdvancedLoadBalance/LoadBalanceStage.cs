@@ -6,7 +6,12 @@ public struct LoadBalanceStage
     public ulong? AmountToNextStage { get; set; }
     public ulong? TimeToNextStage { get; set; }
 
-    public LoadBalanceStage(double rate, ulong intervalMs, ulong? amountToNextStage, ulong? timeToNextStage)
+    public LoadBalanceStage(
+        double rate,
+        ulong intervalMs,
+        ulong? amountToNextStage,
+        ulong? timeToNextStage
+    )
     {
         MessagesPerSecond = rate / intervalMs * 1000;
         AmountToNextStage = amountToNextStage;

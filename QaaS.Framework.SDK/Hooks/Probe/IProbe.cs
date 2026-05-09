@@ -9,11 +9,13 @@ namespace QaaS.Framework.SDK.Hooks.Probe;
 /// </summary>
 public interface IProbe : IHook
 {
-
     /// <summary>
     /// Runs a user's custom Probe function
     /// </summary>
     /// <param name="sessionDataList"> The data of the sessions that occurred before this data source scope </param>
     /// <param name="dataSourceList"> The relevant data source for this data source scope </param>
-    public void Run(IImmutableList<SessionData> sessionDataList, IImmutableList<DataSource> dataSourceList);
+    public void Run(
+        IImmutableList<SessionData> sessionDataList,
+        IImmutableList<DataSource> dataSourceList
+    );
 }

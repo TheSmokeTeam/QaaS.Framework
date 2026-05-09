@@ -22,8 +22,12 @@ public static class ValidationUtils
     /// <param name="parentPath"> The path to the parent object of the object currently being validated </param>
     /// <param name="bindingFlags">The binding flags to use for validation</param>
     /// <returns> true if the object and all of its sub objects are valid and false if not </returns>
-    public static bool TryValidateObjectRecursive(object? obj, List<ValidationResult> results, string parentPath = "",
-        BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.Instance)
+    public static bool TryValidateObjectRecursive(
+        object? obj,
+        List<ValidationResult> results,
+        string parentPath = "",
+        BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.Instance
+    )
     {
         if (obj == null)
             return true;
@@ -41,9 +45,11 @@ public static class ValidationUtils
         results.AddRange(PrefixValidationResults(localResults, parentPath));
 
         var properties = GetValidationProperties(obj.GetType(), bindingFlags)
-            .Where(property => property.GetIndexParameters().Length == 0 &&
-                               property.PropertyType != obj.GetType() &&
-                               ShouldTraverseProperty(property, bindingFlags));
+            .Where(property =>
+                property.GetIndexParameters().Length == 0
+                && property.PropertyType != obj.GetType()
+                && ShouldTraverseProperty(property, bindingFlags)
+            );
         foreach (var property in properties)
         {
             if (!TryGetPropertyValue(obj, property, out var value))
@@ -60,9 +66,13 @@ public static class ValidationUtils
                 {
                     foreach (var key in dictionary.Keys)
                     {
-                        var entryPath = $"{propertyPath}{ConfigurationConstants.PathSeparator}{key}";
+                        var entryPath =
+                            $"{propertyPath}{ConfigurationConstants.PathSeparator}{key}";
                         var entry = dictionary[key];
-                        if (entry != null && !TryValidateObjectRecursive(entry, results, entryPath, bindingFlags))
+                        if (
+                            entry != null
+                            && !TryValidateObjectRecursive(entry, results, entryPath, bindingFlags)
+                        )
                             isValid = false;
                     }
                 }
@@ -71,8 +81,12 @@ public static class ValidationUtils
                     var itemIndex = 0;
                     foreach (var item in enumerableValue)
                     {
-                        var itemPath = $"{propertyPath}{ConfigurationConstants.PathSeparator}{itemIndex}";
-                        if (item != null && !TryValidateObjectRecursive(item, results, itemPath, bindingFlags))
+                        var itemPath =
+                            $"{propertyPath}{ConfigurationConstants.PathSeparator}{itemIndex}";
+                        if (
+                            item != null
+                            && !TryValidateObjectRecursive(item, results, itemPath, bindingFlags)
+                        )
                             isValid = false;
 
                         itemIndex++;
@@ -92,8 +106,11 @@ public static class ValidationUtils
     /// Validate the object or his properties using the DataAnnotations validation attributes
     /// </summary>
     /// <returns>True if the object is valid</returns>
-    private static bool TryValidateObject(this object obj, ref List<ValidationResult> results,
-        BindingFlags bindingFlags)
+    private static bool TryValidateObject(
+        this object obj,
+        ref List<ValidationResult> results,
+        BindingFlags bindingFlags
+    )
     {
         var validationResults = new List<ValidationResult>();
         var objType = obj.GetType();
@@ -102,7 +119,7 @@ public static class ValidationUtils
         {
             var validationContext = new ValidationContext(obj, null, null)
             {
-                MemberName = string.Empty
+                MemberName = string.Empty,
             };
 
             var validationAttributes = objType.GetCustomAttributes<ValidationAttribute>();
@@ -115,10 +132,15 @@ public static class ValidationUtils
         }
         else
         {
-            _ = Validator.TryValidateObject(obj, new ValidationContext(obj), validationResults, true);
+            _ = Validator.TryValidateObject(
+                obj,
+                new ValidationContext(obj),
+                validationResults,
+                true
+            );
             var objectValidationContext = new ValidationContext(obj, null, null)
             {
-                MemberName = string.Empty
+                MemberName = string.Empty,
             };
 
             foreach (var validationAttribute in objType.GetCustomAttributes<ValidationAttribute>())
@@ -134,8 +156,10 @@ public static class ValidationUtils
                 return !validationResults.Any();
             }
 
-            foreach (var property in GetValidationProperties(objType, bindingFlags)
-                         .Where(property => property.GetMethod?.IsPublic != true))
+            foreach (
+                var property in GetValidationProperties(objType, bindingFlags)
+                    .Where(property => property.GetMethod?.IsPublic != true)
+            )
             {
                 if (property.GetIndexParameters().Length > 0)
                     continue;
@@ -145,13 +169,16 @@ public static class ValidationUtils
 
                 var validationContext = new ValidationContext(obj, null, null)
                 {
-                    MemberName = property.Name
+                    MemberName = property.Name,
                 };
 
                 var validationAttributes = property.GetCustomAttributes<ValidationAttribute>();
                 foreach (var validationAttribute in validationAttributes)
                 {
-                    var result = validationAttribute.GetValidationResult(propertyValue, validationContext);
+                    var result = validationAttribute.GetValidationResult(
+                        propertyValue,
+                        validationContext
+                    );
                     if (result != ValidationResult.Success && result != null)
                         validationResults.Add(result);
                 }
@@ -162,10 +189,14 @@ public static class ValidationUtils
         return !validationResults.Any();
     }
 
-    private static IEnumerable<ValidationResult> PrefixValidationResults(IEnumerable<ValidationResult> validationResults,
-        string parentPath)
+    private static IEnumerable<ValidationResult> PrefixValidationResults(
+        IEnumerable<ValidationResult> validationResults,
+        string parentPath
+    )
     {
-        var trimmedParentPath = parentPath.TrimStart(ConfigurationConstants.PathSeparator.ToCharArray());
+        var trimmedParentPath = parentPath.TrimStart(
+            ConfigurationConstants.PathSeparator.ToCharArray()
+        );
         var parentPrefix = trimmedParentPath.Length == 0 ? string.Empty : $"{trimmedParentPath} - ";
 
         return validationResults.Select(result =>
@@ -175,7 +206,10 @@ public static class ValidationUtils
         });
     }
 
-    private static IEnumerable<PropertyInfo> GetValidationProperties(Type type, BindingFlags bindingFlags)
+    private static IEnumerable<PropertyInfo> GetValidationProperties(
+        Type type,
+        BindingFlags bindingFlags
+    )
     {
         var includePublic = (bindingFlags & BindingFlags.Public) != 0;
         var includeNonPublic = (bindingFlags & BindingFlags.NonPublic) != 0;
@@ -183,8 +217,11 @@ public static class ValidationUtils
             yield break;
 
         var seenNames = new HashSet<string>(StringComparer.Ordinal);
-        for (var currentType = type; currentType != null && currentType != typeof(object);
-             currentType = currentType.BaseType)
+        for (
+            var currentType = type;
+            currentType != null && currentType != typeof(object);
+            currentType = currentType.BaseType
+        )
         {
             var currentBindingFlags = BindingFlags.Instance | BindingFlags.DeclaredOnly;
             if (includePublic)
@@ -203,8 +240,8 @@ public static class ValidationUtils
     private static bool ShouldInspectProperty(PropertyInfo property)
     {
         return property.GetCustomAttributes<ValidationAttribute>().Any()
-               || property.GetCustomAttributes<DescriptionAttribute>().Any()
-               || property.GetCustomAttributes<DefaultValueAttribute>().Any();
+            || property.GetCustomAttributes<DescriptionAttribute>().Any()
+            || property.GetCustomAttributes<DefaultValueAttribute>().Any();
     }
 
     private static bool ShouldTraverseProperty(PropertyInfo property, BindingFlags bindingFlags)
@@ -215,22 +252,31 @@ public static class ValidationUtils
         if ((bindingFlags & BindingFlags.NonPublic) == 0)
             return false;
 
-        return property.GetGetMethod(nonPublic: true) != null &&
-               (ShouldInspectProperty(property) || !IsTerminalType(property.PropertyType));
+        return property.GetGetMethod(nonPublic: true) != null
+            && (ShouldInspectProperty(property) || !IsTerminalType(property.PropertyType));
     }
 
-    private static IEnumerable<ValidationResult> DistinctValidationResults(IEnumerable<ValidationResult> validationResults)
+    private static IEnumerable<ValidationResult> DistinctValidationResults(
+        IEnumerable<ValidationResult> validationResults
+    )
     {
         return validationResults
             .GroupBy(result => new
             {
                 Message = result.ErrorMessage ?? string.Empty,
-                Members = string.Join("|", result.MemberNames.OrderBy(member => member, StringComparer.Ordinal))
+                Members = string.Join(
+                    "|",
+                    result.MemberNames.OrderBy(member => member, StringComparer.Ordinal)
+                ),
             })
             .Select(group => group.First());
     }
 
-    private static bool TryGetPropertyValue(object instance, PropertyInfo property, out object? value)
+    private static bool TryGetPropertyValue(
+        object instance,
+        PropertyInfo property,
+        out object? value
+    )
     {
         try
         {
@@ -260,22 +306,22 @@ public static class ValidationUtils
         var effectiveType = Nullable.GetUnderlyingType(type) ?? type;
 
         return effectiveType.IsPrimitive
-               || effectiveType.IsEnum
-               || effectiveType == typeof(string)
-               || effectiveType == typeof(decimal)
-               || effectiveType == typeof(DateTime)
-               || effectiveType == typeof(DateTimeOffset)
-               || effectiveType == typeof(TimeSpan)
-               || effectiveType == typeof(Guid)
-               || effectiveType == typeof(Uri)
-               || effectiveType == typeof(Type)
-               || typeof(Delegate).IsAssignableFrom(effectiveType)
-               || typeof(MemberInfo).IsAssignableFrom(effectiveType)
-               || typeof(Assembly).IsAssignableFrom(effectiveType)
-               || typeof(IConfiguration).IsAssignableFrom(effectiveType)
-               || effectiveType == typeof(IntPtr)
-               || effectiveType == typeof(UIntPtr)
-               || effectiveType.IsPointer
-               || effectiveType.IsByRef;
+            || effectiveType.IsEnum
+            || effectiveType == typeof(string)
+            || effectiveType == typeof(decimal)
+            || effectiveType == typeof(DateTime)
+            || effectiveType == typeof(DateTimeOffset)
+            || effectiveType == typeof(TimeSpan)
+            || effectiveType == typeof(Guid)
+            || effectiveType == typeof(Uri)
+            || effectiveType == typeof(Type)
+            || typeof(Delegate).IsAssignableFrom(effectiveType)
+            || typeof(MemberInfo).IsAssignableFrom(effectiveType)
+            || typeof(Assembly).IsAssignableFrom(effectiveType)
+            || typeof(IConfiguration).IsAssignableFrom(effectiveType)
+            || effectiveType == typeof(IntPtr)
+            || effectiveType == typeof(UIntPtr)
+            || effectiveType.IsPointer
+            || effectiveType.IsByRef;
     }
 }

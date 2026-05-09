@@ -1,6 +1,3 @@
 namespace QaaS.Framework.Configurations.CommonConfigurationObjects;
 
-public interface IStorageConfig
-{
-    
-}
+public interface IStorageConfig { }

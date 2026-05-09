@@ -34,8 +34,9 @@ public static class ExecutionLogging
 
     public static readonly Serilog.ILogger DefaultSerilogLogger = BuildDefaultSerilogLogger();
 
-    public static readonly ILogger DefaultLogger =
-        new SerilogLoggerFactory(DefaultSerilogLogger).CreateLogger("DefaultLogger");
+    public static readonly ILogger DefaultLogger = new SerilogLoggerFactory(
+        DefaultSerilogLogger
+    ).CreateLogger("DefaultLogger");
 
     private static IElasticLoggingDefaultsProvider? _defaultsProvider;
 
@@ -51,16 +52,23 @@ public static class ExecutionLogging
         bool sendLogs,
         string? elasticUri = null,
         string? elasticUsername = null,
-        string? elasticPassword = null) =>
-        RegisterDefaultsProvider(new StaticElasticLoggingDefaultsProvider(new ElasticLoggingDefaults
-        {
-            SendLogs = sendLogs,
-            ElasticUri = elasticUri,
-            ElasticUsername = elasticUsername,
-            ElasticPassword = elasticPassword
-        }));
+        string? elasticPassword = null
+    ) =>
+        RegisterDefaultsProvider(
+            new StaticElasticLoggingDefaultsProvider(
+                new ElasticLoggingDefaults
+                {
+                    SendLogs = sendLogs,
+                    ElasticUri = elasticUri,
+                    ElasticUsername = elasticUsername,
+                    ElasticPassword = elasticPassword,
+                }
+            )
+        );
 
-    internal static ResolvedElasticLoggingOptions ResolveElasticLoggingOptions(Options.LoggerOptions options)
+    internal static ResolvedElasticLoggingOptions ResolveElasticLoggingOptions(
+        Options.LoggerOptions options
+    )
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -74,16 +82,17 @@ public static class ExecutionLogging
             defaults?.SendLogs ?? options.SendLogs,
             defaults?.ElasticUri ?? options.ElasticUri,
             defaults?.ElasticUsername ?? options.ElasticUsername,
-            defaults?.ElasticPassword ?? options.ElasticPassword);
+            defaults?.ElasticPassword ?? options.ElasticPassword
+        );
     }
 
     internal static bool ShouldApplyDefaultsProvider(Options.LoggerOptions options) =>
-        options.LoggerConfigurationFilePath is null &&
-        !options.DisableElasticDefaults &&
-        !options.SendLogs &&
-        string.IsNullOrWhiteSpace(options.ElasticUri) &&
-        string.IsNullOrWhiteSpace(options.ElasticUsername) &&
-        string.IsNullOrWhiteSpace(options.ElasticPassword);
+        options.LoggerConfigurationFilePath is null
+        && !options.DisableElasticDefaults
+        && !options.SendLogs
+        && string.IsNullOrWhiteSpace(options.ElasticUri)
+        && string.IsNullOrWhiteSpace(options.ElasticUsername)
+        && string.IsNullOrWhiteSpace(options.ElasticPassword);
 
     private static Serilog.ILogger BuildDefaultSerilogLogger()
     {
@@ -91,10 +100,8 @@ public static class ExecutionLogging
         // Elasticsearch shipping is configured per run through LoggerOptions.SendLogs, and the
         // default logger should not emit sink warnings before any command opts into that path.
         return new LoggerConfiguration()
-            .MinimumLevel
-            .Is(LogEventLevel.Verbose)
-            .WriteTo
-            .Console(LogEventLevel.Information)
+            .MinimumLevel.Is(LogEventLevel.Verbose)
+            .WriteTo.Console(LogEventLevel.Information)
             .CreateLogger();
     }
 
@@ -104,27 +111,41 @@ public static class ExecutionLogging
         string? elasticUri = null,
         string? username = null,
         string? password = null,
-        Action<string>? warningLogger = null)
+        Action<string>? warningLogger = null
+    )
     {
         warningLogger ??= _ => { };
 
         if (string.IsNullOrWhiteSpace(elasticUri))
         {
-            warningLogger("Elasticsearch logging is enabled, but no Elasticsearch URI was provided. Skipping Elasticsearch sink.");
+            warningLogger(
+                "Elasticsearch logging is enabled, but no Elasticsearch URI was provided. Skipping Elasticsearch sink."
+            );
             return configuration;
         }
 
         if (!Uri.TryCreate(elasticUri, UriKind.Absolute, out var parsedElasticUri))
         {
             warningLogger(
-                $"Elasticsearch logging is enabled, but URI '{elasticUri}' is invalid. Skipping Elasticsearch sink.");
+                $"Elasticsearch logging is enabled, but URI '{elasticUri}' is invalid. Skipping Elasticsearch sink."
+            );
             return configuration;
         }
 
-        return configuration.WriteTo.Logger(logger => logger.WriteTo.Elasticsearch(
-                GetElasticSearchSinkOptions(parsedElasticUri, username, password, warningLogger))
-            .MinimumLevel.Verbose()
-            .Filter.ByIncludingOnly(Matching.WithProperty("Team")))
+        return configuration
+            .WriteTo.Logger(logger =>
+                logger
+                    .WriteTo.Elasticsearch(
+                        GetElasticSearchSinkOptions(
+                            parsedElasticUri,
+                            username,
+                            password,
+                            warningLogger
+                        )
+                    )
+                    .MinimumLevel.Verbose()
+                    .Filter.ByIncludingOnly(Matching.WithProperty("Team"))
+            )
             .Enrich.WithHostname()
             .Enrich.WithEnvironment();
     }
@@ -133,7 +154,8 @@ public static class ExecutionLogging
         Uri elasticUri,
         string? username,
         string? password,
-        Action<string> warningLogger)
+        Action<string> warningLogger
+    )
     {
         var hasUsername = !string.IsNullOrWhiteSpace(username);
         var hasPassword = !string.IsNullOrWhiteSpace(password);
@@ -142,12 +164,14 @@ public static class ExecutionLogging
         if (hasUsername != hasPassword)
         {
             warningLogger(
-                "Only one Elasticsearch credential was provided. Continuing without basic authentication.");
+                "Only one Elasticsearch credential was provided. Continuing without basic authentication."
+            );
         }
         else if (!useBasicAuthentication)
         {
             warningLogger(
-                "Elasticsearch username/password were not provided. Continuing without basic authentication.");
+                "Elasticsearch username/password were not provided. Continuing without basic authentication."
+            );
         }
 
         return new ElasticsearchSinkOptions(elasticUri)
@@ -165,10 +189,12 @@ public static class ExecutionLogging
                     : client;
 
                 return configuredClient
-                    .ServerCertificateValidationCallback((connection, certificate, chain, errors) => true)
+                    .ServerCertificateValidationCallback(
+                        (connection, certificate, chain, errors) => true
+                    )
                     .EnableHttpCompression()
                     .EnableDebugMode();
-            }
+            },
         };
     }
 }
@@ -179,4 +205,5 @@ internal sealed record ResolvedElasticLoggingOptions(
     bool SendLogs,
     string? ElasticUri,
     string? ElasticUsername,
-    string? ElasticPassword);
+    string? ElasticPassword
+);

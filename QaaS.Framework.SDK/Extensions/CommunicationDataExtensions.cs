@@ -20,24 +20,31 @@ public static class CommunicationDataExtensions
     /// <typeparam name="TData"> The Type of the data of the CommunicationData in the enumerable </typeparam>
     /// <returns> The CommunicationData that has the given name </returns>
     /// <exception cref="ArgumentException"> If less or more than 1 CommunicationData were found with the given name </exception>
-    public static CommunicationData<TData> GetCommunicationDataByName<TData>
-        (this IEnumerable<CommunicationData<TData>>? communicationDataEnumerable, string communicationDataName, 
-            string? communicationDataType = null)
+    public static CommunicationData<TData> GetCommunicationDataByName<TData>(
+        this IEnumerable<CommunicationData<TData>>? communicationDataEnumerable,
+        string communicationDataName,
+        string? communicationDataType = null
+    )
     {
         communicationDataType ??= DefaultCommunicationDataType;
-        var itemsWithName = communicationDataEnumerable?.Where(communicationData =>
-            communicationData.Name == communicationDataName).ToArray();
-        
+        var itemsWithName = communicationDataEnumerable
+            ?.Where(communicationData => communicationData.Name == communicationDataName)
+            .ToArray();
+
         if (itemsWithName == null || itemsWithName.Length < 1)
-            throw new ArgumentException($"No {communicationDataType}" +
-                                        $" by the name of {communicationDataName} was found.");
+            throw new ArgumentException(
+                $"No {communicationDataType}"
+                    + $" by the name of {communicationDataName} was found."
+            );
         if (itemsWithName.Length > 1)
-            throw new ArgumentException($"More than 1 {communicationDataType} by the name" +
-                                        $" of {communicationDataName} were found.");
+            throw new ArgumentException(
+                $"More than 1 {communicationDataType} by the name"
+                    + $" of {communicationDataName} were found."
+            );
 
         return itemsWithName.First();
     }
-    
+
     /// <summary>
     /// Casts a CommunicationData to a different type
     /// </summary>
@@ -47,26 +54,33 @@ public static class CommunicationDataExtensions
     /// <typeparam name="TCastTo"> The type to cast the CommunicationData to </typeparam>
     /// <returns> CommunicationData casted to the given type </returns>
     /// <exception cref="InvalidCastException"> If cast fails for any reason </exception>
-    public static CommunicationData<TCastTo> CastCommunicationData<TCastTo>(this CommunicationData<object> communicationData, 
-        string? communicationDataType = null)
+    public static CommunicationData<TCastTo> CastCommunicationData<TCastTo>(
+        this CommunicationData<object> communicationData,
+        string? communicationDataType = null
+    )
     {
         communicationDataType ??= DefaultCommunicationDataType;
         return new CommunicationData<TCastTo>
         {
             Name = communicationData.Name,
             SerializationType = communicationData.SerializationType,
-            Data = communicationData.Data.Select(item =>
-            {
-                try
+            Data = communicationData
+                .Data.Select(item =>
                 {
-                    return item.CastObjectDetailedData<TCastTo>();
-                }
-                catch (Exception e)
-                {
-                    throw new InvalidCastException($"Failed to cast data item in {communicationDataType} " +
-                                                   $"'{communicationData.Name}' to type {typeof(TCastTo)}.", e);
-                }
-            }).ToList()
+                    try
+                    {
+                        return item.CastObjectDetailedData<TCastTo>();
+                    }
+                    catch (Exception e)
+                    {
+                        throw new InvalidCastException(
+                            $"Failed to cast data item in {communicationDataType} "
+                                + $"'{communicationData.Name}' to type {typeof(TCastTo)}.",
+                            e
+                        );
+                    }
+                })
+                .ToList(),
         };
     }
 
@@ -78,11 +92,14 @@ public static class CommunicationDataExtensions
     /// <returns> The first data with the given <see cref="ioMatchIndex"/> </returns>
     /// <exception cref="ArgumentException"> Thrown when no data with <see cref="ioMatchIndex"/> can be found
     /// </exception>
-    public static DetailedData<TData> GetDataByIoMatchIndex<TData>(this CommunicationData<TData> communicationData,
-        int ioMatchIndex) => 
-        communicationData.Data.FirstOrDefault(data => data.MetaData?.IoMatchIndex == ioMatchIndex) ??
-           throw new ArgumentException($"CommunicationData {communicationData.Name} does not contain" +
-                                       $" a data item with {nameof(DetailedData<TData>.MetaData.IoMatchIndex)}" +
-                                       $" {ioMatchIndex}");
-    
+    public static DetailedData<TData> GetDataByIoMatchIndex<TData>(
+        this CommunicationData<TData> communicationData,
+        int ioMatchIndex
+    ) =>
+        communicationData.Data.FirstOrDefault(data => data.MetaData?.IoMatchIndex == ioMatchIndex)
+        ?? throw new ArgumentException(
+            $"CommunicationData {communicationData.Name} does not contain"
+                + $" a data item with {nameof(DetailedData<TData>.MetaData.IoMatchIndex)}"
+                + $" {ioMatchIndex}"
+        );
 }

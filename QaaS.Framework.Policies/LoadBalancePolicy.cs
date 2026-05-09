@@ -8,7 +8,7 @@ public class LoadBalancePolicy : Policy
     private readonly ITimer _intervalTimer;
     protected double MessageIntervalMilliseconds;
     protected double MessagesPerSecond;
-    protected override uint Index { get; set; } = int.MaxValue;
+    protected override uint Index { get; set; } = 1;
 
     public LoadBalancePolicy(double rate, ulong intervalMs, ITimer? timer = null)
     {
@@ -37,7 +37,8 @@ public class LoadBalancePolicy : Policy
     /// </summary>
     private void WaitForNextExecutionSlot()
     {
-        var remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
+        var remainingMilliseconds =
+            MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
         while (remainingMilliseconds > 0)
         {
             if (remainingMilliseconds > 1)
@@ -49,14 +50,19 @@ public class LoadBalancePolicy : Policy
                 Thread.SpinWait(20);
             }
 
-            remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
+            remainingMilliseconds =
+                MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
         }
     }
 
     /// <summary>
     /// Takes the extra time it took to perform the policy and recalculates the new adjusted rate accordingly.
+    /// The interval is clamped to zero so that a slow consumer never drives it negative.
     /// </summary>
-    protected virtual void AdjustRate()
-        => MessageIntervalMilliseconds =
-            (1000 - (_intervalTimer.ElapsedMilliseconds - MessageIntervalMilliseconds)) / MessagesPerSecond;
+    protected virtual void AdjustRate() =>
+        MessageIntervalMilliseconds = Math.Max(
+            0,
+            (1000 - (_intervalTimer.ElapsedMilliseconds - MessageIntervalMilliseconds))
+                / MessagesPerSecond
+        );
 }
