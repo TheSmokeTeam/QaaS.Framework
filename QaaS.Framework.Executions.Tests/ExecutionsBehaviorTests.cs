@@ -7,6 +7,7 @@ using QaaS.Framework.Executions.Options;
 using QaaS.Framework.SDK.ContextObjects;
 using QaaS.Framework.SDK.DataSourceObjects;
 using QaaS.Framework.SDK.ExecutionObjects;
+using QaaS.Configuration;
 using Serilog;
 using Serilog.Events;
 
@@ -156,6 +157,26 @@ public class ExecutionsBehaviorTests
             Assert.That(resolvedOptions.ElasticUri, Is.EqualTo("http://elastic.local:9200"));
             Assert.That(resolvedOptions.ElasticUsername, Is.EqualTo("elastic"));
             Assert.That(resolvedOptions.ElasticPassword, Is.EqualTo("secret"));
+        });
+    }
+
+    [Test]
+    public void ResolveElasticLoggingOptions_CanUseQaaSConfigurationElasticDefaults()
+    {
+        ExecutionLogging.RegisterDefaults(
+            ElasticDefaults.SendLogs,
+            ElasticDefaults.ElasticUri,
+            ElasticDefaults.ElasticUsername,
+            ElasticDefaults.ElasticPassword);
+
+        var resolvedOptions = ExecutionLogging.ResolveElasticLoggingOptions(new TestLoaderOptions());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(resolvedOptions.SendLogs, Is.EqualTo(ElasticDefaults.SendLogs));
+            Assert.That(resolvedOptions.ElasticUri, Is.EqualTo(ElasticDefaults.ElasticUri));
+            Assert.That(resolvedOptions.ElasticUsername, Is.EqualTo(ElasticDefaults.ElasticUsername));
+            Assert.That(resolvedOptions.ElasticPassword, Is.EqualTo(ElasticDefaults.ElasticPassword));
         });
     }
 
