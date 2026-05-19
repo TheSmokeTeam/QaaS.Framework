@@ -27,8 +27,6 @@ env:
   COVERAGE_RESULTS_PATH: ${{ github.workspace }}\CoverageResults\coverage.xml
   COVERAGE_REPORT_DIRECTORY: ${{ github.workspace }}\CoverageReport
   FILTERED_COVERAGE_RESULTS_PATH: ${{ github.workspace }}\CoverageReport\Cobertura.xml
-  QAAS_NUGET_SOURCE_URL: ${{ vars.QAAS_NUGET_SOURCE_URL || 'https://api.nuget.org/v3/index.json' }}
-  QAAS_NUGET_PUSH_SOURCE_URL: ${{ vars.QAAS_NUGET_PUSH_SOURCE_URL || vars.QAAS_NUGET_SOURCE_URL || 'https://api.nuget.org/v3/index.json' }}
 
 jobs:
   build-test-deploy:
@@ -315,7 +313,7 @@ jobs:
           }
 
           foreach ($package in $packages) {
-            dotnet nuget push $package.FullName -k ${{ secrets.NUGET_AUTH_TOKEN }} -s "${{ env.QAAS_NUGET_PUSH_SOURCE_URL }}" --skip-duplicate
+            dotnet nuget push $package.FullName -k ${{ secrets.NUGET_AUTH_TOKEN }} -s https://api.nuget.org/v3/index.json --skip-duplicate
           }
 
       - name: Write restored packages metadata
