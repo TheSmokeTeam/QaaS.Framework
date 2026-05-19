@@ -17,8 +17,7 @@ public record MongoCollectionConfig
     [Required, Description("Name of the collection in the database to perform the operation on")]
     public string? CollectionName { get; set; }
 
-    [Range(1, int.MaxValue), Description("Chunk size of the data to process, " +
-                                         "This represents the number of documents to process in a single operation. " +
-                                         "If not specified, all data will be processed in a single chunk.")]
+    [Range(1, int.MaxValue), Description("Optional chunk size for MongoDB operations that process documents in batches. " +
+                                         "Operations that run as a single database command may accept this shared setting without using it.")]
     public int? ChunkSize { get; set; }
 }
