@@ -42,9 +42,10 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         WhereStatement = configurations.WhereStatement;
         FilterFromStartTime = configurations.ReadFromRunStartTime;
         InsertionTimeField = configurations.InsertionTimeField;
-        if (InsertionTimeField == null)
+        if (InsertionTimeField == null && !configurations.AllowNoInsertionTimeField)
             Logger.LogWarning("No {InsertionTimeFieldField} was configured for table {TableName}." +
-                              " Reads will use a constant timeout and emitted rows will have no Timestamp.",
+                              " Reads will use a constant timeout and emitted rows will have no Timestamp." +
+                              " Set AllowNoInsertionTimeField=true to suppress this warning.",
                 nameof(InsertionTimeField), TableName);
     }
 
