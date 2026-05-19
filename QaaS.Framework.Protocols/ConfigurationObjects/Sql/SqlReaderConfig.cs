@@ -11,6 +11,10 @@ public record SqlReaderConfig : SqlConfig, IReaderConfig
          "The insertion time field name, in cases where the table can be updated this will be the update time field")]
     public string? InsertionTimeField { get; set; }
 
+    [Description("Set to true to acknowledge that the table has no insertion time column" +
+                 " and suppress the related startup warning."), DefaultValue(false)]
+    public bool AllowNoInsertionTimeField { get; set; } = false;
+
     [Range(-12, 14), Description(
          "The time zone hour difference in comparison to UTC at summer time (daylight saving time) of the insertion time field")
      , DefaultValue(0)]

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using QaaS.Framework.Configurations;
 using QaaS.Framework.Configurations.ConfigurationBindingUtils;
 using QaaS.Framework.Configurations.CustomValidationAttributes;
+using QaaS.Framework.Infrastructure;
 using QaaS.Framework.SDK.ContextObjects;
 using QaaS.Framework.SDK.Extensions;
 using QaaS.Framework.SDK.Hooks.Generator;
@@ -21,9 +22,12 @@ using YamlDotNet.Serialization;
 
 namespace QaaS.Framework.SDK.DataSourceObjects;
 
-public class DataSourceBuilder : IYamlConvertible
+public class DataSourceBuilder : IYamlConvertible, ICloneable<DataSourceBuilder>
 {
     private DataSource _dataSource = null!;
+
+    public DataSourceBuilder Clone() => BuilderCloner.DeepClone(this);
+
 
     [Required, Description("Name of data source to reference it by (must be unique)")]
     public string? Name { get; internal set; }

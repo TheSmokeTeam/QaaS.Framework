@@ -21,6 +21,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\QaaS.Framework.Configurations\QaaS.Framework.Configurations.csproj" />
+        <ProjectReference Include="..\QaaS.Framework.Infrastructure\QaaS.Framework.Infrastructure.csproj" />
         <ProjectReference Include="..\QaaS.Framework.Serialization\QaaS.Framework.Serialization.csproj" />
     </ItemGroup>
 

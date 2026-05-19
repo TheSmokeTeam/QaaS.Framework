@@ -1,16 +1,40 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using QaaS.Framework.Configurations;
 using QaaS.Framework.Configurations.ConfigurationBuilderExtensions;
 using QaaS.Framework.Configurations.References;
+using QaaS.Framework.Infrastructure;
 using QaaS.Framework.SDK.Session.SessionDataObjects.RunningSessionsObjects;
 
 namespace QaaS.Framework.SDK.ContextObjects;
 
 /// <inheritdoc />
-public class ContextBuilder : IContextBuilder
+public class ContextBuilder : IContextBuilder, ICloneable<ContextBuilder>
 {
+    private static readonly FieldInfo ConfigurationBuilderField =
+        typeof(ContextBuilder).GetField(
+            nameof(_configurationBuilder),
+            BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+    // Manual clone: GetConfiguration() mutates _configurationBuilder.Sources via
+    // AddYaml/AddCommandLine. The default reflective clone walks Microsoft's
+    // ConfigurationBuilder internals, which is fragile across framework versions —
+    // so we replace the cloned reference with a fresh ConfigurationBuilder seeded
+    // from the original's current Sources/Properties.
+    public ContextBuilder Clone()
+    {
+        var clone = BuilderCloner.DeepClone(this);
+        var freshBuilder = new ConfigurationBuilder();
+        foreach (var source in _configurationBuilder.Sources)
+            freshBuilder.Sources.Add(source);
+        foreach (var kvp in _configurationBuilder.Properties)
+            freshBuilder.Properties[kvp.Key] = kvp.Value;
+        ConfigurationBuilderField.SetValue(clone, freshBuilder);
+        return clone;
+    }
+
     private readonly List<string> _configurationOverwriteFiles = new();
     private readonly List<string> _configurationOverwriteFolders = new();
     private readonly List<string> _configurationOverwriteArguments = new();

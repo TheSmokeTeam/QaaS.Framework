@@ -42,6 +42,11 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         WhereStatement = configurations.WhereStatement;
         FilterFromStartTime = configurations.ReadFromRunStartTime;
         InsertionTimeField = configurations.InsertionTimeField;
+        if (InsertionTimeField == null && !configurations.AllowNoInsertionTimeField)
+            Logger.LogWarning("No {InsertionTimeFieldField} was configured for table {TableName}." +
+                              " Reads will use a constant timeout and emitted rows will have no Timestamp." +
+                              " Set AllowNoInsertionTimeField=true to suppress this warning.",
+                nameof(InsertionTimeField), TableName);
     }
 
 
@@ -257,14 +262,9 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// </summary>
     protected virtual long? GetNumberOfMilliSecondsPassedSinceLastTableChange()
     {
-        var latestTableRowQuery = GetLatestTableRowQuery();
         if (InsertionTimeField == null)
-        {
-            Logger.LogWarning("No {InsertionTimeFieldField} was configured so timeout is constant and" +
-                              " not since latest change in the table {TableName}",
-                nameof(InsertionTimeField), TableName);
             return null;
-        }
+        var latestTableRowQuery = GetLatestTableRowQuery();
 
         try
         {
@@ -297,12 +297,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     protected DateTime? GetDateTimeFromDateTimeField(JsonObject? row)
     {
         if (InsertionTimeField == null)
-        {
-            Logger.LogWarning("No {InsertionTimeFieldField} was configured so date time cannot be given to" +
-                              " queried data from the table {TableName}",
-                nameof(InsertionTimeField), TableName);
             return null;
-        }
 
         if (row?[InsertionTimeField] == null)
             throw new InvalidOperationException(
