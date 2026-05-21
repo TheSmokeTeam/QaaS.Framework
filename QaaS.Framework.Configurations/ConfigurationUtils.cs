@@ -244,12 +244,11 @@ public static class ConfigurationUtils
         bool addEnvironmentVariables)
     {
         var baseConfiguration = configurationBuilder.Build();
-        var placeholderResolutionConfiguration = BuildPlaceholderResolutionConfiguration(baseConfiguration,
-            addEnvironmentVariables);
-        var resolvedConfiguration = new ConfigurationBuilder()
-            .AddConfiguration(new ConfigurationPlaceholderParser(placeholderResolutionConfiguration)
-                .ResolvePlaceholders())
-            .Build()
+        var placeholderResolutionConfiguration = addEnvironmentVariables
+            ? BuildPlaceholderResolutionConfiguration(baseConfiguration, true)
+            : baseConfiguration;
+        var resolvedConfiguration = new ConfigurationPlaceholderParser(placeholderResolutionConfiguration)
+            .ResolvePlaceholders()
             .CollapseShiftLeftArrowsInConfiguration();
 
         return addEnvironmentVariables

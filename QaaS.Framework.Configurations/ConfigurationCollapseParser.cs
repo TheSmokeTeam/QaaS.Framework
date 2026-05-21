@@ -1,10 +1,10 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using QaaS.Framework.Configurations.CustomExceptions;
 
 namespace QaaS.Framework.Configurations;
 
 /// <summary>
-/// Class that contains functionality for parsing the collapse of a configuration 
+/// Class that contains functionality for parsing the collapse of a configuration
 /// </summary>
 public static class ConfigurationCollapseParser
 {
@@ -15,80 +15,53 @@ public static class ConfigurationCollapseParser
     /// <returns> Configuration with collapsed arrows </returns>
     public static IConfiguration CollapseShiftLeftArrowsInConfiguration(this IConfiguration configuration)
     {
-        return new ConfigurationBuilder()
-            .AddInMemoryCollection(GetConfigurationPathsAndValuesWithCollapsedArrows(configuration)).Build();
-    }
-        
-    private static IEnumerable<KeyValuePair<string, string?>> GetConfigurationPathsAndValuesWithCollapsedArrows
-        (IConfiguration configurationRoot)
-    {
-        var configurationPathsAndValues = new List<KeyValuePair<string, string?>>();
+        var entries = configuration.AsEnumerable().ToList();
+        if (!entries.Any(e => e.Key.Contains(ConfigurationConstants.CollapseString, StringComparison.Ordinal)))
+            return configuration;
 
-        return GetDirectChildrenAfterCollapsingArrows(configurationRoot)
-            .Aggregate(configurationPathsAndValues,
-                (current, configurationSection) =>
-                    current.Concat(GetConfigurationPathsAndValuesWithCollapsedArrows(configurationSection)).ToList());
-    }
-
-    private static IEnumerable<KeyValuePair<string, string?>> GetConfigurationPathsAndValuesWithCollapsedArrows(
-        IConfigurationSection configurationSection, string configurationPath = "")
-    {
-        var configurationValues = new List<KeyValuePair<string, string?>>();
-        var reachedConfigurationEndpoint = !configurationSection.GetChildren().Any();
-        if (reachedConfigurationEndpoint)
+        var bestByCollapsedKey = new Dictionary<string, (string? Value, int ArrowDepth)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (originalKey, value) in entries)
         {
-            configurationValues.Add(new KeyValuePair<string, string?>(configurationPath + 
-                                                                      configurationSection.Key,
-                configurationSection.Value));
-            return configurationValues;
+            if (value is not null && IsCollapseLeafKey(originalKey))
+                throw new InvalidConfigurationsException(
+                    $"The collapse key '{ConfigurationConstants.CollapseString}' at `{originalKey}` has the value `{value}`." +
+                    $" The collapse key '{ConfigurationConstants.CollapseString}' must contain a dictionary or a list, not a value");
+
+            if (value is null) continue;
+
+            var (collapsedKey, arrowDepth) = CollapseKey(originalKey);
+            if (!bestByCollapsedKey.TryGetValue(collapsedKey, out var existing) || arrowDepth < existing.ArrowDepth)
+                bestByCollapsedKey[collapsedKey] = (value, arrowDepth);
         }
-            
-        var childrenConfigurationPath = $"{configurationPath}{configurationSection.Key}:";
 
-        return GetDirectChildrenAfterCollapsingArrows(configurationSection)
-            .Aggregate(configurationValues, (current, child) => 
-                current.Concat(GetConfigurationPathsAndValuesWithCollapsedArrows(child, childrenConfigurationPath))
-                .ToList());
-    }
-
-    private static IEnumerable<IConfigurationSection> GetDirectChildrenAfterCollapsingArrows(
-        IConfiguration configuration)
-    {
-        // If there are multiple children with the same key - select the one with the least collapsed 'CollapseString' keys
-        return GetDirectChildrenAndNumberOfCollapsedArrows(configuration)
-            .GroupBy(child => child.Key.Key)
-            .Select(group => group.MinBy(child =>
-                child.Value).Key)
+        var flattened = bestByCollapsedKey
+            .Select(kvp => new KeyValuePair<string, string?>(kvp.Key, kvp.Value.Value))
             .ToList();
+        return new ConfigurationBuilder().AddInMemoryCollection(flattened).Build();
     }
-        
-    private static IEnumerable<KeyValuePair<IConfigurationSection, int>> GetDirectChildrenAndNumberOfCollapsedArrows(
-        IConfiguration configuration, int numberOfArrows = 0)
+
+    private static bool IsCollapseLeafKey(string key) =>
+        key == ConfigurationConstants.CollapseString ||
+        key.EndsWith(ConfigurationConstants.PathSeparator + ConfigurationConstants.CollapseString, StringComparison.Ordinal);
+
+    private static (string CollapsedKey, int ArrowDepth) CollapseKey(string key)
     {
-        var directChildren = configuration.GetChildren().ToList();
-        var directChildrenAfterCollapsingArrows = new List<KeyValuePair<IConfigurationSection, int>>();
-        foreach (var child in directChildren)
+        if (!key.Contains(ConfigurationConstants.CollapseString, StringComparison.Ordinal)) return (key, 0);
+
+        var segments = key.Split(ConfigurationConstants.PathSeparator[0]);
+        var kept = new List<string>(segments.Length);
+        var arrowDepth = 0;
+        for (var i = 0; i < segments.Length; i++)
         {
-            if (!child.Key.Equals(ConfigurationConstants.CollapseString))
+            if (segments[i] != ConfigurationConstants.CollapseString)
             {
-                directChildrenAfterCollapsingArrows.Add(new KeyValuePair<IConfigurationSection, int>(child, 
-                    numberOfArrows));
+                kept.Add(segments[i]);
                 continue;
             }
-
-            // If the key of the child is 'CollapseString' and the child is a configuration endpoint
-            if (!child.GetChildren().Any())
-            {
-                throw new InvalidConfigurationsException($"The collapse key '{ConfigurationConstants.CollapseString}' at " +
-                                                         $"`{child.Path}` has the value `{child.Value}`." +
-                                                         $" The collapse key '{ConfigurationConstants.CollapseString}' must" +
-                                                         $" contain a dictionary or a list, not a value");
-            }
-            // Recursively move to the children of the child until the key is not 'CollapseString'
-            directChildrenAfterCollapsingArrows = directChildrenAfterCollapsingArrows
-                .Concat(GetDirectChildrenAndNumberOfCollapsedArrows(
-                    child, numberOfArrows + 1)).ToList();
+            arrowDepth++;
+            if (i + 1 < segments.Length && int.TryParse(segments[i + 1], out _)) i++;
         }
-        return directChildrenAfterCollapsingArrows;
+        return (string.Join(ConfigurationConstants.PathSeparator, kept), arrowDepth);
     }
+
 }

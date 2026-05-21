@@ -14,38 +14,66 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     private const char CloseCurlyBracket = '}';
 
     private readonly HashSet<string> _resolutionStack = new();
+    private readonly HashSet<string> _existingPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _parentPaths = new(StringComparer.OrdinalIgnoreCase);
+    private int _modificationCount;
 
     /// <summary>
     /// Resolves all the placeholders in the configuration and returns the resolved configuration.
     /// </summary>
     public IConfiguration ResolvePlaceholders()
     {
-        List<KeyValuePair<string, string?>> previousConfigurationKeys;
-        List<KeyValuePair<string, string?>> configurationKeys;
+        var pathsWithPlaceholders = RebuildPathIndexAndCollectPlaceholders();
+
+        int previousMods;
         do
         {
-            previousConfigurationKeys = configuration.AsEnumerable().ToList();
-
-            ResolveSection(configuration.GetChildren());
-            configurationKeys = configuration.AsEnumerable().ToList();
-        } while (!configurationKeys.SequenceEqual(previousConfigurationKeys));
+            previousMods = _modificationCount;
+            foreach (var path in pathsWithPlaceholders)
+            {
+                var value = configuration[path];
+                if (value is not null && value.Contains(Prefix, StringComparison.Ordinal))
+                    ResolvePlaceholderValue(path);
+            }
+        } while (_modificationCount != previousMods);
 
         return configuration;
     }
 
+    private List<string> RebuildPathIndexAndCollectPlaceholders()
+    {
+        _existingPaths.Clear();
+        _parentPaths.Clear();
+        var pathsWithPlaceholders = new List<string>();
+        foreach (var kvp in configuration.AsEnumerable())
+        {
+            _existingPaths.Add(kvp.Key);
+            var ancestor = kvp.Key;
+            int separator;
+            while ((separator = ancestor.LastIndexOf(ConfigurationConstants.PathSeparator[0])) > 0)
+            {
+                ancestor = ancestor[..separator];
+                if (!_parentPaths.Add(ancestor)) break;
+            }
+            if (kvp.Value is { } v && v.Contains(Prefix, StringComparison.Ordinal))
+                pathsWithPlaceholders.Add(kvp.Key);
+        }
+        return pathsWithPlaceholders;
+    }
+
+    private void RebuildPathIndex() => RebuildPathIndexAndCollectPlaceholders();
+
+    private void SetValue(string path, string? value)
+    {
+        configuration[path] = value;
+        _modificationCount++;
+    }
+
     private void ResolveSection(IEnumerable<IConfigurationSection> sections)
     {
-        foreach (var section in sections)
-        {
-            if (IsConfigurationSectionString(section))
-            {
-                ResolvePlaceholderValue(section.Path);
-            }
-            else
-            {
-                ResolveSection(section.GetChildren());
-            }
-        }
+        foreach (var kvp in configuration.AsEnumerable())
+            if (kvp.Value is { } value && value.Contains(Prefix, StringComparison.Ordinal))
+                ResolvePlaceholderValue(kvp.Key);
     }
 
     /// <summary>
@@ -56,9 +84,10 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     private IConfigurationSection ResolvePlaceholderValue(string path)
     {
         var currentSection = GetObjectFromConfiguration(path);
+        if (currentSection is null || !IsConfigurationSectionString(currentSection)) return currentSection!;
         var lastEnd = 0;
 
-        while (IsConfigurationSectionString(currentSection))
+        while (currentSection.Value is not null)
         {
             var sectionValue = currentSection.Value;
             var placeholderStartIndex = sectionValue?.IndexOf(Prefix, lastEnd, StringComparison.Ordinal) ?? -1;
@@ -86,7 +115,7 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
             {
                 sectionValue = sectionValue.Substring(0, placeholderStartIndex) + defaultValue +
                                sectionValue.Substring(end + 1);
-                configuration[path] = sectionValue;
+                SetValue(path, sectionValue);
                 currentSection = ResolvePlaceholderValue(path);
             }
             else
@@ -114,7 +143,7 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
                 sectionValue = sectionValue.Substring(0, placeholderStartIndex) + resolvedSection.Value +
                                sectionValue.Substring(end + 1);
                 currentSection.Value = sectionValue;
-                configuration[path] = sectionValue;
+                SetValue(path, sectionValue);
                 _resolutionStack.Remove(placeholderValuePath);
                 lastEnd = placeholderStartIndex + resolvedSection.Value!.Length; // Section is tested not to be null at IsConfigurationSectionString
             }
@@ -124,9 +153,9 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         return currentSection;
     }
 
-    private static bool IsConfigurationSectionString(IConfigurationSection section)
+    private bool IsConfigurationSectionString(IConfigurationSection section)
     {
-        return section.GetChildren().ToList().Count == 0 && section.Value != null;
+        return section.Value != null && !_parentPaths.Contains(section.Path);
     }
 
     /// <summary>
@@ -134,13 +163,7 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     /// </summary>
     private IConfigurationSection GetObjectFromConfiguration(string path)
     {
-        var paths = path.Split(ConfigurationConstants.PathSeparator);
-        var currentConfiguration = configuration;
-        var currentSection = currentConfiguration.GetChildren().FirstOrDefault(child => child.Key == paths[0]);
-        currentSection = paths.Skip(1).Aggregate(currentSection,
-            (current, key) => current?.GetChildren().FirstOrDefault(child => child.Key == key));
-
-        return currentSection!;
+        return _existingPaths.Contains(path) ? configuration.GetSection(path) : null!;
     }
 
     /// <summary>
@@ -155,6 +178,8 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
             .ToList();
         configKeys = configKeys.Concat(newConfigKeys).ToList();
         configuration = new ConfigurationBuilder().AddInMemoryCollection(configKeys).Build();
+        _modificationCount++;
+        RebuildPathIndex();
     }
 
     private static int FindClosingBracket(string str, int startIndex)

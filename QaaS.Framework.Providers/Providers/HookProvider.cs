@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using Microsoft.Extensions.Logging;
 using QaaS.Framework.Providers.ObjectCreation;
 using QaaS.Framework.SDK.ContextObjects;
@@ -29,6 +31,43 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         _supportedHookTypes = [];
     }
 
+    private const string QaasAssemblyPrefix = "QaaS.";
+
+    private static bool NameReachesQaas(string? name) =>
+        name is not null && name.StartsWith(QaasAssemblyPrefix, StringComparison.Ordinal);
+
+    private static bool CouldContainHooks(string assemblyPath, string? selfName)
+    {
+        if (NameReachesQaas(selfName)) return true;
+        try
+        {
+            using var stream = File.OpenRead(assemblyPath);
+            using var pe = new PEReader(stream);
+            if (!pe.HasMetadata) return false;
+            var reader = pe.GetMetadataReader();
+            return reader.AssemblyReferences.Any(handle =>
+                NameReachesQaas(reader.GetString(reader.GetAssemblyReference(handle).Name)));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool ReferencesQaasFramework(Assembly assembly)
+    {
+        try
+        {
+            if (NameReachesQaas(assembly.GetName().Name)) return true;
+            var references = assembly.GetReferencedAssemblies();
+            return references is not null && references.Any(r => NameReachesQaas(r.Name));
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
     private static IEnumerable<Assembly> GetHookAssemblies()
     {
         var assemblies = new Dictionary<string, Assembly>(StringComparer.Ordinal);
@@ -44,6 +83,10 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
             {
                 var assemblyName = AssemblyName.GetAssemblyName(assemblyPath);
                 if (assemblies.ContainsKey(assemblyName.FullName ?? assemblyName.Name!))
+                    continue;
+
+                // Profile-guided: peek at the AssemblyRef table to skip DLLs that can't reach a QaaS hook contract.
+                if (!CouldContainHooks(assemblyPath, assemblyName.Name))
                     continue;
 
                 AddAssembly(assemblies, Assembly.LoadFrom(assemblyPath));
@@ -95,6 +138,12 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         {
             if (_supportedHookTypesByAssembly.TryGetValue(assemblyKey, out var cachedTypes))
                 return cachedTypes;
+        }
+
+        if (!ReferencesQaasFramework(assembly))
+        {
+            lock (_hookTypeCacheLock) _supportedHookTypesByAssembly[assemblyKey] = [];
+            return [];
         }
 
         Type[] loadableTypes;
