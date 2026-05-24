@@ -44,6 +44,11 @@ public static class ConfigurationCollapseParser
         key == ConfigurationConstants.CollapseString ||
         key.EndsWith(ConfigurationConstants.PathSeparator + ConfigurationConstants.CollapseString, StringComparison.Ordinal);
 
+    // YamlDotNet does not resolve YAML "<<:" merge keys; they leak through as literal "<<"
+    // segments in IConfiguration paths. When multiple merge sources are listed under a single
+    // "<<" they appear as positional indices, e.g. "Foo:<<:0:Bar" / "Foo:<<:1:Bar".
+    // CollapseKey strips both forms and returns the original path with its arrow depth so the
+    // caller can prefer the shallowest (most specific) value when two paths collapse to the same key.
     private static (string CollapsedKey, int ArrowDepth) CollapseKey(string key)
     {
         if (!key.Contains(ConfigurationConstants.CollapseString, StringComparison.Ordinal)) return (key, 0);

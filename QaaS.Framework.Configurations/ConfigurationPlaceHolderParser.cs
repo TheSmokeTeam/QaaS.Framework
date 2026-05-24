@@ -25,6 +25,9 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     {
         var pathsWithPlaceholders = RebuildPathIndexAndCollectPlaceholders();
 
+        // Fixed-point loop: a placeholder value can itself contain placeholders that resolve to
+        // further placeholders, so keep iterating until a full pass produces no new substitutions.
+        // _modificationCount is incremented by SetValue / CopyConfigurationsByPath when anything changes.
         int previousMods;
         do
         {
@@ -40,6 +43,9 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         return configuration;
     }
 
+    // Single pass over the config tree: rebuilds the existing-path / parent-path indices used by
+    // IsConfigurationSectionString + GetObjectFromConfiguration, and returns the leaf paths whose
+    // value contains a placeholder so the resolver can iterate just those instead of the whole tree.
     private List<string> RebuildPathIndexAndCollectPlaceholders()
     {
         _existingPaths.Clear();
@@ -61,19 +67,10 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         return pathsWithPlaceholders;
     }
 
-    private void RebuildPathIndex() => RebuildPathIndexAndCollectPlaceholders();
-
     private void SetValue(string path, string? value)
     {
         configuration[path] = value;
         _modificationCount++;
-    }
-
-    private void ResolveSection(IEnumerable<IConfigurationSection> sections)
-    {
-        foreach (var kvp in configuration.AsEnumerable())
-            if (kvp.Value is { } value && value.Contains(Prefix, StringComparison.Ordinal))
-                ResolvePlaceholderValue(kvp.Key);
     }
 
     /// <summary>
@@ -105,10 +102,9 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
             if (_resolutionStack.Contains(placeholderValuePath))
                 throw new InvalidOperationException("Circular placeholder reference detected in configuration at: " +
                                                     path);
-            
 
             var placeholderResolvedConfigurationObject = GetObjectFromConfiguration(placeholderValuePath);
-            if (placeholderResolvedConfigurationObject == null && defaultValue == null) break; 
+            if (placeholderResolvedConfigurationObject == null && defaultValue == null) break;
 
             // If placeholder was not found but there is a default value, sets the default value to be the placeholder value and call the function again.
             if (placeholderResolvedConfigurationObject == null)
@@ -179,7 +175,9 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         configKeys = configKeys.Concat(newConfigKeys).ToList();
         configuration = new ConfigurationBuilder().AddInMemoryCollection(configKeys).Build();
         _modificationCount++;
-        RebuildPathIndex();
+        // Rebuild index after the configuration tree was replaced; we don't need the returned
+        // placeholder list here — the outer fixed-point loop already has its snapshot.
+        _ = RebuildPathIndexAndCollectPlaceholders();
     }
 
     private static int FindClosingBracket(string str, int startIndex)

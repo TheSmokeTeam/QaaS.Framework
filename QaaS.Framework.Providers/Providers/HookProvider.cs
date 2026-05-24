@@ -15,6 +15,9 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
     private readonly Assembly[] _hookAssemblies;
     private readonly Lock _hookTypeCacheLock = new();
     private readonly IByNameObjectCreator _objectCreator;
+    // Pre-populated hook-type list for the eager-resolution path. Production constructs with an
+    // empty array so resolution always takes the lazy per-assembly path; tests overwrite this
+    // field via reflection to exercise the eager path (see ProvidersBehaviorTests / Coverage).
     private readonly Type[] _supportedHookTypes;
     private readonly Dictionary<string, Type[]> _supportedHookTypesByAssembly = new(StringComparer.Ordinal);
 
@@ -36,6 +39,12 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
     private static bool NameReachesQaas(string? name) =>
         name is not null && name.StartsWith(QaasAssemblyPrefix, StringComparison.Ordinal);
 
+    /// <summary>
+    /// Cheap PE-metadata peek: read the AssemblyRef table without loading the assembly into the CLR.
+    /// Skips DLLs that can't transitively reach a QaaS hook contract — typically dozens of NuGet deps
+    /// that ship in the bin folder but never reference QaaS.* directly or indirectly.
+    /// On any IO/metadata failure we return false: an unreadable DLL can't safely host a hook anyway.
+    /// </summary>
     private static bool CouldContainHooks(string assemblyPath, string? selfName)
     {
         if (NameReachesQaas(selfName)) return true;
@@ -54,6 +63,11 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         }
     }
 
+    /// <summary>
+    /// Second-stage filter applied after Assembly.LoadFrom: avoid GetTypes() on assemblies that
+    /// don't reference QaaS contracts. On any reflection failure we return true (conservative)
+    /// so a real hook assembly isn't silently skipped because its metadata is unusual.
+    /// </summary>
     private static bool ReferencesQaasFramework(Assembly assembly)
     {
         try
@@ -85,7 +99,6 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
                 if (assemblies.ContainsKey(assemblyName.FullName ?? assemblyName.Name!))
                     continue;
 
-                // Profile-guided: peek at the AssemblyRef table to skip DLLs that can't reach a QaaS hook contract.
                 if (!CouldContainHooks(assemblyPath, assemblyName.Name))
                     continue;
 
