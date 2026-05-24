@@ -350,16 +350,27 @@ public class ProvidersCoverageTests
             ["bin/Bad.Lib.dll"] = null,
             ["bin/Good.Lib.dll"] = new[] { "QaaS.Framework.SDK" }
         };
+        var queriedPaths = new List<string>();
 
         var include = HookProvider<IHook>.CouldContainHooksCore(
             rootPath: "bin/Plugin.dll",
             rootName: "Plugin",
             dllsByName: dllsByName,
-            readReferenceNames: path => refs[path]);
+            readReferenceNames: path =>
+            {
+                queriedPaths.Add(path);
+                return refs[path];
+            });
 
-        Assert.That(include, Is.True,
-            "An unreadable intermediate DLL must not poison the walk; the remaining chain through " +
-            "Good.Lib still proves the plugin reaches QaaS.");
+        Assert.Multiple(() =>
+        {
+            Assert.That(include, Is.True,
+                "An unreadable intermediate DLL must not poison the walk; the chain through " +
+                "Good.Lib still proves the plugin reaches QaaS.");
+            Assert.That(queriedPaths, Does.Contain("bin/Bad.Lib.dll"),
+                "The unreadable intermediate must have been visited — otherwise the test wouldn't " +
+                "be exercising the tolerate-failure path it claims to pin.");
+        });
     }
 
     [Test]
@@ -372,6 +383,22 @@ public class ProvidersCoverageTests
             readReferenceNames: _ => null);
 
         Assert.That(include, Is.False);
+    }
+
+    [Test]
+    public void HookProvider_GetAssemblyPriority_DoesNotTreatQaasPrefixCollisionAsFrameworkAssembly()
+    {
+        var priorityMethod = typeof(HookProvider<IHook>)
+            .GetMethod("GetAssemblyPriority", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var customAssembly = AssemblyBuilder.DefineDynamicAssembly(
+            new AssemblyName("QaaSMyCustom.Plugin"),
+            AssemblyBuilderAccess.Run);
+
+        var priority = (int)priorityMethod.Invoke(null, [customAssembly])!;
+
+        Assert.That(priority, Is.EqualTo(2),
+            "Only real framework assembly names that start with 'QaaS.' should receive the QaaS tier; " +
+            "a customer assembly such as QaaSMyCustom.Plugin must remain in the normal plugin tier.");
     }
 
     [Test]
@@ -397,6 +424,59 @@ public class ProvidersCoverageTests
                 entry.Level == LogLevel.Debug &&
                 entry.Message.Contains("Partially loaded assembly")), Is.True);
         });
+    }
+
+    [Test]
+    public void HookProvider_WhenConcurrentAssemblyProbeFailsAfterSuccessfulProbe_DoesNotOverwriteCachedHookTypes()
+    {
+        var provider = new HookProvider<IHook>(CreateContext(), new ByNameObjectCreator(NullLogger.Instance));
+        var assembly = new Mock<Assembly>();
+        var firstGetTypesEntered = new ManualResetEventSlim();
+        var bothGetTypesEntered = new CountdownEvent(2);
+        var successfulResolutionCompleted = new ManualResetEventSlim();
+        var getTypesCalls = 0;
+
+        assembly.SetupGet(candidate => candidate.FullName).Returns("ConcurrentFlakyAssembly");
+        assembly.Setup(candidate => candidate.GetTypes()).Returns(() =>
+        {
+            var callNumber = Interlocked.Increment(ref getTypesCalls);
+            bothGetTypesEntered.Signal();
+
+            if (callNumber == 1)
+            {
+                firstGetTypesEntered.Set();
+                bothGetTypesEntered.Wait(TimeSpan.FromSeconds(5));
+                return [typeof(ModuleHook)];
+            }
+
+            successfulResolutionCompleted.Wait(TimeSpan.FromSeconds(5));
+            throw new InvalidOperationException("transient metadata read failure");
+        });
+
+        typeof(HookProvider<IHook>)
+            .GetField("_hookAssemblies", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(provider, new[] { assembly.Object });
+
+        var successfulResolution = Task.Run(() => provider.GetSupportedInstanceByName(nameof(ModuleHook)));
+        Assert.That(firstGetTypesEntered.Wait(TimeSpan.FromSeconds(5)), Is.True);
+
+        var failedResolution = Task.Run(() => provider.GetSupportedInstanceByName(nameof(ModuleHook)));
+        Assert.That(successfulResolution.Result, Is.InstanceOf<ModuleHook>());
+        successfulResolutionCompleted.Set();
+
+        try
+        {
+            failedResolution.Wait(TimeSpan.FromSeconds(5));
+        }
+        catch (AggregateException)
+        {
+        }
+
+        var hook = provider.GetSupportedInstanceByName(nameof(ModuleHook));
+
+        Assert.That(hook, Is.InstanceOf<ModuleHook>(),
+            "A failed concurrent slow-path probe must not overwrite hook types already discovered " +
+            "and cached by another thread for the same assembly.");
     }
 
     [Test]

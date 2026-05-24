@@ -154,10 +154,12 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
 
     private static int GetAssemblyPriority(Assembly assembly)
     {
+        // Use StartsWith with a trailing dot so customer assemblies like "QaaSMyCustom.Plugin"
+        // or "MyCommonStuff.Plugin" don't collide with the QaaS / Common framework prefixes.
         var assemblyName = assembly.GetName().Name ?? string.Empty;
-        if (assemblyName.Contains("QaaS", StringComparison.OrdinalIgnoreCase))
+        if (assemblyName.StartsWith("QaaS.", StringComparison.OrdinalIgnoreCase))
             return 0;
-        if (assemblyName.Contains("Common", StringComparison.OrdinalIgnoreCase))
+        if (assemblyName.StartsWith("Common.", StringComparison.OrdinalIgnoreCase))
             return 1;
         return 2;
     }
@@ -206,6 +208,12 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         var supportedTypes = loadableTypes.Where(_objectCreator.IsTypeSubClassOfT<THook>).ToArray();
         lock (_hookTypeCacheLock)
         {
+            // First-writer-wins: another thread may have populated the cache for this assembly
+            // while we were probing. If our probe hit a transient failure (loadableTypes is empty
+            // because GetTypes threw) we must not overwrite a successful peer result with empty.
+            // We still return our own probe result if we are the first writer.
+            if (_supportedHookTypesByAssembly.TryGetValue(assemblyKey, out var existing))
+                return existing;
             _supportedHookTypesByAssembly[assemblyKey] = supportedTypes;
         }
 

@@ -125,32 +125,40 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
             }
             else
             {
-                // Recursively resolves the placeholder value path. 
+                // Recursively resolves the placeholder value path. Wrapped in try/finally so an
+                // exception thrown during recursion or substring-validation (e.g. object-placeholder
+                // used as substring) does not leave a stale entry in _resolutionStack that would
+                // make a subsequent valid resolve falsely look circular on the same parser instance.
                 _resolutionStack.Add(placeholderValuePath);
-                var resolvedSection = ResolvePlaceholderValue(placeholderValuePath);
-                var hasLeadingTrailingCharsFromPlaceholder = !(sectionValue.StartsWith(Prefix) &&
-                                                               sectionValue.EndsWith(Suffix) && sectionValue.Skip(end)
-                                                                   .Any(chr => chr == CloseCurlyBracket));
-
-                if (!IsConfigurationSectionString(resolvedSection) && hasLeadingTrailingCharsFromPlaceholder)
-                    throw new InvalidOperationException(
-                        "Placeholder reference to an object but is a substring value at: " + path);
-
-                if (!IsConfigurationSectionString(resolvedSection))
+                try
                 {
-                    CopyConfigurationsByPath(placeholderValuePath, path);
-                    currentSection = resolvedSection;
-                    _resolutionStack.Remove(placeholderValuePath);
-                    break;
-                }
+                    var resolvedSection = ResolvePlaceholderValue(placeholderValuePath);
+                    var hasLeadingTrailingCharsFromPlaceholder = !(sectionValue.StartsWith(Prefix) &&
+                                                                   sectionValue.EndsWith(Suffix) && sectionValue.Skip(end)
+                                                                       .Any(chr => chr == CloseCurlyBracket));
 
-                // If the placeholder value is a string, replaces the placeholder with the string value and continues to find another placeholders.
-                sectionValue = sectionValue.Substring(0, placeholderStartIndex) + resolvedSection.Value +
-                               sectionValue.Substring(end + 1);
-                currentSection.Value = sectionValue;
-                SetValue(path, sectionValue);
-                _resolutionStack.Remove(placeholderValuePath);
-                lastEnd = placeholderStartIndex + resolvedSection.Value!.Length; // Section is tested not to be null at IsConfigurationSectionString
+                    if (!IsConfigurationSectionString(resolvedSection) && hasLeadingTrailingCharsFromPlaceholder)
+                        throw new InvalidOperationException(
+                            "Placeholder reference to an object but is a substring value at: " + path);
+
+                    if (!IsConfigurationSectionString(resolvedSection))
+                    {
+                        CopyConfigurationsByPath(placeholderValuePath, path);
+                        currentSection = resolvedSection;
+                        break;
+                    }
+
+                    // If the placeholder value is a string, replaces the placeholder with the string value and continues to find another placeholders.
+                    sectionValue = sectionValue.Substring(0, placeholderStartIndex) + resolvedSection.Value +
+                                   sectionValue.Substring(end + 1);
+                    currentSection.Value = sectionValue;
+                    SetValue(path, sectionValue);
+                    lastEnd = placeholderStartIndex + resolvedSection.Value!.Length; // Section is tested not to be null at IsConfigurationSectionString
+                }
+                finally
+                {
+                    _resolutionStack.Remove(placeholderValuePath);
+                }
             }
 
         }
