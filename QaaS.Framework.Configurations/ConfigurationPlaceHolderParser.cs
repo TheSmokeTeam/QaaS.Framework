@@ -26,12 +26,6 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     {
         var pathsContainingPlaceholders = RebuildPathIndexAndCollectPlaceholders();
 
-        // Fixed-point loop: a placeholder value can itself contain placeholders that resolve to
-        // further placeholders, so keep iterating until a full pass produces no new substitutions.
-        // _modificationCount is incremented by SetValue / CopyConfigurationsByPath when anything changes.
-        // If CopyConfigurationsByPath replaces the entire tree (object-valued placeholder copies a
-        // subtree that itself contains placeholders), the new paths weren't in our snapshot, so we
-        // re-collect them on the next pass — the _configurationReplaced flag drives that re-scan.
         int modificationCountAtPassStart;
         do
         {
@@ -52,9 +46,12 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         return configuration;
     }
 
-    // Single pass over the config tree: rebuilds the existing-path / parent-path indices used by
-    // IsConfigurationSectionString + GetObjectFromConfiguration, and returns the leaf paths whose
-    // value contains a placeholder so the resolver can iterate just those instead of the whole tree.
+    /// <summary>
+    /// Single pass over the config tree: rebuilds the existing-path and parent-path indexes used
+    /// by <see cref="IsConfigurationSectionString"/> and <see cref="GetObjectFromConfiguration"/>,
+    /// and returns the leaf paths whose value contains a placeholder so the resolver can iterate
+    /// just those instead of the whole tree.
+    /// </summary>
     private List<string> RebuildPathIndexAndCollectPlaceholders()
     {
         _existingPaths.Clear();
