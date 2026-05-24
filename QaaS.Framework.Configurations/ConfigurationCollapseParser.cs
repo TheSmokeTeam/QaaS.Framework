@@ -9,28 +9,17 @@ namespace QaaS.Framework.Configurations;
 public static class ConfigurationCollapseParser
 {
     /// <summary>
-    /// Collapses shift left arrows ('<<') in a configuration.
+    /// Collapses YAML merge-key segments ('<<') leaked through by YamlDotNet into the configuration tree,
+    /// preferring the most specific value when several paths collapse to the same key. Returns the
+    /// configuration unchanged when no merge keys are present.
     /// </summary>
     /// <param name="configuration"> The raw configuration object before collapsing arrows </param>
     /// <returns> Configuration with collapsed arrows </returns>
-    /// <remarks>
-    /// YamlDotNet does not natively resolve YAML "<<:" merge keys; they leak through into
-    /// IConfiguration as literal "<<" path segments and, when multiple merge sources are listed,
-    /// as positional indices (e.g. "Foo:&lt;&lt;:0:Bar"). The collapse rules:
-    /// <list type="bullet">
-    ///   <item>At each tree level, children whose key is exactly "&lt;&lt;" contribute their own
-    ///   children to the parent level with an incremented arrow count.</item>
-    ///   <item>Among siblings sharing the same key, the entry with the lowest arrow count wins
-    ///   (local values beat merged values, and shallow merges beat deeper merges).</item>
-    ///   <item>A leaf "&lt;&lt;" key with a scalar value is illegal — it must be a mapping or list.</item>
-    /// </list>
-    /// The fast path short-circuits when no key contains "&lt;&lt;" because the entire collapse is a
-    /// no-op for the typical case of a YAML that doesn't use merge keys.
-    /// </remarks>
     public static IConfiguration CollapseShiftLeftArrowsInConfiguration(this IConfiguration configuration)
     {
-        if (!configuration.AsEnumerable().Any(entry =>
-                entry.Key.Contains(ConfigurationConstants.CollapseString, StringComparison.Ordinal)))
+        var configurationHasNoMergeKeys = !configuration.AsEnumerable().Any(configurationEntry =>
+            configurationEntry.Key.Contains(ConfigurationConstants.CollapseString, StringComparison.Ordinal));
+        if (configurationHasNoMergeKeys)
             return configuration;
 
         return new ConfigurationBuilder()

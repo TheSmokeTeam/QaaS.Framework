@@ -40,52 +40,48 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         name is not null && name.StartsWith(QaasAssemblyPrefix, StringComparison.Ordinal);
 
     /// <summary>
-    /// Decides whether a bin-folder DLL is worth Assembly.LoadFrom-ing by walking its AssemblyRef
-    /// table transitively through other DLLs in the same folder. Plugins that reach QaaS only
-    /// through a corporate base library (MyCorp.Plugin -> MyCorp.Hooks -> QaaS.*) are still
-    /// included because the walk follows the corporate library's own references.
-    ///
-    /// Bounded by the number of DLLs in the folder; each is read at most once. On any IO/metadata
-    /// failure for the ROOT assembly we return false — an unreadable DLL can't safely host a hook
-    /// anyway. Failures for intermediate DLLs in the walk are tolerated so an unreadable corporate
-    /// library doesn't silently disable an otherwise-valid plugin chain.
+    /// Returns true if a bin-folder DLL transitively references QaaS.*, so it is worth Assembly.LoadFrom-ing.
+    /// Walks the AssemblyRef graph through other DLLs in the same folder (each read at most once) so
+    /// plugins reaching QaaS via a corporate base library are still included. Returns false on IO
+    /// failure for the root DLL; tolerates failures for intermediate DLLs in the walk.
     /// </summary>
     private static bool CouldContainHooks(
         string assemblyPath,
-        string? selfName,
-        IReadOnlyDictionary<string, string> dllsByName) =>
-        CouldContainHooksCore(assemblyPath, selfName, dllsByName, ReadAssemblyReferenceNames);
+        string? assemblyName,
+        IReadOnlyDictionary<string, string> binFolderDllPathsByAssemblyName) =>
+        CouldContainHooksCore(assemblyPath, assemblyName, binFolderDllPathsByAssemblyName, ReadAssemblyReferenceNames);
 
     /// <summary>
     /// Pure algorithm split from the IO so unit tests can drive it with synthetic reference graphs.
     /// </summary>
     internal static bool CouldContainHooksCore(
-        string rootPath,
-        string? rootName,
-        IReadOnlyDictionary<string, string> dllsByName,
-        Func<string, IReadOnlyList<string>?> readReferenceNames)
+        string rootAssemblyPath,
+        string? rootAssemblyName,
+        IReadOnlyDictionary<string, string> binFolderDllPathsByAssemblyName,
+        Func<string, IReadOnlyList<string>?> readAssemblyReferenceNames)
     {
-        if (NameReachesQaas(rootName)) return true;
+        if (NameReachesQaas(rootAssemblyName)) return true;
 
-        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { rootPath };
-        var queue = new Queue<string>();
-        queue.Enqueue(rootPath);
+        var visitedAssemblyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { rootAssemblyPath };
+        var assemblyPathsToProbe = new Queue<string>();
+        assemblyPathsToProbe.Enqueue(rootAssemblyPath);
 
-        while (queue.Count > 0)
+        while (assemblyPathsToProbe.Count > 0)
         {
-            var currentPath = queue.Dequeue();
-            var referenceNames = readReferenceNames(currentPath);
-            if (referenceNames is null)
+            var currentAssemblyPath = assemblyPathsToProbe.Dequeue();
+            var referencedAssemblyNames = readAssemblyReferenceNames(currentAssemblyPath);
+            if (referencedAssemblyNames is null)
             {
-                if (currentPath == rootPath) return false;
+                if (currentAssemblyPath == rootAssemblyPath) return false;
                 continue;
             }
 
-            foreach (var referenceName in referenceNames)
+            foreach (var referencedAssemblyName in referencedAssemblyNames)
             {
-                if (NameReachesQaas(referenceName)) return true;
-                if (dllsByName.TryGetValue(referenceName, out var referencePath) && visited.Add(referencePath))
-                    queue.Enqueue(referencePath);
+                if (NameReachesQaas(referencedAssemblyName)) return true;
+                if (binFolderDllPathsByAssemblyName.TryGetValue(referencedAssemblyName, out var referencedAssemblyPath)
+                    && visitedAssemblyPaths.Add(referencedAssemblyPath))
+                    assemblyPathsToProbe.Enqueue(referencedAssemblyPath);
             }
         }
 
@@ -96,12 +92,13 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
     {
         try
         {
-            using var stream = File.OpenRead(assemblyPath);
-            using var pe = new PEReader(stream);
-            if (!pe.HasMetadata) return [];
-            var reader = pe.GetMetadataReader();
-            return reader.AssemblyReferences
-                .Select(handle => reader.GetString(reader.GetAssemblyReference(handle).Name))
+            using var assemblyFileStream = File.OpenRead(assemblyPath);
+            using var portableExecutableReader = new PEReader(assemblyFileStream);
+            if (!portableExecutableReader.HasMetadata) return [];
+            var metadataReader = portableExecutableReader.GetMetadataReader();
+            return metadataReader.AssemblyReferences
+                .Select(referenceHandle =>
+                    metadataReader.GetString(metadataReader.GetAssemblyReference(referenceHandle).Name))
                 .ToArray();
         }
         catch
@@ -112,34 +109,35 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
 
     private static IEnumerable<Assembly> GetHookAssemblies()
     {
-        var assemblies = new Dictionary<string, Assembly>(StringComparer.Ordinal);
+        var discoveredAssembliesByKey = new Dictionary<string, Assembly>(StringComparer.Ordinal);
 
-        AddAssembly(assemblies, Assembly.GetEntryAssembly());
+        AddAssembly(discoveredAssembliesByKey, Assembly.GetEntryAssembly());
 
-        foreach (var loadedAssembly in AppDomain.CurrentDomain.GetAssemblies())
-            AddAssembly(assemblies, loadedAssembly);
+        foreach (var alreadyLoadedAssembly in AppDomain.CurrentDomain.GetAssemblies())
+            AddAssembly(discoveredAssembliesByKey, alreadyLoadedAssembly);
 
-        var binDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        var dllPaths = Directory.GetFiles(binDirectory, "*.dll");
+        var binFolderPath = AppDomain.CurrentDomain.BaseDirectory;
+        var binFolderDllPaths = Directory.GetFiles(binFolderPath, "*.dll");
 
         // Pre-index the bin folder by assembly simple name so CouldContainHooks can resolve
         // referenced DLLs without scanning the directory on every reference lookup.
-        var dllsByName = new Dictionary<string, string>(dllPaths.Length, StringComparer.OrdinalIgnoreCase);
-        foreach (var dllPath in dllPaths)
-            dllsByName[Path.GetFileNameWithoutExtension(dllPath)] = dllPath;
+        var binFolderDllPathsByAssemblyName =
+            new Dictionary<string, string>(binFolderDllPaths.Length, StringComparer.OrdinalIgnoreCase);
+        foreach (var binFolderDllPath in binFolderDllPaths)
+            binFolderDllPathsByAssemblyName[Path.GetFileNameWithoutExtension(binFolderDllPath)] = binFolderDllPath;
 
-        foreach (var assemblyPath in dllPaths)
+        foreach (var binFolderDllPath in binFolderDllPaths)
         {
             try
             {
-                var assemblyName = AssemblyName.GetAssemblyName(assemblyPath);
-                if (assemblies.ContainsKey(assemblyName.FullName ?? assemblyName.Name!))
+                var candidateAssemblyName = AssemblyName.GetAssemblyName(binFolderDllPath);
+                if (discoveredAssembliesByKey.ContainsKey(candidateAssemblyName.FullName ?? candidateAssemblyName.Name!))
                     continue;
 
-                if (!CouldContainHooks(assemblyPath, assemblyName.Name, dllsByName))
+                if (!CouldContainHooks(binFolderDllPath, candidateAssemblyName.Name, binFolderDllPathsByAssemblyName))
                     continue;
 
-                AddAssembly(assemblies, Assembly.LoadFrom(assemblyPath));
+                AddAssembly(discoveredAssembliesByKey, Assembly.LoadFrom(binFolderDllPath));
             }
             catch
             {
@@ -147,7 +145,7 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
             }
         }
 
-        return assemblies.Values
+        return discoveredAssembliesByKey.Values
             .OrderBy(GetAssemblyPriority)
             .ThenBy(assembly => assembly.FullName ?? assembly.GetName().Name, StringComparer.OrdinalIgnoreCase);
     }
@@ -196,28 +194,28 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
                 "Continuing with {ResolvedTypeCount} loadable types.",
                 assembly.FullName, typeof(THook).FullName, loadableTypes.Length);
         }
-        catch (Exception e)
+        catch (Exception unexpectedException)
         {
             _context.Logger.LogDebug(
                 "Could not search assembly {AssemblyFullName} for {HookType} hooks, skipping it.\n " +
                 "Encountered the following exception when searching it:\n {Exception}",
-                assembly.FullName, typeof(THook).FullName, e);
+                assembly.FullName, typeof(THook).FullName, unexpectedException);
             loadableTypes = [];
         }
 
-        var supportedTypes = loadableTypes.Where(_objectCreator.IsTypeSubClassOfT<THook>).ToArray();
+        var supportedHookTypesInAssembly = loadableTypes.Where(_objectCreator.IsTypeSubClassOfT<THook>).ToArray();
         lock (_hookTypeCacheLock)
         {
             // First-writer-wins: another thread may have populated the cache for this assembly
             // while we were probing. If our probe hit a transient failure (loadableTypes is empty
             // because GetTypes threw) we must not overwrite a successful peer result with empty.
             // We still return our own probe result if we are the first writer.
-            if (_supportedHookTypesByAssembly.TryGetValue(assemblyKey, out var existing))
-                return existing;
-            _supportedHookTypesByAssembly[assemblyKey] = supportedTypes;
+            if (_supportedHookTypesByAssembly.TryGetValue(assemblyKey, out var existingCachedHookTypes))
+                return existingCachedHookTypes;
+            _supportedHookTypesByAssembly[assemblyKey] = supportedHookTypesInAssembly;
         }
 
-        return supportedTypes;
+        return supportedHookTypesInAssembly;
     }
 
     private Type ResolveSupportedHookType(string instanceName)

@@ -281,10 +281,10 @@ public class ProvidersCoverageTests
         };
 
         var include = HookProvider<IHook>.CouldContainHooksCore(
-            rootPath: "bin/Plugin.dll",
-            rootName: "Plugin",
-            dllsByName: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            readReferenceNames: path => refs[path]);
+            rootAssemblyPath: "bin/Plugin.dll",
+            rootAssemblyName: "Plugin",
+            binFolderDllPathsByAssemblyName: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            readAssemblyReferenceNames: path => refs[path]);
 
         Assert.That(include, Is.True);
     }
@@ -303,10 +303,10 @@ public class ProvidersCoverageTests
         };
 
         var include = HookProvider<IHook>.CouldContainHooksCore(
-            rootPath: "bin/Plugin.dll",
-            rootName: "Plugin",
-            dllsByName: dllsByName,
-            readReferenceNames: path => refs[path]);
+            rootAssemblyPath: "bin/Plugin.dll",
+            rootAssemblyName: "Plugin",
+            binFolderDllPathsByAssemblyName: dllsByName,
+            readAssemblyReferenceNames: path => refs[path]);
 
         Assert.That(include, Is.True,
             "A plugin DLL that reaches QaaS only through a corporate base library must still be " +
@@ -328,10 +328,10 @@ public class ProvidersCoverageTests
         };
 
         var include = HookProvider<IHook>.CouldContainHooksCore(
-            rootPath: "bin/Unrelated.dll",
-            rootName: "Unrelated",
-            dllsByName: dllsByName,
-            readReferenceNames: path => refs[path]);
+            rootAssemblyPath: "bin/Unrelated.dll",
+            rootAssemblyName: "Unrelated",
+            binFolderDllPathsByAssemblyName: dllsByName,
+            readAssemblyReferenceNames: path => refs[path]);
 
         Assert.That(include, Is.False);
     }
@@ -353,10 +353,10 @@ public class ProvidersCoverageTests
         var queriedPaths = new List<string>();
 
         var include = HookProvider<IHook>.CouldContainHooksCore(
-            rootPath: "bin/Plugin.dll",
-            rootName: "Plugin",
-            dllsByName: dllsByName,
-            readReferenceNames: path =>
+            rootAssemblyPath: "bin/Plugin.dll",
+            rootAssemblyName: "Plugin",
+            binFolderDllPathsByAssemblyName: dllsByName,
+            readAssemblyReferenceNames: path =>
             {
                 queriedPaths.Add(path);
                 return refs[path];
@@ -377,10 +377,10 @@ public class ProvidersCoverageTests
     public void CouldContainHooksCore_RootReadFailure_Excluded()
     {
         var include = HookProvider<IHook>.CouldContainHooksCore(
-            rootPath: "bin/Broken.dll",
-            rootName: "Broken",
-            dllsByName: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            readReferenceNames: _ => null);
+            rootAssemblyPath: "bin/Broken.dll",
+            rootAssemblyName: "Broken",
+            binFolderDllPathsByAssemblyName: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            readAssemblyReferenceNames: _ => null);
 
         Assert.That(include, Is.False);
     }

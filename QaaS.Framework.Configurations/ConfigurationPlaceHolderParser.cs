@@ -24,7 +24,7 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     /// </summary>
     public IConfiguration ResolvePlaceholders()
     {
-        var pathsWithPlaceholders = RebuildPathIndexAndCollectPlaceholders();
+        var pathsContainingPlaceholders = RebuildPathIndexAndCollectPlaceholders();
 
         // Fixed-point loop: a placeholder value can itself contain placeholders that resolve to
         // further placeholders, so keep iterating until a full pass produces no new substitutions.
@@ -32,22 +32,22 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         // If CopyConfigurationsByPath replaces the entire tree (object-valued placeholder copies a
         // subtree that itself contains placeholders), the new paths weren't in our snapshot, so we
         // re-collect them on the next pass — the _configurationReplaced flag drives that re-scan.
-        int previousMods;
+        int modificationCountAtPassStart;
         do
         {
-            previousMods = _modificationCount;
-            foreach (var path in pathsWithPlaceholders)
+            modificationCountAtPassStart = _modificationCount;
+            foreach (var pathContainingPlaceholder in pathsContainingPlaceholders)
             {
-                var value = configuration[path];
-                if (value is not null && value.Contains(Prefix, StringComparison.Ordinal))
-                    ResolvePlaceholderValue(path);
+                var currentValueAtPath = configuration[pathContainingPlaceholder];
+                if (currentValueAtPath is not null && currentValueAtPath.Contains(Prefix, StringComparison.Ordinal))
+                    ResolvePlaceholderValue(pathContainingPlaceholder);
             }
             if (_configurationReplaced)
             {
-                pathsWithPlaceholders = RebuildPathIndexAndCollectPlaceholders();
+                pathsContainingPlaceholders = RebuildPathIndexAndCollectPlaceholders();
                 _configurationReplaced = false;
             }
-        } while (_modificationCount != previousMods);
+        } while (_modificationCount != modificationCountAtPassStart);
 
         return configuration;
     }
@@ -59,21 +59,21 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     {
         _existingPaths.Clear();
         _parentPaths.Clear();
-        var pathsWithPlaceholders = new List<string>();
-        foreach (var kvp in configuration.AsEnumerable())
+        var pathsContainingPlaceholders = new List<string>();
+        foreach (var configurationEntry in configuration.AsEnumerable())
         {
-            _existingPaths.Add(kvp.Key);
-            var ancestor = kvp.Key;
-            int separator;
-            while ((separator = ancestor.LastIndexOf(ConfigurationConstants.PathSeparator[0])) > 0)
+            _existingPaths.Add(configurationEntry.Key);
+            var ancestorPath = configurationEntry.Key;
+            int lastPathSeparatorIndex;
+            while ((lastPathSeparatorIndex = ancestorPath.LastIndexOf(ConfigurationConstants.PathSeparator[0])) > 0)
             {
-                ancestor = ancestor[..separator];
-                if (!_parentPaths.Add(ancestor)) break;
+                ancestorPath = ancestorPath[..lastPathSeparatorIndex];
+                if (!_parentPaths.Add(ancestorPath)) break;
             }
-            if (kvp.Value is { } v && v.Contains(Prefix, StringComparison.Ordinal))
-                pathsWithPlaceholders.Add(kvp.Key);
+            if (configurationEntry.Value is { } entryValue && entryValue.Contains(Prefix, StringComparison.Ordinal))
+                pathsContainingPlaceholders.Add(configurationEntry.Key);
         }
-        return pathsWithPlaceholders;
+        return pathsContainingPlaceholders;
     }
 
     private void SetValue(string path, string? value)
