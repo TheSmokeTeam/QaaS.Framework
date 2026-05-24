@@ -273,6 +273,108 @@ public class ProvidersCoverageTests
     }
 
     [Test]
+    public void CouldContainHooksCore_DirectQaasReference_IsIncluded()
+    {
+        var refs = new Dictionary<string, IReadOnlyList<string>?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["bin/Plugin.dll"] = new[] { "QaaS.Framework.SDK", "System.Runtime" }
+        };
+
+        var include = HookProvider<IHook>.CouldContainHooksCore(
+            rootPath: "bin/Plugin.dll",
+            rootName: "Plugin",
+            dllsByName: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            readReferenceNames: path => refs[path]);
+
+        Assert.That(include, Is.True);
+    }
+
+    [Test]
+    public void CouldContainHooksCore_TransitiveQaasReferenceViaCorporateBaseLibrary_IsIncluded()
+    {
+        var dllsByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["MyCorp.Common.Hooks"] = "bin/MyCorp.Common.Hooks.dll"
+        };
+        var refs = new Dictionary<string, IReadOnlyList<string>?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["bin/Plugin.dll"] = new[] { "MyCorp.Common.Hooks", "System.Runtime" },
+            ["bin/MyCorp.Common.Hooks.dll"] = new[] { "QaaS.Framework.SDK" }
+        };
+
+        var include = HookProvider<IHook>.CouldContainHooksCore(
+            rootPath: "bin/Plugin.dll",
+            rootName: "Plugin",
+            dllsByName: dllsByName,
+            readReferenceNames: path => refs[path]);
+
+        Assert.That(include, Is.True,
+            "A plugin DLL that reaches QaaS only through a corporate base library must still be " +
+            "discoverable; the direct-reference-only filter that this test guards against would " +
+            "silently skip such plugins.");
+    }
+
+    [Test]
+    public void CouldContainHooksCore_NoQaasInTransitiveClosure_IsExcluded()
+    {
+        var dllsByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ThirdParty.Lib"] = "bin/ThirdParty.Lib.dll"
+        };
+        var refs = new Dictionary<string, IReadOnlyList<string>?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["bin/Unrelated.dll"] = new[] { "ThirdParty.Lib", "System.Runtime" },
+            ["bin/ThirdParty.Lib.dll"] = new[] { "System.Runtime" }
+        };
+
+        var include = HookProvider<IHook>.CouldContainHooksCore(
+            rootPath: "bin/Unrelated.dll",
+            rootName: "Unrelated",
+            dllsByName: dllsByName,
+            readReferenceNames: path => refs[path]);
+
+        Assert.That(include, Is.False);
+    }
+
+    [Test]
+    public void CouldContainHooksCore_TolerateUnreadableIntermediateButFailRoot()
+    {
+        var dllsByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Bad.Lib"] = "bin/Bad.Lib.dll",
+            ["Good.Lib"] = "bin/Good.Lib.dll"
+        };
+        var refs = new Dictionary<string, IReadOnlyList<string>?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["bin/Plugin.dll"] = new[] { "Bad.Lib", "Good.Lib" },
+            ["bin/Bad.Lib.dll"] = null,
+            ["bin/Good.Lib.dll"] = new[] { "QaaS.Framework.SDK" }
+        };
+
+        var include = HookProvider<IHook>.CouldContainHooksCore(
+            rootPath: "bin/Plugin.dll",
+            rootName: "Plugin",
+            dllsByName: dllsByName,
+            readReferenceNames: path => refs[path]);
+
+        Assert.That(include, Is.True,
+            "An unreadable intermediate DLL must not poison the walk; the remaining chain through " +
+            "Good.Lib still proves the plugin reaches QaaS.");
+    }
+
+    [Test]
+    public void CouldContainHooksCore_RootReadFailure_Excluded()
+    {
+        var include = HookProvider<IHook>.CouldContainHooksCore(
+            rootPath: "bin/Broken.dll",
+            rootName: "Broken",
+            dllsByName: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+            readReferenceNames: _ => null);
+
+        Assert.That(include, Is.False);
+    }
+
+    [Test]
     public void HookProvider_UsesLoadableTypesFromPartiallyLoadedAssemblies()
     {
         var logger = new RecordingLogger();

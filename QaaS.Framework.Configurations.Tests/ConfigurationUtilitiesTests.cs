@@ -435,6 +435,103 @@ public class ConfigurationUtilitiesTests
     }
 
     [Test]
+    public void CollapseShiftLeftArrows_LocalChildBeatsMergedSiblingAtSameLevel()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["root:<<:shared:value"] = "merged",
+                ["root:shared:value"] = "local"
+            })
+            .Build();
+
+        var collapsed = configuration.CollapseShiftLeftArrowsInConfiguration();
+
+        Assert.That(collapsed["root:shared:value"], Is.EqualTo("local"),
+            "A local key at the same level must beat a merged key with the same collapsed path.");
+    }
+
+    [Test]
+    public void CollapseShiftLeftArrows_DeeperMergeBeatsParentLevelMergeForSameCollapsedPath()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["root:<<:child:grand"] = "from-root-level-merge",
+                ["root:child:<<:grand"] = "from-child-level-merge"
+            })
+            .Build();
+
+        var collapsed = configuration.CollapseShiftLeftArrowsInConfiguration();
+
+        Assert.That(collapsed["root:child:grand"], Is.EqualTo("from-child-level-merge"),
+            "A merge applied at the more specific (deeper) tree level must win over a merge " +
+            "applied at a parent level for the same collapsed path.");
+    }
+
+    [Test]
+    public void CollapseShiftLeftArrows_PreservesNumericMapKeysThatAreNotListIndicesAfterArrow()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["root:years:2024:revenue"] = "100",
+                ["root:years:2025:revenue"] = "120"
+            })
+            .Build();
+
+        var collapsed = configuration.CollapseShiftLeftArrowsInConfiguration();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(collapsed["root:years:2024:revenue"], Is.EqualTo("100"));
+            Assert.That(collapsed["root:years:2025:revenue"], Is.EqualTo("120"));
+        });
+    }
+
+    [Test]
+    public void CollapseShiftLeftArrows_FastPath_NoMergeKeys_ReturnsSameInstance()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["root:a"] = "1",
+                ["root:b:c"] = "2"
+            })
+            .Build();
+
+        var collapsed = configuration.CollapseShiftLeftArrowsInConfiguration();
+
+        Assert.That(collapsed, Is.SameAs(configuration),
+            "When the configuration contains no '<<' segments, collapse is a no-op and should " +
+            "return the same instance instead of rebuilding the tree.");
+    }
+
+    [Test]
+    public void PlaceholderParser_ObjectCopyOfSubtreeContainingPlaceholders_StillResolvesNestedPlaceholders()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Source:nested:innerValue"] = "${Constants:resolved}",
+                ["Source:nested:literal"] = "kept",
+                ["Constants:resolved"] = "from-constants",
+                ["Destination"] = "${Source}"
+            })
+            .Build();
+
+        var parsed = new ConfigurationPlaceholderParser(configuration).ResolvePlaceholders();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(parsed["Destination:nested:literal"], Is.EqualTo("kept"));
+            Assert.That(parsed["Destination:nested:innerValue"], Is.EqualTo("from-constants"),
+                "A placeholder copied along with a subtree (via ${Source} resolving to an object) " +
+                "must itself get resolved, not left as the literal '${Constants:resolved}'.");
+        });
+    }
+
+    [Test]
     public void ResolveReferencesInConfiguration_ReplacesKeywordAndShiftsIndexes()
     {
         var referenceFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");

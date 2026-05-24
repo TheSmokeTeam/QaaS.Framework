@@ -40,45 +40,73 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         name is not null && name.StartsWith(QaasAssemblyPrefix, StringComparison.Ordinal);
 
     /// <summary>
-    /// Cheap PE-metadata peek: read the AssemblyRef table without loading the assembly into the CLR.
-    /// Skips DLLs that can't transitively reach a QaaS hook contract — typically dozens of NuGet deps
-    /// that ship in the bin folder but never reference QaaS.* directly or indirectly.
-    /// On any IO/metadata failure we return false: an unreadable DLL can't safely host a hook anyway.
+    /// Decides whether a bin-folder DLL is worth Assembly.LoadFrom-ing by walking its AssemblyRef
+    /// table transitively through other DLLs in the same folder. Plugins that reach QaaS only
+    /// through a corporate base library (MyCorp.Plugin -> MyCorp.Hooks -> QaaS.*) are still
+    /// included because the walk follows the corporate library's own references.
+    ///
+    /// Bounded by the number of DLLs in the folder; each is read at most once. On any IO/metadata
+    /// failure for the ROOT assembly we return false — an unreadable DLL can't safely host a hook
+    /// anyway. Failures for intermediate DLLs in the walk are tolerated so an unreadable corporate
+    /// library doesn't silently disable an otherwise-valid plugin chain.
     /// </summary>
-    private static bool CouldContainHooks(string assemblyPath, string? selfName)
+    private static bool CouldContainHooks(
+        string assemblyPath,
+        string? selfName,
+        IReadOnlyDictionary<string, string> dllsByName) =>
+        CouldContainHooksCore(assemblyPath, selfName, dllsByName, ReadAssemblyReferenceNames);
+
+    /// <summary>
+    /// Pure algorithm split from the IO so unit tests can drive it with synthetic reference graphs.
+    /// </summary>
+    internal static bool CouldContainHooksCore(
+        string rootPath,
+        string? rootName,
+        IReadOnlyDictionary<string, string> dllsByName,
+        Func<string, IReadOnlyList<string>?> readReferenceNames)
     {
-        if (NameReachesQaas(selfName)) return true;
+        if (NameReachesQaas(rootName)) return true;
+
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { rootPath };
+        var queue = new Queue<string>();
+        queue.Enqueue(rootPath);
+
+        while (queue.Count > 0)
+        {
+            var currentPath = queue.Dequeue();
+            var referenceNames = readReferenceNames(currentPath);
+            if (referenceNames is null)
+            {
+                if (currentPath == rootPath) return false;
+                continue;
+            }
+
+            foreach (var referenceName in referenceNames)
+            {
+                if (NameReachesQaas(referenceName)) return true;
+                if (dllsByName.TryGetValue(referenceName, out var referencePath) && visited.Add(referencePath))
+                    queue.Enqueue(referencePath);
+            }
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<string>? ReadAssemblyReferenceNames(string assemblyPath)
+    {
         try
         {
             using var stream = File.OpenRead(assemblyPath);
             using var pe = new PEReader(stream);
-            if (!pe.HasMetadata) return false;
+            if (!pe.HasMetadata) return [];
             var reader = pe.GetMetadataReader();
-            return reader.AssemblyReferences.Any(handle =>
-                NameReachesQaas(reader.GetString(reader.GetAssemblyReference(handle).Name)));
+            return reader.AssemblyReferences
+                .Select(handle => reader.GetString(reader.GetAssemblyReference(handle).Name))
+                .ToArray();
         }
         catch
         {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Second-stage filter applied after Assembly.LoadFrom: avoid GetTypes() on assemblies that
-    /// don't reference QaaS contracts. On any reflection failure we return true (conservative)
-    /// so a real hook assembly isn't silently skipped because its metadata is unusual.
-    /// </summary>
-    private static bool ReferencesQaasFramework(Assembly assembly)
-    {
-        try
-        {
-            if (NameReachesQaas(assembly.GetName().Name)) return true;
-            var references = assembly.GetReferencedAssemblies();
-            return references is not null && references.Any(r => NameReachesQaas(r.Name));
-        }
-        catch
-        {
-            return true;
+            return null;
         }
     }
 
@@ -91,7 +119,16 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         foreach (var loadedAssembly in AppDomain.CurrentDomain.GetAssemblies())
             AddAssembly(assemblies, loadedAssembly);
 
-        foreach (var assemblyPath in Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.dll"))
+        var binDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        var dllPaths = Directory.GetFiles(binDirectory, "*.dll");
+
+        // Pre-index the bin folder by assembly simple name so CouldContainHooks can resolve
+        // referenced DLLs without scanning the directory on every reference lookup.
+        var dllsByName = new Dictionary<string, string>(dllPaths.Length, StringComparer.OrdinalIgnoreCase);
+        foreach (var dllPath in dllPaths)
+            dllsByName[Path.GetFileNameWithoutExtension(dllPath)] = dllPath;
+
+        foreach (var assemblyPath in dllPaths)
         {
             try
             {
@@ -99,7 +136,7 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
                 if (assemblies.ContainsKey(assemblyName.FullName ?? assemblyName.Name!))
                     continue;
 
-                if (!CouldContainHooks(assemblyPath, assemblyName.Name))
+                if (!CouldContainHooks(assemblyPath, assemblyName.Name, dllsByName))
                     continue;
 
                 AddAssembly(assemblies, Assembly.LoadFrom(assemblyPath));
@@ -142,12 +179,6 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         {
             if (_supportedHookTypesByAssembly.TryGetValue(assemblyKey, out var cachedTypes))
                 return cachedTypes;
-        }
-
-        if (!ReferencesQaasFramework(assembly))
-        {
-            lock (_hookTypeCacheLock) _supportedHookTypesByAssembly[assemblyKey] = [];
-            return [];
         }
 
         Type[] loadableTypes;

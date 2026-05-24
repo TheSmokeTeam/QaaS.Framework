@@ -17,6 +17,7 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     private readonly HashSet<string> _existingPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _parentPaths = new(StringComparer.OrdinalIgnoreCase);
     private int _modificationCount;
+    private bool _configurationReplaced;
 
     /// <summary>
     /// Resolves all the placeholders in the configuration and returns the resolved configuration.
@@ -28,6 +29,9 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         // Fixed-point loop: a placeholder value can itself contain placeholders that resolve to
         // further placeholders, so keep iterating until a full pass produces no new substitutions.
         // _modificationCount is incremented by SetValue / CopyConfigurationsByPath when anything changes.
+        // If CopyConfigurationsByPath replaces the entire tree (object-valued placeholder copies a
+        // subtree that itself contains placeholders), the new paths weren't in our snapshot, so we
+        // re-collect them on the next pass — the _configurationReplaced flag drives that re-scan.
         int previousMods;
         do
         {
@@ -37,6 +41,11 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
                 var value = configuration[path];
                 if (value is not null && value.Contains(Prefix, StringComparison.Ordinal))
                     ResolvePlaceholderValue(path);
+            }
+            if (_configurationReplaced)
+            {
+                pathsWithPlaceholders = RebuildPathIndexAndCollectPlaceholders();
+                _configurationReplaced = false;
             }
         } while (_modificationCount != previousMods);
 
@@ -175,9 +184,13 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         configKeys = configKeys.Concat(newConfigKeys).ToList();
         configuration = new ConfigurationBuilder().AddInMemoryCollection(configKeys).Build();
         _modificationCount++;
-        // Rebuild index after the configuration tree was replaced; we don't need the returned
-        // placeholder list here — the outer fixed-point loop already has its snapshot.
+        // Rebuild the path indices immediately so IsConfigurationSectionString and
+        // GetObjectFromConfiguration see the new tree for the remainder of this pass.
+        // Signal to the outer fixed-point loop that the placeholder snapshot is stale and
+        // must be re-collected before the next iteration; otherwise new placeholders that
+        // were copied along with the subtree would never get resolved.
         _ = RebuildPathIndexAndCollectPlaceholders();
+        _configurationReplaced = true;
     }
 
     private static int FindClosingBracket(string str, int startIndex)
