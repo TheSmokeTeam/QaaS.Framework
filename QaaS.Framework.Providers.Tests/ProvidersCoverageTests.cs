@@ -273,7 +273,7 @@ public class ProvidersCoverageTests
     }
 
     [Test]
-    public void HookProvider_DiscoverSupportedHookTypes_UsesLoadableTypesFromPartiallyLoadedAssemblies()
+    public void HookProvider_UsesLoadableTypesFromPartiallyLoadedAssemblies()
     {
         var logger = new RecordingLogger();
         var provider = new HookProvider<IHook>(CreateContext(logger), new ByNameObjectCreator(NullLogger.Instance));
@@ -286,13 +286,11 @@ public class ProvidersCoverageTests
             .GetField("_hookAssemblies", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(provider, new[] { partialAssembly.Object });
 
-        var discover = typeof(HookProvider<IHook>).GetMethod("DiscoverSupportedHookTypes",
-            BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var discovered = ((IEnumerable<Type>)discover.Invoke(provider, null)!).ToList();
+        var hook = provider.GetSupportedInstanceByName(nameof(ModuleHook));
 
         Assert.Multiple(() =>
         {
-            Assert.That(discovered, Does.Contain(typeof(ModuleHook)));
+            Assert.That(hook, Is.InstanceOf<ModuleHook>());
             Assert.That(logger.Entries.Any(entry =>
                 entry.Level == LogLevel.Debug &&
                 entry.Message.Contains("Partially loaded assembly")), Is.True);

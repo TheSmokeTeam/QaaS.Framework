@@ -134,15 +134,6 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         assemblies[key] = assembly;
     }
 
-    private IEnumerable<Type> DiscoverSupportedHookTypes()
-    {
-        foreach (var assembly in _hookAssemblies)
-        {
-            foreach (var loadableType in GetSupportedHookTypesFromAssembly(assembly))
-                yield return loadableType;
-        }
-    }
-
     private Type[] GetSupportedHookTypesFromAssembly(Assembly assembly)
     {
         var assemblyKey = assembly.FullName ?? assembly.GetName().Name ?? assembly.ToString();
@@ -339,17 +330,6 @@ public class HookProvider<THook> : IHookProvider<THook> where THook : IHook
         throw new ArgumentException($"{typeof(THook).Name} hook instance {instanceName} " +
                                      "not found in any of the provided assemblies." +
                                      $"\n- {string.Join("\n- ", _hookAssemblies.Select(asm => asm.FullName))}");
-    }
-
-    /// <summary>
-    /// Get initialized instance of the hook by name
-    /// </summary>
-    /// <param name="instanceName"> The name of the instance to initialize </param>
-    /// <returns> The instance of the hook name initialized </returns>
-    private THook GetInstanceByName(string instanceName)
-    {
-        var hookType = ResolveSupportedHookType(instanceName);
-        return GetInstanceFromResolvedType(hookType);
     }
 
     private THook GetInstanceFromResolvedType(Type hookType)
