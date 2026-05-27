@@ -63,26 +63,30 @@ public class S3Client : IS3Client
 
                     // Delete all objects found in the latest request and keep the deletion response 
 
-                    var keysOfAllS3BucketContents = listObjectsV2Response.S3Objects
+                    var keysOfAllS3BucketContents = (listObjectsV2Response.S3Objects ?? [])
                         .Select(item => new KeyVersion { Key = item.Key }).ToList();
 
-                    var s3BucketAllObjectDeletionRequest = new DeleteObjectsRequest
-                    {
-                        BucketName = bucketName,
-                        Objects = keysOfAllS3BucketContents
-                    };
-
                     _logger?.LogDebug(
-                        "Deleting {ObjectCount} objects from S3 bucket {BucketName}.",
+                        "Found {ObjectCount} objects to delete from S3 bucket {BucketName}.",
                         keysOfAllS3BucketContents.Count,
                         bucketName);
-                    deletionResponse.Add(await Client.DeleteObjectsAsync(s3BucketAllObjectDeletionRequest));
+
+                    if (keysOfAllS3BucketContents.Count > 0)
+                    {
+                        var s3BucketAllObjectDeletionRequest = new DeleteObjectsRequest
+                        {
+                            BucketName = bucketName,
+                            Objects = keysOfAllS3BucketContents
+                        };
+
+                        deletionResponse.Add(await Client.DeleteObjectsAsync(s3BucketAllObjectDeletionRequest));
+                    }
 
                     // Continue from where it stopped listing objects
                     listObjectsV2Request.ContinuationToken = listObjectsV2Response.NextContinuationToken;
                 }, $"List and then delete a chunk of objects in s3 bucket {bucketName} with" +
                    $" prefix {prefix}", logger: _logger, maxRetryCount: _maxRetryCount);
-        } while (listObjectsV2Response.IsTruncated.Value);
+        } while (listObjectsV2Response.IsTruncated == true);
 
         _logger?.LogInformation(
             "Finished S3 bucket cleanup for {BucketName}. Delete requests issued: {DeleteRequestCount}.",
@@ -116,10 +120,11 @@ public class S3Client : IS3Client
             await S3Extentions.RunS3OperationWithRetryMechanism(async () =>
                 {
                     response = await Client.ListObjectsV2Async(request);
-                    listOfObjects.AddRange(response.S3Objects);
+                    var batchObjects = response.S3Objects ?? [];
+                    listOfObjects.AddRange(batchObjects);
                     _logger?.LogDebug(
                         "Listed {BatchObjectCount} S3 objects from {BucketName}. Continuation token present: {HasContinuationToken}.",
-                        response.S3Objects.Count,
+                        batchObjects.Count,
                         bucketName,
                         !string.IsNullOrEmpty(response.NextContinuationToken));
 
@@ -127,7 +132,7 @@ public class S3Client : IS3Client
                     request.ContinuationToken = response.NextContinuationToken;
                 }, $"List a chunk of objects in s3 bucket {bucketName} with prefix {prefix} and delimiter {delimiter}",
                 logger: _logger, maxRetryCount: _maxRetryCount);
-        } while (response.IsTruncated.Value);
+        } while (response.IsTruncated == true);
 
         var filteredObjects = skipEmptyObjects
             ? listOfObjects.Where(obj => obj.Size > 0).ToList()
