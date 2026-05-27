@@ -275,6 +275,47 @@ public class ProtocolAdvancedBehaviorTests
     }
 
     [Test]
+    public async Task S3Client_EmptyS3Bucket_DoesNotDeleteWhenBucketHasNoObjects()
+    {
+        var s3Mock = new Mock<IAmazonS3>();
+        s3Mock.Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
+            .ReturnsAsync(new ListObjectsV2Response
+            {
+                IsTruncated = false,
+                S3Objects = []
+            });
+
+        var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
+        var responses = (await client.EmptyS3Bucket("bucket")).ToList();
+
+        Assert.That(responses, Is.Empty);
+        s3Mock.Verify(m => m.DeleteObjectsAsync(It.IsAny<DeleteObjectsRequest>(), default), Times.Never);
+    }
+
+    [Test]
+    public async Task S3Client_ListOperations_TreatNullS3ObjectCollectionAsEmpty()
+    {
+        var s3Mock = new Mock<IAmazonS3>();
+        s3Mock.Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
+            .ReturnsAsync(new ListObjectsV2Response
+            {
+                S3Objects = null
+            });
+
+        var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
+
+        var listedObjects = await client.ListAllObjectsInS3Bucket("bucket");
+        var deletionResponses = await client.EmptyS3Bucket("bucket");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(listedObjects, Is.Empty);
+            Assert.That(deletionResponses, Is.Empty);
+        });
+        s3Mock.Verify(m => m.DeleteObjectsAsync(It.IsAny<DeleteObjectsRequest>(), default), Times.Never);
+    }
+
+    [Test]
     public void S3Client_PutObjectsInS3BucketSync_StoresItems_And_CreatesBucketWhenMissing()
     {
         var s3Mock = new Mock<IAmazonS3>();
@@ -534,6 +575,53 @@ public class ProtocolAdvancedBehaviorTests
             Assert.That(consumed.Body, Is.Null);
             Assert.That(new QaaS.Framework.Serialization.Deserializers.Json().Deserialize(consumed.Body as byte[],
                 typeof(SerializableS3Payload)), Is.Null);
+        });
+    }
+
+    [Test]
+    public void S3Protocol_ReadChunk_SkipsObjectsWithoutLastModified()
+    {
+        var now = DateTime.UtcNow;
+        var objects = new[]
+        {
+            new S3Object { Key = "missing-timestamp", LastModified = null, Size = 4 },
+            new S3Object { Key = "valid", LastModified = now, Size = 4 }
+        };
+        var fakeClient = new FakeS3Client
+        {
+            Client = new Mock<IAmazonS3>().Object,
+            ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
+            GetAllObjects = (_, _, _, _) => objects.Select(s3Object =>
+                new KeyValuePair<S3Object, byte[]?>(s3Object, Encoding.UTF8.GetBytes(s3Object.Key!)))
+        };
+
+        var withBodyProtocol = new S3Protocol(new S3BucketReaderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1",
+            AccessKey = "ak",
+            SecretKey = "sk",
+            ReadFromRunStartTime = false
+        }, new DataFilter { Body = true }, Globals.Logger);
+        SetPrivateField(withBodyProtocol, "_s3Client", fakeClient);
+
+        var noBodyProtocol = new S3Protocol(new S3BucketReaderConfig
+        {
+            StorageBucket = "bucket",
+            ServiceURL = "http://127.0.0.1",
+            AccessKey = "ak",
+            SecretKey = "sk",
+            ReadFromRunStartTime = false
+        }, new DataFilter { Body = false }, Globals.Logger);
+        SetPrivateField(noBodyProtocol, "_s3Client", fakeClient);
+
+        var withBody = withBodyProtocol.ReadChunk(TimeSpan.Zero).ToList();
+        var noBody = noBodyProtocol.ReadChunk(TimeSpan.Zero).ToList();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(withBody.Select(item => item.MetaData?.Storage?.Key), Is.EqualTo(new[] { "valid" }));
+            Assert.That(noBody.Select(item => item.MetaData?.Storage?.Key), Is.EqualTo(new[] { "valid" }));
         });
     }
 

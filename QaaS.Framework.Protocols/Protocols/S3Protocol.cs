@@ -66,12 +66,13 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
             // return only ordering/timestamp metadata.
             s3ConsumedData = _s3Client!.ListAllObjectsInS3Bucket(
                     _readerConfig!.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter).GetAwaiter().GetResult()
+                .Where(HasS3ObjectLastModified)
                 .Where(IsS3ObjectRelevant)
-                .OrderBy(s3Object => s3Object.LastModified)
+                .OrderBy(GetS3ObjectTimestampUtc)
                 .Select(s3Object => new DetailedData<object>
                 {
                     Body = null,
-                    Timestamp = s3Object.LastModified!.Value.ToUniversalTime(),
+                    Timestamp = GetS3ObjectTimestampUtc(s3Object),
                     MetaData = new MetaData
                     {
                         Storage = new Storage
@@ -88,12 +89,13 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
             s3ConsumedData = _s3Client!.GetAllObjectsInS3BucketUnOrdered(
                     _readerConfig.StorageBucket!, _readerConfig.Prefix, _readerConfig.Delimiter,
                     _readerConfig.SkipEmptyObjects)
+                .Where(pair => HasS3ObjectLastModified(pair.Key))
                 .Where(pair => IsS3ObjectRelevant(pair.Key))
-                .OrderBy(pair => pair.Key.LastModified)
+                .OrderBy(pair => GetS3ObjectTimestampUtc(pair.Key))
                 .Select(pair => new DetailedData<object>
                 {
                     Body = pair.Value,
-                    Timestamp = pair.Key.LastModified!.Value.ToUniversalTime(),
+                    Timestamp = GetS3ObjectTimestampUtc(pair.Key),
                     MetaData = new MetaData
                     {
                         Storage = new Storage
@@ -136,9 +138,28 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
         return dataToSend.CloneDetailed();
     }
 
-    private bool IsS3ObjectRelevant(S3Object s3Object) =>
-        s3Object.LastModified!.Value.ToUniversalTime() >= _readStartTimeUtc ||
-        !_readerConfig!.ReadFromRunStartTime;
+    private bool HasS3ObjectLastModified(S3Object s3Object)
+    {
+        if (s3Object.LastModified.HasValue)
+            return true;
+
+        _logger.LogWarning(
+            "Skipping S3 object {ObjectKey} from bucket {BucketName} because its LastModified value is missing.",
+            s3Object.Key,
+            _readerConfig!.StorageBucket);
+        return false;
+    }
+
+    private bool IsS3ObjectRelevant(S3Object s3Object)
+    {
+        if (!_readerConfig!.ReadFromRunStartTime)
+            return true;
+
+        return GetS3ObjectTimestampUtc(s3Object) >= _readStartTimeUtc;
+    }
+
+    private static DateTime GetS3ObjectTimestampUtc(S3Object s3Object) =>
+        s3Object.LastModified.GetValueOrDefault().ToUniversalTime();
 
     /// <summary>
     /// Returns the number of milliseconds that have passed since the last s3 bucket object updated,
@@ -148,13 +169,16 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
     private long? GetNumberOfMilliSecondsPassedSinceLastS3ObjectModification()
     {
         var allS3ObjectsInBucket = _s3Client!.ListAllObjectsInS3Bucket(
-            _readerConfig!.StorageBucket!, _readerConfig.Prefix).GetAwaiter().GetResult().Where(IsS3ObjectRelevant).ToArray();
+            _readerConfig!.StorageBucket!, _readerConfig.Prefix).GetAwaiter().GetResult()
+            .Where(HasS3ObjectLastModified)
+            .Where(IsS3ObjectRelevant)
+            .ToArray();
         if (!allS3ObjectsInBucket.Any()) return null;
 
-        var latestModificationTime = allS3ObjectsInBucket.Max(s3Object => s3Object.LastModified);
-        if (latestModificationTime!.Value.Kind != DateTimeKind.Unspecified)
+        var latestModificationTime = allS3ObjectsInBucket.Max(s3Object => s3Object.LastModified.GetValueOrDefault());
+        if (latestModificationTime.Kind != DateTimeKind.Unspecified)
             return (long)Math.Round(
-                (GetCurrentDateTimeUtc() - latestModificationTime.Value.ToUniversalTime()).TotalMilliseconds,
+                (GetCurrentDateTimeUtc() - latestModificationTime.ToUniversalTime()).TotalMilliseconds,
                 MidpointRounding.ToZero);
 
         // DateTimeKind not specified -> cannot convert to UTC and determine how many milliseconds passed
