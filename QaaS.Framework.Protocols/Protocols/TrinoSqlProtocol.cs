@@ -10,16 +10,24 @@ public class TrinoSqlProtocol : BaseSqlProtocol<TrinoConnection>
 {
     public string Schema { get; set; }
 
-    public TrinoSqlProtocol(TrinoReaderConfig configurations, ILogger logger,
+    public TrinoSqlProtocol(
+        TrinoReaderConfig configurations,
+        ILogger logger,
         TrinoConnection? dbConnection = null,
-        string? timeZoneId = null) : base(configurations, logger, dbConnection, timeZoneId)
+        string? timeZoneId = null
+    )
+        : base(configurations, logger, dbConnection, timeZoneId)
     {
         var properties = new TrinoConnectionProperties
         {
             Catalog = configurations.Catalog,
             Server = new Uri(configurations.Hostname!),
             ClientTags = [configurations.ClientTag!],
-            Auth = new LDAPAuth { User = configurations.Username, Password = configurations.Password }
+            Auth = new LDAPAuth
+            {
+                User = configurations.Username,
+                Password = configurations.Password,
+            },
         };
         Schema = configurations.Schema!;
         DbConnection = new TrinoConnection(properties);
@@ -36,7 +44,6 @@ public class TrinoSqlProtocol : BaseSqlProtocol<TrinoConnection>
     protected override string GetTableQueryArrangedByInsertionTimeFieldAsc() =>
         $"select * from {Schema}.{TableName} {BuildWhereStatement()} order by {InsertionTimeField} asc";
 
-
     /// <inheritdoc />
     protected override string GetTableQueryWithoutRegardToInsertionTimeField() =>
         $"select * from {Schema}.{TableName} {BuildWhereStatement()}";
@@ -49,13 +56,13 @@ public class TrinoSqlProtocol : BaseSqlProtocol<TrinoConnection>
     {
         if (WhereStatement == null)
             return FilterFromStartTime
-                ? $"where {InsertionTimeField} > {GetTimeFieldSqlFormat(StartTimeDbTimeZone!.Value)}')"
+                ? $"where {InsertionTimeField} > {GetTimeFieldSqlFormat(StartTimeDbTimeZone!.Value)}"
                 : string.Empty;
         return FilterFromStartTime
-            ? $"where ({InsertionTimeField} > {GetTimeFieldSqlFormat(StartTimeDbTimeZone!.Value)} and ({WhereStatement})"
+            ? $"where ({InsertionTimeField} > {GetTimeFieldSqlFormat(StartTimeDbTimeZone!.Value)}) and ({WhereStatement})"
             : $"where {WhereStatement}";
     }
 
     protected override string GetTimeFieldSqlFormat(DateTime time) =>
-        $"FROM_ISO8601_TIMESTAMP('{time:yyyy-MM-ddTHH:mm:ss.ffZ}'))";
+        $"FROM_ISO8601_TIMESTAMP('{time:yyyy-MM-ddTHH:mm:ss.ffZ}')";
 }
