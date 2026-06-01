@@ -18,7 +18,12 @@ public class ProtocolConfigurationObjectsTests
     private static (bool IsValid, List<ValidationResult> Results) Validate(object value)
     {
         var results = new List<ValidationResult>();
-        var isValid = Validator.TryValidateObject(value, new ValidationContext(value), results, true);
+        var isValid = Validator.TryValidateObject(
+            value,
+            new ValidationContext(value),
+            results,
+            true
+        );
         return (isValid, results);
     }
 
@@ -29,7 +34,7 @@ public class ProtocolConfigurationObjectsTests
         {
             HostNames = ["host1:9092"],
             Username = "user",
-            Password = "pass"
+            Password = "pass",
         };
         var reader = new KafkaTopicReaderConfig
         {
@@ -37,7 +42,7 @@ public class ProtocolConfigurationObjectsTests
             Username = "user",
             Password = "pass",
             TopicName = "topic",
-            GroupId = "group"
+            GroupId = "group",
         };
         var invalidReader = reader with { HeartbeatIntervalMs = reader.SessionTimeOutMs + 1 };
         var sender = new KafkaTopicSenderConfig
@@ -47,7 +52,7 @@ public class ProtocolConfigurationObjectsTests
             Password = "pass",
             TopicName = "topic",
             CompressionType = CompressionType.Gzip,
-            CompressionLevel = 3
+            CompressionLevel = 3,
         };
         var invalidSender = sender with { CompressionLevel = 99 };
         var duplicateHosts = baseConfig with { HostNames = ["host1:9092", "host1:9092"] };
@@ -73,25 +78,58 @@ public class ProtocolConfigurationObjectsTests
     }
 
     [Test]
+    public void KafkaSenderConfig_MessageMaxBytes_HonorsLibrdkafkaBounds()
+    {
+        // librdkafka `message.max.bytes` valid range is 1000 .. 1000000000 (Confluent.Kafka CONFIGURATION.md).
+        KafkaTopicSenderConfig WithSize(int size) =>
+            new()
+            {
+                HostNames = ["host1:9092"],
+                Username = "user",
+                Password = "pass",
+                TopicName = "topic",
+                MessageMaxBytes = size,
+            };
+
+        Assert.Multiple(() =>
+        {
+            // Lowest and highest values accepted by the Confluent library are valid.
+            Assert.That(
+                Validate(WithSize(1_000)).IsValid,
+                Is.True,
+                "lower bound 1000 should be valid"
+            );
+            Assert.That(
+                Validate(WithSize(1_000_000_000)).IsValid,
+                Is.True,
+                "upper bound 1000000000 should be valid"
+            );
+            // Just outside the library bounds must be rejected by validation.
+            Assert.That(
+                Validate(WithSize(999)).IsValid,
+                Is.False,
+                "below lower bound must be invalid"
+            );
+            Assert.That(
+                Validate(WithSize(1_000_000_001)).IsValid,
+                Is.False,
+                "above upper bound must be invalid"
+            );
+        });
+    }
+
+    [Test]
     public void RabbitMqConfigurationObjects_DefaultValues_AndMutualExclusionRules_Work()
     {
         var baseConfig = new BaseRabbitMqConfig { Host = "localhost" };
-        var sender = new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            QueueName = "q"
-        };
-        var reader = new RabbitMqReaderConfig
-        {
-            Host = "localhost",
-            QueueName = "q"
-        };
+        var sender = new RabbitMqSenderConfig { Host = "localhost", QueueName = "q" };
+        var reader = new RabbitMqReaderConfig { Host = "localhost", QueueName = "q" };
         var invalidSenderBothTargets = sender with { ExchangeName = "exchange" };
         var invalidReaderMissingTarget = new RabbitMqReaderConfig { Host = "localhost" };
         var invalidSenderEmptyQueue = new RabbitMqSenderConfig
         {
             Host = "localhost",
-            QueueName = string.Empty
+            QueueName = string.Empty,
         };
 
         Assert.Multiple(() =>
@@ -117,35 +155,35 @@ public class ProtocolConfigurationObjectsTests
         {
             Url = "http://localhost:9200",
             Username = "elastic",
-            Password = "secret"
+            Password = "secret",
         };
         var indices = new BaseElasticIndices
         {
             Url = "http://localhost:9200",
             Username = "elastic",
             Password = "secret",
-            IndexPattern = "logs-*"
+            IndexPattern = "logs-*",
         };
         var regex = new ElasticIndicesRegex
         {
             Url = "http://localhost:9200",
             Username = "elastic",
             Password = "secret",
-            IndexPattern = "logs-*"
+            IndexPattern = "logs-*",
         };
         var reader = new ElasticReaderConfig
         {
             Url = "http://localhost:9200",
             Username = "elastic",
             Password = "secret",
-            IndexPattern = "logs-*"
+            IndexPattern = "logs-*",
         };
         var sender = new ElasticSenderConfig
         {
             Url = "http://localhost:9200",
             Username = "elastic",
             Password = "secret",
-            IndexName = "logs-2026"
+            IndexName = "logs-2026",
         };
 
         Assert.Multiple(() =>
@@ -170,7 +208,7 @@ public class ProtocolConfigurationObjectsTests
             AssemblyName = "Asm",
             ProtoNameSpace = "Ns",
             ServiceName = "Svc",
-            RpcName = "Call"
+            RpcName = "Call",
         };
 
         var sftpBase = new BaseSftpConfig
@@ -178,7 +216,7 @@ public class ProtocolConfigurationObjectsTests
             Hostname = "host",
             Username = "user",
             Password = "pass",
-            Path = "/tmp"
+            Path = "/tmp",
         };
 
         var sftpSender = new SftpSenderConfig
@@ -187,7 +225,7 @@ public class ProtocolConfigurationObjectsTests
             Username = "user",
             Password = "pass",
             Path = "/tmp",
-            Prefix = "pref-"
+            Prefix = "pref-",
         };
 
         Assert.Multiple(() =>
@@ -196,7 +234,10 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(Validate(grpc).IsValid, Is.True);
             Assert.That(sftpBase.Port, Is.EqualTo(22));
             Assert.That(sftpSender.Prefix, Is.EqualTo("pref-"));
-            Assert.That(sftpSender.NamingType, Is.EqualTo(ObjectNamingGeneratorType.GrowingNumericalSeries));
+            Assert.That(
+                sftpSender.NamingType,
+                Is.EqualTo(ObjectNamingGeneratorType.GrowingNumericalSeries)
+            );
             Assert.That(Validate(sftpSender).IsValid, Is.True);
         });
     }
@@ -209,31 +250,27 @@ public class ProtocolConfigurationObjectsTests
             HostNames = ["localhost:6379"],
             RedisDataType = RedisDataType.HashSet,
             Key = "orders",
-            HashField = "id"
+            HashField = "id",
         };
         var invalidRedisReader = validRedisReader with { HashField = null };
 
         var validClaimsJwt = new JwtAuthConfig
         {
             Secret = "secret",
-            Claims = new Dictionary<string, string> { ["sub"] = "1" }
+            Claims = new Dictionary<string, string> { ["sub"] = "1" },
         };
         var validHierarchicalJwt = new JwtAuthConfig
         {
             Secret = "secret",
-            HierarchicalClaims = "sub: 1"
+            HierarchicalClaims = "sub: 1",
         };
         var invalidJwtBothSources = new JwtAuthConfig
         {
             Secret = "secret",
             Claims = new Dictionary<string, string> { ["sub"] = "1" },
-            HierarchicalClaims = "sub: 1"
+            HierarchicalClaims = "sub: 1",
         };
-        var invalidJwtYaml = new JwtAuthConfig
-        {
-            Secret = "secret",
-            HierarchicalClaims = "[bad"
-        };
+        var invalidJwtYaml = new JwtAuthConfig { Secret = "secret", HierarchicalClaims = "[bad" };
 
         Assert.Multiple(() =>
         {
@@ -253,7 +290,7 @@ public class ProtocolConfigurationObjectsTests
         {
             TableName = "tbl",
             ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
-            ColumnsToIgnore = ["created_at", "updated_at"]
+            ColumnsToIgnore = ["created_at", "updated_at"],
         };
         var invalidReader = validReader with { ColumnsToIgnore = ["created_at", "created_at"] };
 
@@ -270,7 +307,7 @@ public class ProtocolConfigurationObjectsTests
         var config = new SqlUdtSenderConfig
         {
             TableName = "tbl",
-            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;"
+            ConnectionString = "Server=localhost;Database=db;User Id=u;Password=p;",
         };
 
         Assert.That(config.IsUDTInsertion, Is.False);
