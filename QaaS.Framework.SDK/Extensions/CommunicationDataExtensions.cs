@@ -42,6 +42,8 @@ public static class CommunicationDataExtensions
     
     /// <summary>
     /// Casts a CommunicationData to a different type.
+    /// Null bodies always cast successfully and produce the default value of the target type
+    /// (null for reference types, the zero value for value types).
     /// When a body is a deserialized representation of the target type instead of the target type itself
     /// (e.g. a JsonNode produced by json deserialization without a configured type), the cast automatically
     /// converts that body using the CommunicationData's own SerializationType when it has one, or the

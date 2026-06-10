@@ -12,6 +12,8 @@ public static class DataExtensions
 {
     /// <summary>
     /// Casts a `Data` of type object to another type, if the cast is not valid will throw InvalidCastException.
+    /// A null body always casts successfully and produces the default value of the target type
+    /// (null for reference types, the zero value for value types).
     /// When the body is a deserialized representation of the target type instead of the target type itself
     /// (e.g. a JsonNode produced by json deserialization without a configured type), the cast automatically
     /// converts the body through its inferred serialization type
@@ -22,6 +24,12 @@ public static class DataExtensions
     /// <returns> Data casted to the cast type </returns>
     public static Data<TCasted> CastObjectData<TCasted>(this Data<object> data)
     {
+        if (data.Body is null)
+            return new Data<TCasted>
+            {
+                Body = default,
+                MetaData = data.MetaData
+            };
         try
         {
             return new Data<TCasted>
@@ -61,6 +69,8 @@ public static class DataExtensions
     
     /// <summary>
     /// Casts a `DetailedData` of type object to another type, if the cast is not valid will throw InvalidCastException.
+    /// A null body always casts successfully and produces the default value of the target type
+    /// (null for reference types, the zero value for value types).
     /// When the body is a deserialized representation of the target type instead of the target type itself
     /// (e.g. a JsonNode produced by json deserialization without a configured type), the cast automatically
     /// converts the body through its inferred serialization type
@@ -80,6 +90,13 @@ public static class DataExtensions
     internal static DetailedData<TCasted> CastObjectDetailedDataCore<TCasted>(this DetailedData<object> detailedData,
         SerializationType? declaredSerializationType)
     {
+        if (detailedData.Body is null)
+            return new DetailedData<TCasted>
+            {
+                Body = default,
+                MetaData = detailedData.MetaData,
+                Timestamp = detailedData.Timestamp
+            };
         try
         {
             return new DetailedData<TCasted>

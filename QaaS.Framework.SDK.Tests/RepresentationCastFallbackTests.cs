@@ -121,6 +121,52 @@ public class RepresentationCastFallbackTests
         Assert.Throws<InvalidCastException>(() => data.CastObjectData<PersonPayload>());
     }
 
+    [Test]
+    public void CastObjectData_NullBody_ReturnsDefaultBody_ForValueAndReferenceTargets()
+    {
+        var data = new Data<object> { Body = null };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(data.CastObjectData<int>().Body, Is.EqualTo(0));
+            Assert.That(data.CastObjectData<PersonPayload>().Body, Is.Null);
+        });
+    }
+
+    [Test]
+    public void CastObjectDetailedData_NullBody_ReturnsDefaultBody_AndPreservesMetaDataAndTimestamp()
+    {
+        var timestamp = DateTime.UtcNow;
+        var metaData = new MetaData { IoMatchIndex = 3 };
+        var detailedData = new DetailedData<object>
+        {
+            Body = null,
+            MetaData = metaData,
+            Timestamp = timestamp,
+        };
+
+        var casted = detailedData.CastObjectDetailedData<int>();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(casted.Body, Is.EqualTo(0));
+            Assert.That(casted.MetaData, Is.SameAs(metaData));
+            Assert.That(casted.Timestamp, Is.EqualTo(timestamp));
+        });
+    }
+
+    [Test]
+    public void TryCastObjectData_NullBody_SucceedsForValueTypeTargets()
+    {
+        var data = new Data<object> { Body = null };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(data.TryCastObjectData<int>(out var casted), Is.True);
+            Assert.That(casted!.Body, Is.EqualTo(0));
+        });
+    }
+
     #endregion
 
     #region GetBodyAs / TryGetBodyAs representations
@@ -340,6 +386,21 @@ public class RepresentationCastFallbackTests
         var casted = communicationData.CastCommunicationData<int>();
 
         Assert.That(casted.Data[0].Body, Is.EqualTo(42));
+    }
+
+    [Test]
+    public void CastCommunicationData_NullBodies_CastToValueTypeDefault()
+    {
+        var communicationData = new CommunicationData<object>
+        {
+            Name = "numbers",
+            SerializationType = SerializationType.Json,
+            Data = [new DetailedData<object> { Body = null }],
+        };
+
+        var casted = communicationData.CastCommunicationData<int>();
+
+        Assert.That(casted.Data[0].Body, Is.EqualTo(0));
     }
 
     #endregion
