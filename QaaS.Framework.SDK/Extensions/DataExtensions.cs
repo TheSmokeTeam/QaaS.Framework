@@ -11,7 +11,11 @@ namespace QaaS.Framework.SDK.Extensions;
 public static class DataExtensions
 {
     /// <summary>
-    /// Casts a `Data` of type object to another type, if the cast is not valid will throw InvalidCastException
+    /// Casts a `Data` of type object to another type, if the cast is not valid will throw InvalidCastException.
+    /// When the body is a deserialized representation of the target type instead of the target type itself
+    /// (e.g. a JsonNode produced by json deserialization without a configured type), the cast automatically
+    /// converts the body through its inferred serialization type
+    /// (see <see cref="QaasSerializer.TryInferSerializationType"/>)
     /// </summary>
     /// <param name="data"> The Data to cast to another type </param>
     /// <typeparam name="TCasted"> The type to cast to </typeparam>
@@ -28,6 +32,13 @@ public static class DataExtensions
         }
         catch (Exception e)
         {
+            if (data.Body is not null &&
+                TryConvertRepresentation<TCasted>(data.Body, null, out var converted))
+                return new Data<TCasted>
+                {
+                    Body = converted,
+                    MetaData = data.MetaData
+                };
             throw new InvalidCastException($"Failed to cast `Data<object>` that is actually " +
                                            $"`Data<{data.Body?.GetType()}>` to `Data<{typeof(TCasted)}>`", e);
         }
@@ -49,12 +60,25 @@ public static class DataExtensions
     }
     
     /// <summary>
-    /// Casts a `DetailedData` of type object to another type, if the cast is not valid will throw InvalidCastException
+    /// Casts a `DetailedData` of type object to another type, if the cast is not valid will throw InvalidCastException.
+    /// When the body is a deserialized representation of the target type instead of the target type itself
+    /// (e.g. a JsonNode produced by json deserialization without a configured type), the cast automatically
+    /// converts the body through its inferred serialization type
+    /// (see <see cref="QaasSerializer.TryInferSerializationType"/>)
     /// </summary>
     /// <param name="detailedData"> The DetailedData to cast to another type </param>
     /// <typeparam name="TCasted"> The type to cast to </typeparam>
     /// <returns> DetailedData casted to the cast type </returns>
-    public static DetailedData<TCasted> CastObjectDetailedData<TCasted>(this DetailedData<object> detailedData)
+    public static DetailedData<TCasted> CastObjectDetailedData<TCasted>(this DetailedData<object> detailedData) =>
+        detailedData.CastObjectDetailedDataCore<TCasted>(null);
+
+    /// <summary>
+    /// Casts a `DetailedData` of type object to another type with a known serialization type to prefer when
+    /// the body has to be converted from a deserialized representation (e.g. a JsonNode body),
+    /// falling back to inferring the serialization type from the body's runtime type when none is given
+    /// </summary>
+    internal static DetailedData<TCasted> CastObjectDetailedDataCore<TCasted>(this DetailedData<object> detailedData,
+        SerializationType? declaredSerializationType)
     {
         try
         {
@@ -67,6 +91,14 @@ public static class DataExtensions
         }
         catch (Exception e)
         {
+            if (detailedData.Body is not null &&
+                TryConvertRepresentation<TCasted>(detailedData.Body, declaredSerializationType, out var converted))
+                return new DetailedData<TCasted>
+                {
+                    Body = converted,
+                    MetaData = detailedData.MetaData,
+                    Timestamp = detailedData.Timestamp
+                };
             throw new InvalidCastException($"Failed to cast `DetailedData<object>` that is actually " +
                                           $"`DetailedData<{detailedData.Body?.GetType()}>` to `DetailedData<{typeof(TCasted)}>`",
                 e);
@@ -104,7 +136,9 @@ public static class DataExtensions
     }
 
     /// <summary>
-    /// Attempts to cast a `Data` of type object to another type, never throws
+    /// Attempts to cast a `Data` of type object to another type, never throws.
+    /// Bodies that are deserialized representations of the target type (e.g. JsonNode) are automatically
+    /// converted the same way <see cref="CastObjectData{TCasted}"/> converts them
     /// </summary>
     /// <param name="data"> The Data to cast to another type </param>
     /// <param name="casted"> The casted Data when the cast succeeds, null otherwise </param>
@@ -129,7 +163,9 @@ public static class DataExtensions
     }
 
     /// <summary>
-    /// Attempts to cast a `DetailedData` of type object to another type, never throws
+    /// Attempts to cast a `DetailedData` of type object to another type, never throws.
+    /// Bodies that are deserialized representations of the target type (e.g. JsonNode) are automatically
+    /// converted the same way <see cref="CastObjectDetailedData{TCasted}"/> converts them
     /// </summary>
     /// <param name="detailedData"> The DetailedData to cast to another type </param>
     /// <param name="casted"> The casted DetailedData when the cast succeeds, null otherwise </param>
@@ -155,39 +191,87 @@ public static class DataExtensions
 
     /// <summary>
     /// Retrieves the body of a `Data` (or `DetailedData`) of type object directly as the requested type,
-    /// removing the need to cast the whole Data wrapper in order to reach a typed body
+    /// removing the need to cast the whole Data wrapper in order to reach a typed body.
+    /// When the body is a deserialized representation of the target type instead of the target type itself
+    /// (e.g. a JsonNode produced by json deserialization without a configured type), the body is
+    /// automatically converted through its inferred serialization type
+    /// (see <see cref="QaasSerializer.TryInferSerializationType"/>)
     /// </summary>
     /// <param name="data"> The Data to read the body from </param>
     /// <typeparam name="TBody"> The type to retrieve the body as </typeparam>
     /// <returns> The body typed as <typeparamref name="TBody"/>, or default when the body is null </returns>
     /// <exception cref="InvalidCastException"> If the body is not assignable to
-    /// <typeparamref name="TBody"/> </exception>
+    /// <typeparamref name="TBody"/> and cannot be converted to it </exception>
     /// <remarks>
     /// Example: `byte[]? raw = detailedData.GetBodyAs&lt;byte[]&gt;();`
     /// </remarks>
-    public static TBody? GetBodyAs<TBody>(this Data<object> data)
+    public static TBody? GetBodyAs<TBody>(this Data<object> data) => GetBodyCore<TBody>(data.Body, null);
+
+    /// <summary>
+    /// Retrieves a body directly as the requested type, converting deserialized representations through the
+    /// declared serialization type when one is known (preferred) or the inferred one otherwise
+    /// </summary>
+    internal static TBody? GetBodyCore<TBody>(object? body, SerializationType? declaredSerializationType)
     {
-        return data.Body switch
+        switch (body)
         {
-            null => default,
-            TBody typed => typed,
-            _ => throw new InvalidCastException(
-                $"The body of this `Data<object>` is of type `{data.Body.GetType()}` which is not assignable" +
-                $" to the requested type `{typeof(TBody)}`. If the body is a different representation of the" +
-                $" same content (e.g. JsonNode or byte[]), use `ConvertBodyTo<{typeof(TBody).Name}>` with the" +
-                " matching SerializationType instead")
-        };
+            case null:
+                return default;
+            case TBody typed:
+                return typed;
+            default:
+                if (TryConvertRepresentation<TBody>(body, declaredSerializationType, out var converted))
+                    return converted;
+                throw new InvalidCastException(
+                    $"The body of this `Data<object>` is of type `{body.GetType()}` which is not assignable" +
+                    $" to the requested type `{typeof(TBody)}` and could not be converted to it. If the body" +
+                    $" is a different representation of the same content (e.g. JsonNode or byte[]), use" +
+                    $" `ConvertBodyTo<{typeof(TBody).Name}>` with the matching SerializationType instead");
+        }
+    }
+
+    /// <summary>
+    /// Attempts to convert a body that is a deserialized representation of the target type (e.g. a JsonNode,
+    /// a yaml dictionary or a raw byte[]) into the target type by round-tripping it through the declared
+    /// serialization type when one is given, or through the serialization type inferred from the body's
+    /// runtime type otherwise (raw byte[] bodies are only converted when a serialization type is declared
+    /// because their format cannot be inferred)
+    /// </summary>
+    private static bool TryConvertRepresentation<TCasted>(object body,
+        SerializationType? declaredSerializationType, out TCasted? converted)
+    {
+        converted = default;
+        var serializationType = declaredSerializationType;
+        if (serializationType == null)
+        {
+            if (!QaasSerializer.TryInferSerializationType(body, out var inferred)) return false;
+            serializationType = inferred;
+        }
+
+        try
+        {
+            var serializedBody = body as byte[] ?? QaasSerializer.Serialize(body, serializationType);
+            converted = QaasSerializer.Deserialize<TCasted>(serializedBody, serializationType);
+            return converted is not null;
+        }
+        catch
+        {
+            converted = default;
+            return false;
+        }
     }
 
     /// <summary>
     /// Attempts to retrieve the body of a `Data` (or `DetailedData`) of type object directly as the requested
-    /// type, never throws
+    /// type, never throws. Bodies that are deserialized representations of the target type (e.g. JsonNode)
+    /// are automatically converted the same way <see cref="GetBodyAs{TBody}"/> converts them
     /// </summary>
     /// <param name="data"> The Data to read the body from </param>
     /// <param name="body"> The typed body when the cast succeeds (default when the body is null),
     /// default otherwise </param>
     /// <typeparam name="TBody"> The type to retrieve the body as </typeparam>
-    /// <returns> `true` if the body is null or assignable to <typeparamref name="TBody"/> - else `false` </returns>
+    /// <returns> `true` if the body is null, assignable to <typeparamref name="TBody"/> or convertible
+    /// to it - else `false` </returns>
     /// <remarks>
     /// Example: `if (detailedData.TryGetBodyAs&lt;string&gt;(out var text)) { ... }`
     /// </remarks>
@@ -202,8 +286,7 @@ public static class DataExtensions
                 body = typed;
                 return true;
             default:
-                body = default;
-                return false;
+                return TryConvertRepresentation(data.Body, null, out body);
         }
     }
 

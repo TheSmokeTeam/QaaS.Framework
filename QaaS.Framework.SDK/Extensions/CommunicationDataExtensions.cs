@@ -41,7 +41,12 @@ public static class CommunicationDataExtensions
     }
     
     /// <summary>
-    /// Casts a CommunicationData to a different type
+    /// Casts a CommunicationData to a different type.
+    /// When a body is a deserialized representation of the target type instead of the target type itself
+    /// (e.g. a JsonNode produced by json deserialization without a configured type), the cast automatically
+    /// converts that body using the CommunicationData's own SerializationType when it has one, or the
+    /// serialization type inferred from the body's runtime type otherwise
+    /// (see <see cref="QaasSerializer.TryInferSerializationType"/>)
     /// </summary>
     /// <param name="communicationData"> The CommunicationData to cast </param>
     /// <param name="communicationDataType"> The type of the communication data (Inputs/Outputs)
@@ -61,7 +66,7 @@ public static class CommunicationDataExtensions
             {
                 try
                 {
-                    return item.CastObjectDetailedData<TCastTo>();
+                    return item.CastObjectDetailedDataCore<TCastTo>(communicationData.SerializationType);
                 }
                 catch (Exception e)
                 {
@@ -118,7 +123,9 @@ public static class CommunicationDataExtensions
     }
 
     /// <summary>
-    /// Attempts to cast a CommunicationData to a different type, never throws
+    /// Attempts to cast a CommunicationData to a different type, never throws.
+    /// Bodies that are deserialized representations of the target type (e.g. JsonNode) are automatically
+    /// converted the same way <see cref="CastCommunicationData{TCastTo}"/> converts them
     /// </summary>
     /// <param name="communicationData"> The CommunicationData to cast </param>
     /// <param name="casted"> The casted CommunicationData when the cast succeeds, null otherwise </param>
@@ -175,14 +182,16 @@ public static class CommunicationDataExtensions
 
     /// <summary>
     /// Retrieves the bodies of all data items of a CommunicationData of type object directly as the requested
-    /// type
+    /// type. Bodies that are deserialized representations of the target type (e.g. JsonNode bodies) are
+    /// automatically converted using the CommunicationData's own SerializationType when it has one, or the
+    /// serialization type inferred from each body's runtime type otherwise
     /// </summary>
     /// <param name="communicationData"> The CommunicationData to retrieve the bodies from </param>
     /// <typeparam name="TCasted"> The type to retrieve the bodies as </typeparam>
     /// <returns> The bodies of all data items typed as <typeparamref name="TCasted"/>, in their original
     /// order </returns>
     /// <exception cref="InvalidCastException"> If any body is not assignable to
-    /// <typeparamref name="TCasted"/> </exception>
+    /// <typeparamref name="TCasted"/> and cannot be converted to it </exception>
     /// <remarks>
     /// Example: `IList&lt;string?&gt; bodies = communication.GetBodiesAs&lt;string&gt;();`
     /// </remarks>
@@ -192,7 +201,7 @@ public static class CommunicationDataExtensions
         {
             try
             {
-                return item.GetBodyAs<TCasted>();
+                return DataExtensions.GetBodyCore<TCasted>(item.Body, communicationData.SerializationType);
             }
             catch (InvalidCastException e)
             {
@@ -217,7 +226,8 @@ public static class CommunicationDataExtensions
     /// CommunicationData's own SerializationType is used </param>
     /// <typeparam name="TConverted"> The type to convert the CommunicationData to </typeparam>
     /// <returns> CommunicationData with all its data bodies converted to
-    /// <typeparamref name="TConverted"/> </returns>
+    /// <typeparamref name="TConverted"/> and its SerializationType set to the serialization type the
+    /// conversion actually used </returns>
     /// <exception cref="InvalidCastException"> If the conversion of any data item fails </exception>
     /// <remarks>
     /// Example: `CommunicationData&lt;Order&gt; typed = communication.ConvertCommunicationData&lt;Order&gt;();`
@@ -232,7 +242,7 @@ public static class CommunicationDataExtensions
         return new CommunicationData<TConverted>
         {
             Name = communicationData.Name,
-            SerializationType = communicationData.SerializationType,
+            SerializationType = serializationType,
             Data = communicationData.Data.Select((item, index) =>
             {
                 try
