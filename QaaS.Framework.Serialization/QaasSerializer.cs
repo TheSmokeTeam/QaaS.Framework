@@ -1,4 +1,9 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Xml.Linq;
+using QaaS.Framework.Serialization.Serializers;
+using IDeserializer = QaaS.Framework.Serialization.Deserializers.IDeserializer;
 
 namespace QaaS.Framework.Serialization;
 
@@ -25,7 +30,18 @@ public static class QaasSerializer
     /// </remarks>
     public static byte[]? Serialize(object? data, SerializationType? serializationType)
     {
-        var serializer = SerializerFactory.BuildSerializer(serializationType);
+        ISerializer? serializer;
+        try
+        {
+            serializer = SerializerFactory.BuildSerializer(serializationType);
+        }
+        catch (Exception e)
+        {
+            throw new QaasSerializationException(
+                $"Failed to build a serializer for serialization type `{serializationType}`." +
+                " See InnerException for the original failure", e);
+        }
+
         if (serializer == null)
             return data switch
             {
@@ -106,7 +122,18 @@ public static class QaasSerializer
     public static object? Deserialize(byte[]? data, SerializationType? serializationType,
         Type? deserializeType = null)
     {
-        var deserializer = DeserializerFactory.BuildDeserializer(serializationType);
+        IDeserializer? deserializer;
+        try
+        {
+            deserializer = DeserializerFactory.BuildDeserializer(serializationType);
+        }
+        catch (Exception e)
+        {
+            throw new QaasSerializationException(
+                $"Failed to build a deserializer for serialization type `{serializationType}`." +
+                " See InnerException for the original failure", e);
+        }
+
         if (deserializer == null) return data;
 
         try
@@ -241,6 +268,41 @@ public static class QaasSerializer
         {
             deserialized = default;
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to infer the <see cref="SerializationType"/> that produced the given deserialized body from
+    /// its runtime representation: JsonNode/JsonElement/JsonDocument bodies are Json, XDocument bodies are
+    /// Xml, XElement bodies are XmlElement, and the generic dictionaries/lists produced by untyped yaml (and
+    /// map formatted MessagePack) deserialization are treated as Yaml.
+    /// Representations that are ambiguous (e.g. byte[], string, object[]) are not inferred
+    /// </summary>
+    /// <param name="body"> The deserialized body whose serialization type to infer </param>
+    /// <param name="inferred"> The inferred serialization type when inference succeeds </param>
+    /// <returns> `true` if the serialization type could be inferred from the body - else `false` </returns>
+    /// <remarks>
+    /// Example: `if (QaasSerializer.TryInferSerializationType(body, out var serializationType)) { ... }`
+    /// </remarks>
+    public static bool TryInferSerializationType(object? body, out SerializationType inferred)
+    {
+        switch (body)
+        {
+            case JsonNode or JsonElement or JsonDocument:
+                inferred = SerializationType.Json;
+                return true;
+            case XDocument:
+                inferred = SerializationType.Xml;
+                return true;
+            case XElement:
+                inferred = SerializationType.XmlElement;
+                return true;
+            case Dictionary<object, object> or List<object>:
+                inferred = SerializationType.Yaml;
+                return true;
+            default:
+                inferred = default;
+                return false;
         }
     }
 }
