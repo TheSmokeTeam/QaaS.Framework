@@ -155,7 +155,7 @@ public static class DataExtensions
 
     /// <summary>
     /// Retrieves the body of a `Data` (or `DetailedData`) of type object directly as the requested type,
-    /// removing the need to cast the whole Data wrapper just to reach a typed body
+    /// removing the need to cast the whole Data wrapper in order to reach a typed body
     /// </summary>
     /// <param name="data"> The Data to read the body from </param>
     /// <typeparam name="TBody"> The type to retrieve the body as </typeparam>
