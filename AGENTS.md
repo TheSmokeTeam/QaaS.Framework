@@ -18,8 +18,6 @@ Runner, Mocker, all Common.* hook libraries, and every consumer project. Target:
 | QaaS.Framework.Providers | Assembly-scanning hook discovery: QaaS.* → Common.* → user libs |
 | QaaS.Framework.Executions | Execution engine pieces |
 | QaaS.Framework.Infrastructure | Base utilities |
-| QaaS.Framework.Documentation | Doc tooling support |
-| QaaS.Framework.ElasticBootstrap | Elasticsearch bootstrap utilities |
 | `*.Tests` | Per-project NUnit test projects |
 
 Flat layout — `QaaS.Framework.sln` at root, no `src/` directory. `Directory.Build.props` at root.
@@ -29,8 +27,8 @@ Dependency DAG: Infrastructure → Serialization/Configurations → SDK → Prot
 ```shell
 dotnet build -m QaaS.Framework.sln
 dotnet test QaaS.Framework.sln
-# CI coverage (gate: ≥75% line coverage, windows-latest)
-dotnet-coverage collect "dotnet test QaaS.Framework.sln" -f xml -o coverage.xml
+# CI coverage (windows-latest; 75% threshold is for badge colouring only, not a build gate)
+dotnet-coverage collect "dotnet test QaaS.Framework.sln" -f cobertura -o coverage.xml
 reportgenerator -reports:coverage.xml -targetdir:coverage-report
 ```
 
@@ -38,10 +36,8 @@ reportgenerator -reports:coverage.xml -targetdir:coverage-report
 - **Tier-0 — everything depends on this.** Any interface change in SDK
   (`IHook`, `IGenerator`, `IAssertion`, `IProbe`, `ITransactionProcessor`) is a breaking change
   for Runner, Mocker, all Common.* libraries, and every consumer project — coordinate releases.
-- **CI enforces ≥75% line coverage** (windows-latest, dotnet-coverage + reportgenerator).
-  Falling below this fails the build; new code must be accompanied by tests.
-- **Assembly scanning order is load-order-sensitive**: Providers scans `QaaS.*` → `Common.*` →
-  user assemblies. Hook class namespaces must follow this convention or hooks are silently missed.
+- **CI collects and reports line coverage** (windows-latest, dotnet-coverage + reportgenerator). 75% is used for badge colouring only — there is no threshold step that fails the build.
+- **Assembly scanning order is load-order-sensitive**: Providers resolves hooks by `FullName`/`AssemblyQualifiedName` first, then falls back to `Type.Name`. Assembly-name priority (`QaaS.*` → `Common.*` → user libs) is used as a tie-breaker when multiple assemblies expose a hook with the same simple type name; an info log is emitted when a tie is resolved.
 - **`ICloneable<T>` deep-clone pattern** (PR #31) is required for builder config objects —
   new config classes must implement deep clone.
 - **`${...}` placeholder interpolation** lives in QaaS.Framework.Configurations — do not
