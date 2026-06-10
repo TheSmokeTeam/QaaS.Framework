@@ -101,15 +101,27 @@ public class CastingConvenienceTests
     }
 
     [Test]
-    public void GetBodyAs_ThrowsIndicativeException_WhenBodyDoesNotMatch()
+    public void GetBodyAs_ThrowsIndicativeException_WhenBodyDoesNotMatchAndCannotBeConverted()
     {
-        var data = new Data<object> { Body = JsonNode.Parse("{}") };
+        var data = new Data<object> { Body = 42 };
 
         var exception = Assert.Throws<InvalidCastException>(() => data.GetBodyAs<OrderPayload>());
 
-        Assert.That(exception!.Message, Does.Contain("JsonObject"));
+        Assert.That(exception!.Message, Does.Contain("Int32"));
         Assert.That(exception.Message, Does.Contain(nameof(OrderPayload)));
         Assert.That(exception.Message, Does.Contain("ConvertBodyTo"));
+    }
+
+    [Test]
+    public void GetBodyAs_ConvertsDeserializedJsonNodeBody_ToRequestedType()
+    {
+        var data = new Data<object> { Body = JsonNode.Parse("{\"Id\":\"o-9\",\"Amount\":90}") };
+
+        var body = data.GetBodyAs<OrderPayload>();
+
+        Assert.That(body, Is.Not.Null);
+        Assert.That(body!.Id, Is.EqualTo("o-9"));
+        Assert.That(body.Amount, Is.EqualTo(90));
     }
 
     [Test]

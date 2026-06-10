@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Xml.Linq;
 using Google.Protobuf.WellKnownTypes;
 using QaaS.Framework.Serialization.Serializers;
@@ -189,13 +191,13 @@ public class SerializationConvenienceTests
     [Test]
     public void QaasSerializer_DeserializeToIncompatibleType_ThrowsIndicativeException()
     {
-        // The Xml deserializer always produces XDocument, requesting a payload type cannot be satisfied
+        // The xml content does not describe a ConveniencePayload so the typed deserialization fails
         var bytes = QaasSerializer.Serialize(XDocument.Parse("<a/>"), SerializationType.Xml);
 
         var exception = Assert.Throws<QaasSerializationException>(() =>
             QaasSerializer.Deserialize<ConveniencePayload>(bytes, SerializationType.Xml));
 
-        Assert.That(exception!.Message, Does.Contain("not assignable"));
+        Assert.That(exception!.Message, Does.Contain("Failed to deserialize"));
         Assert.That(exception.Message, Does.Contain(nameof(ConveniencePayload)));
     }
 
@@ -332,10 +334,12 @@ public class SerializationConvenienceTests
     [Test]
     public void DeserializerExtensions_GenericDeserialize_IncompatibleProducedType_ThrowsIndicativeException()
     {
-        var bytes = new Xml().Serialize(XDocument.Parse("<a/>"));
+        // The Binary deserializer ignores the requested type and returns the original object, so requesting
+        // an incompatible type surfaces the indicative "not assignable" failure
+        var bytes = new Binary().Serialize("not an int");
 
         var exception = Assert.Throws<QaasSerializationException>(() =>
-            new Deserializers.Xml().Deserialize<ConveniencePayload>(bytes));
+            new Deserializers.Binary().Deserialize<int>(bytes));
 
         Assert.That(exception!.Message, Does.Contain("not assignable"));
     }
@@ -386,6 +390,157 @@ public class SerializationConvenienceTests
         Assert.That(result!.Name, Is.EqualTo(unicodeName));
         Assert.That(Encoding.UTF8.GetBytes(json!), Is.EqualTo(new Json().Serialize(
             new ConveniencePayload { Name = unicodeName, Count = 1 })));
+    }
+
+    #endregion
+
+    #region Serialization type inference
+
+    [TestCase("json-node")]
+    [TestCase("json-element")]
+    [TestCase("json-document")]
+    public void TryInferSerializationType_RecognizesJsonRepresentations(string representation)
+    {
+        object body = representation switch
+        {
+            "json-node" => JsonNode.Parse("{\"a\":1}")!,
+            "json-element" => JsonDocument.Parse("{\"a\":1}").RootElement,
+            _ => JsonDocument.Parse("{\"a\":1}")
+        };
+
+        var inferred = QaasSerializer.TryInferSerializationType(body, out var serializationType);
+
+        Assert.That(inferred, Is.True);
+        Assert.That(serializationType, Is.EqualTo(SerializationType.Json));
+    }
+
+    [Test]
+    public void TryInferSerializationType_RecognizesXmlAndYamlRepresentations()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(QaasSerializer.TryInferSerializationType(XDocument.Parse("<a/>"), out var xml),
+                Is.True);
+            Assert.That(xml, Is.EqualTo(SerializationType.Xml));
+            Assert.That(QaasSerializer.TryInferSerializationType(XElement.Parse("<a/>"), out var xmlElement),
+                Is.True);
+            Assert.That(xmlElement, Is.EqualTo(SerializationType.XmlElement));
+            Assert.That(QaasSerializer.TryInferSerializationType(
+                new Dictionary<object, object> { ["a"] = 1 }, out var yamlMap), Is.True);
+            Assert.That(yamlMap, Is.EqualTo(SerializationType.Yaml));
+            Assert.That(QaasSerializer.TryInferSerializationType(
+                new List<object> { 1, 2 }, out var yamlList), Is.True);
+            Assert.That(yamlList, Is.EqualTo(SerializationType.Yaml));
+        });
+    }
+
+    [Test]
+    public void TryInferSerializationType_ReturnsFalse_ForAmbiguousOrUnknownBodies()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(QaasSerializer.TryInferSerializationType(null, out _), Is.False);
+            Assert.That(QaasSerializer.TryInferSerializationType("text", out _), Is.False);
+            Assert.That(QaasSerializer.TryInferSerializationType(new byte[] { 1, 2 }, out _), Is.False);
+            Assert.That(QaasSerializer.TryInferSerializationType(42, out _), Is.False);
+            Assert.That(QaasSerializer.TryInferSerializationType(new ConveniencePayload(), out _), Is.False);
+        });
+    }
+
+    [Test]
+    public void QaasSerializer_UnknownSerializationType_ThrowsQaasSerializationException()
+    {
+        const SerializationType unknown = (SerializationType)999;
+
+        Assert.Multiple(() =>
+        {
+            var serializeException = Assert.Throws<QaasSerializationException>(() =>
+                QaasSerializer.Serialize("data", unknown));
+            Assert.That(serializeException!.Message, Does.Contain("999"));
+            var deserializeException = Assert.Throws<QaasSerializationException>(() =>
+                QaasSerializer.Deserialize<string>([1], unknown));
+            Assert.That(deserializeException!.Message, Does.Contain("999"));
+        });
+    }
+
+    #endregion
+
+    #region Typed xml round-trips
+
+    public sealed class XmlRoundTripPayload
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    [TestCase(SerializationType.Xml)]
+    [TestCase(SerializationType.XmlElement)]
+    public void QaasSerializer_XmlFormats_RoundTripTypedPayloads(SerializationType serializationType)
+    {
+        var payload = new XmlRoundTripPayload { Name = "typed-xml", Count = 12 };
+
+        var bytes = QaasSerializer.Serialize(payload, serializationType);
+        var result = QaasSerializer.Deserialize<XmlRoundTripPayload>(bytes, serializationType);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result!.Name, Is.EqualTo("typed-xml"));
+            Assert.That(result.Count, Is.EqualTo(12));
+        });
+    }
+
+    [Test]
+    public void XmlDeserializer_HonorsRequestedRepresentationTypes()
+    {
+        var bytes = new Xml().Serialize(XDocument.Parse("<root><child/></root>"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(new Deserializers.Xml().Deserialize(bytes), Is.TypeOf<XDocument>());
+            Assert.That(new Deserializers.Xml().Deserialize(bytes, typeof(XElement)), Is.TypeOf<XElement>());
+            Assert.That(new Deserializers.Xml().Deserialize(bytes, typeof(string)),
+                Does.Contain("<root>"));
+        });
+    }
+
+    [Test]
+    public void XmlElementDeserializer_HonorsRequestedRepresentationTypes()
+    {
+        var bytes = new XmlElement().Serialize(XElement.Parse("<root><child/></root>"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(new Deserializers.XmlElement().Deserialize(bytes), Is.TypeOf<XElement>());
+            Assert.That(new Deserializers.XmlElement().Deserialize(bytes, typeof(XDocument)),
+                Is.TypeOf<XDocument>());
+            Assert.That(new Deserializers.XmlElement().Deserialize(bytes, typeof(string)),
+                Does.Contain("<root>"));
+        });
+    }
+
+    [Test]
+    public void XmlElementSerializer_TypedPayload_OmitsXmlDeclaration()
+    {
+        var bytes = new XmlElement().Serialize(new XmlRoundTripPayload { Name = "no-decl", Count = 1 });
+
+        var text = Encoding.UTF8.GetString(bytes!);
+
+        Assert.That(text, Does.Not.Contain("<?xml"));
+        Assert.That(text, Does.Contain("<XmlRoundTripPayload"));
+    }
+
+    [Test]
+    public void XmlSerializers_KeepStringAndXNodePassThroughBehavior()
+    {
+        var element = XElement.Parse("<a b=\"1\"/>");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(new Xml().Serialize("<raw/>"), Is.EqualTo("<raw/>"u8.ToArray()));
+            Assert.That(new XmlElement().Serialize("<raw/>"), Is.EqualTo("<raw/>"u8.ToArray()));
+            Assert.That(new XmlElement().Serialize(element), Is.EqualTo(
+                Encoding.UTF8.GetBytes(element.ToString())));
+        });
     }
 
     #endregion
