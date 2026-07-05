@@ -224,8 +224,20 @@ public class ProtocolCoverageEdgeCaseTests
                 messageCount: 0,
                 basicProperties: new BasicProperties
                 {
+                    AppId = "app",
+                    ClusterId = "cluster",
+                    ContentEncoding = "gzip",
                     ContentType = "application/octet-stream",
-                    Headers = new Dictionary<string, object?> { ["h"] = "v" }
+                    CorrelationId = "correlation",
+                    DeliveryMode = DeliveryModes.Persistent,
+                    Expiration = "3000",
+                    Headers = new Dictionary<string, object?> { ["h"] = "v" },
+                    MessageId = "message",
+                    Priority = 7,
+                    ReplyTo = "reply",
+                    Timestamp = new AmqpTimestamp(123456789),
+                    Type = "event",
+                    UserId = "user"
                 },
                 body: Encoding.UTF8.GetBytes("rabbit")));
 
@@ -245,7 +257,21 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(result, Is.Not.Null);
             Assert.That(Encoding.UTF8.GetString((byte[])result!.Body!), Is.EqualTo("rabbit"));
             Assert.That(result.MetaData?.RabbitMq?.RoutingKey, Is.EqualTo("queue"));
+            Assert.That(result.MetaData?.RabbitMq?.AppId, Is.EqualTo("app"));
+            Assert.That(result.MetaData?.RabbitMq?.ClusterId, Is.EqualTo("cluster"));
+            Assert.That(result.MetaData?.RabbitMq?.ContentEncoding, Is.EqualTo("gzip"));
             Assert.That(result.MetaData?.RabbitMq?.ContentType, Is.EqualTo("application/octet-stream"));
+            Assert.That(result.MetaData?.RabbitMq?.CorrelationId, Is.EqualTo("correlation"));
+            Assert.That(result.MetaData?.RabbitMq?.DeliveryMode, Is.EqualTo(2));
+            Assert.That(result.MetaData?.RabbitMq?.Expiration, Is.EqualTo("3000"));
+            Assert.That(result.MetaData?.RabbitMq?.Headers, Contains.Key("h"));
+            Assert.That(result.MetaData?.RabbitMq?.MessageId, Is.EqualTo("message"));
+            Assert.That(result.MetaData?.RabbitMq?.Persistent, Is.True);
+            Assert.That(result.MetaData?.RabbitMq?.Priority, Is.EqualTo(7));
+            Assert.That(result.MetaData?.RabbitMq?.ReplyTo, Is.EqualTo("reply"));
+            Assert.That(result.MetaData?.RabbitMq?.TimestampUnixTime, Is.EqualTo(123456789));
+            Assert.That(result.MetaData?.RabbitMq?.Type, Is.EqualTo("event"));
+            Assert.That(result.MetaData?.RabbitMq?.UserId, Is.EqualTo("user"));
         });
     }
 
@@ -356,8 +382,18 @@ public class ProtocolCoverageEdgeCaseTests
                     RoutingKey = "override-route",
                     Headers = new Dictionary<string, object?> { ["override"] = "value" },
                     Expiration = "2000",
+                    AppId = "override-app",
+                    ClusterId = "override-cluster",
+                    ContentEncoding = "br",
                     ContentType = "application/octet-stream",
-                    Type = "override-type"
+                    CorrelationId = "override-correlation",
+                    DeliveryMode = 2,
+                    MessageId = "override-message",
+                    Priority = 5,
+                    ReplyTo = "override-reply",
+                    TimestampUnixTime = 987654321,
+                    Type = "override-type",
+                    UserId = "override-user"
                 }
             }
         });
@@ -369,8 +405,19 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(publishedProperties, Is.Not.Null);
             Assert.That(publishedProperties!.Headers, Contains.Key("override"));
             Assert.That(publishedProperties.Expiration, Is.EqualTo("2000"));
+            Assert.That(publishedProperties.AppId, Is.EqualTo("override-app"));
+            Assert.That(publishedProperties.ClusterId, Is.EqualTo("override-cluster"));
+            Assert.That(publishedProperties.ContentEncoding, Is.EqualTo("br"));
             Assert.That(publishedProperties.ContentType, Is.EqualTo("application/octet-stream"));
+            Assert.That(publishedProperties.CorrelationId, Is.EqualTo("override-correlation"));
+            Assert.That((int)publishedProperties.DeliveryMode, Is.EqualTo(2));
+            Assert.That(publishedProperties.MessageId, Is.EqualTo("override-message"));
+            Assert.That(publishedProperties.Persistent, Is.True);
+            Assert.That(publishedProperties.Priority, Is.EqualTo(5));
+            Assert.That(publishedProperties.ReplyTo, Is.EqualTo("override-reply"));
+            Assert.That(publishedProperties.Timestamp.UnixTime, Is.EqualTo(987654321));
             Assert.That(publishedProperties.Type, Is.EqualTo("override-type"));
+            Assert.That(publishedProperties.UserId, Is.EqualTo("override-user"));
         });
     }
 
@@ -474,6 +521,49 @@ public class ProtocolCoverageEdgeCaseTests
     }
 
     [Test]
+    public void RabbitMqProtocol_Send_UsesPersistentConvenienceWhenDeliveryModeIsUnset()
+    {
+        BasicProperties? publishedProperties = null;
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        channelMock
+            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
+                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
+                (_, _, _, properties, _, _) => publishedProperties = properties)
+            .Returns(ValueTask.CompletedTask);
+
+        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
+        {
+            Host = "localhost",
+            ExchangeName = "exchange-name"
+        }, NullLogger.Instance);
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        sender.Send(new Data<object>
+        {
+            Body = Encoding.UTF8.GetBytes("payload"),
+            MetaData = new MetaData
+            {
+                RabbitMq = new RabbitMq
+                {
+                    Persistent = true
+                }
+            }
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(publishedProperties, Is.Not.Null);
+            Assert.That(publishedProperties!.Persistent, Is.True);
+            Assert.That((int)publishedProperties.DeliveryMode, Is.EqualTo(2));
+            Assert.That(TryGetRabbitMqBasicPropertyPresenceFlag(publishedProperties, "DeliveryMode"), Is.True);
+        });
+    }
+
+    [Test]
     public void RabbitMqProtocol_Send_UsesConfiguredDefaultMetadata_WhenMessageMetadataIsNull()
     {
         BasicProperties? publishedProperties = null;
@@ -500,8 +590,18 @@ public class ProtocolCoverageEdgeCaseTests
             RoutingKey = "default-route",
             Headers = new Dictionary<string, object?> { ["default"] = "value" },
             Expiration = "1500",
+            AppId = "default-app",
+            ClusterId = "default-cluster",
+            ContentEncoding = "gzip",
             ContentType = "application/json",
-            Type = "default-type"
+            CorrelationId = "default-correlation",
+            DeliveryMode = 2,
+            MessageId = "default-message",
+            Priority = 3,
+            ReplyTo = "default-reply",
+            TimestampUnixTime = 456,
+            Type = "default-type",
+            UserId = "default-user"
         }, NullLogger.Instance);
         SetPrivateField(sender, "_channel", channelMock.Object);
 
@@ -513,8 +613,18 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(publishedProperties, Is.Not.Null);
             Assert.That(publishedProperties!.Headers, Contains.Key("default"));
             Assert.That(publishedProperties.Expiration, Is.EqualTo("1500"));
+            Assert.That(publishedProperties.AppId, Is.EqualTo("default-app"));
+            Assert.That(publishedProperties.ClusterId, Is.EqualTo("default-cluster"));
+            Assert.That(publishedProperties.ContentEncoding, Is.EqualTo("gzip"));
             Assert.That(publishedProperties.ContentType, Is.EqualTo("application/json"));
+            Assert.That(publishedProperties.CorrelationId, Is.EqualTo("default-correlation"));
+            Assert.That((int)publishedProperties.DeliveryMode, Is.EqualTo(2));
+            Assert.That(publishedProperties.MessageId, Is.EqualTo("default-message"));
+            Assert.That(publishedProperties.Priority, Is.EqualTo(3));
+            Assert.That(publishedProperties.ReplyTo, Is.EqualTo("default-reply"));
+            Assert.That(publishedProperties.Timestamp.UnixTime, Is.EqualTo(456));
             Assert.That(publishedProperties.Type, Is.EqualTo("default-type"));
+            Assert.That(publishedProperties.UserId, Is.EqualTo("default-user"));
         });
     }
 
