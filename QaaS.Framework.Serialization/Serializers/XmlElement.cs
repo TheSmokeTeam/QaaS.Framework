@@ -9,7 +9,7 @@ namespace QaaS.Framework.Serialization.Serializers;
 /// Serializes XElement/XDocument C# objects (or any xml serializable C# object) to a byte[] of xml without
 /// an xml declaration
 /// </summary>
-public class XmlElement: ISerializer
+public class XmlElement : ISerializer
 {
     /// <inheritdoc />
     /// <remarks>
@@ -28,8 +28,12 @@ public class XmlElement: ISerializer
             default:
             {
                 using var memoryStream = new MemoryStream();
-                using (var xmlWriter = XmlWriter.Create(memoryStream,
-                           new XmlWriterSettings { OmitXmlDeclaration = true }))
+                using (
+                    var xmlWriter = XmlWriter.Create(
+                        memoryStream,
+                        new XmlWriterSettings { OmitXmlDeclaration = true }
+                    )
+                )
                 {
                     new XmlSerializer(data.GetType()).Serialize(xmlWriter, data);
                 }

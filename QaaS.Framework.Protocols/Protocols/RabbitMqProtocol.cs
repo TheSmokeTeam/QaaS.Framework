@@ -25,8 +25,8 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     private ConnectionFactory ConnectionFactory { get; set; }
 
-    public RabbitMqProtocol(RabbitMqReaderConfig configurations, ILogger logger) : this(
-        (BaseRabbitMqConfig)configurations, logger)
+    public RabbitMqProtocol(RabbitMqReaderConfig configurations, ILogger logger)
+        : this((BaseRabbitMqConfig)configurations, logger)
     {
         RoutingKey = configurations.RoutingKey;
         ExchangeName = configurations.ExchangeName ?? string.Empty;
@@ -34,13 +34,14 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         _rabbitMqReaderConfig = configurations;
     }
 
-    public RabbitMqProtocol(RabbitMqSenderConfig configurations, ILogger logger) : this(
-        (BaseRabbitMqConfig)configurations, logger)
+    public RabbitMqProtocol(RabbitMqSenderConfig configurations, ILogger logger)
+        : this((BaseRabbitMqConfig)configurations, logger)
     {
         // When sending directly to a queue the exchange value is an empty string (rabbitmq's default exchange which is
         // implicitly connected to every queue), and the routing key represents the queue's name.
         RoutingKey = configurations.QueueName ?? configurations.RoutingKey;
-        ExchangeName = configurations.QueueName != null ? string.Empty : configurations.ExchangeName!;
+        ExchangeName =
+            configurations.QueueName != null ? string.Empty : configurations.ExchangeName!;
 
         _defaultMetaData = new RabbitMq
         {
@@ -68,12 +69,18 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         _logger = logger;
         ConnectionFactory = new ConnectionFactory
         {
-            HostName = configurations.Host!, Port = configurations.Port,
-            UserName = configurations.Username, Password = configurations.Password,
+            HostName = configurations.Host!,
+            Port = configurations.Port,
+            UserName = configurations.Username,
+            Password = configurations.Password,
             VirtualHost = configurations.VirtualHost,
             ContinuationTimeout = TimeSpan.FromSeconds(configurations.ContinuationTimeoutSeconds),
-            RequestedConnectionTimeout = TimeSpan.FromSeconds(configurations.RequestedConnectionTimeoutSeconds),
-            HandshakeContinuationTimeout = TimeSpan.FromSeconds(configurations.HandshakeContinuationTimeoutSeconds),
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(
+                configurations.RequestedConnectionTimeoutSeconds
+            ),
+            HandshakeContinuationTimeout = TimeSpan.FromSeconds(
+                configurations.HandshakeContinuationTimeoutSeconds
+            ),
         };
     }
 
@@ -81,14 +88,17 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object>? Read(TimeSpan timeout)
     {
-        _channel.QueueDeclarePassiveAsync(_queueName ?? _defaultQueueName).GetAwaiter()
-            .GetResult(); // Before reading check if queue exists
+        _channel.QueueDeclarePassiveAsync(_queueName ?? _defaultQueueName).GetAwaiter().GetResult(); // Before reading check if queue exists
 
         var timoutToken = new CancellationTokenSource(timeout).Token;
         while (!timoutToken.IsCancellationRequested)
         {
-            var message = _channel.BasicGetAsync(_queueName ?? _defaultQueueName, true).GetAwaiter().GetResult();
-            if (message == null) continue;
+            var message = _channel
+                .BasicGetAsync(_queueName ?? _defaultQueueName, true)
+                .GetAwaiter()
+                .GetResult();
+            if (message == null)
+                continue;
             _logger.LogDebug("Read message in bytes from Queue {QueueName}", _queueName);
             return new DetailedData<object>
             {
@@ -98,8 +108,12 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
                     RabbitMq = new RabbitMq
                     {
                         RoutingKey = message.RoutingKey,
-                        AppId = message.BasicProperties.IsAppIdPresent() ? message.BasicProperties.AppId : null,
-                        ClusterId = message.BasicProperties.IsClusterIdPresent() ? message.BasicProperties.ClusterId : null,
+                        AppId = message.BasicProperties.IsAppIdPresent()
+                            ? message.BasicProperties.AppId
+                            : null,
+                        ClusterId = message.BasicProperties.IsClusterIdPresent()
+                            ? message.BasicProperties.ClusterId
+                            : null,
                         ContentEncoding = message.BasicProperties.IsContentEncodingPresent()
                             ? message.BasicProperties.ContentEncoding
                             : null,
@@ -138,10 +152,10 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
                             : null,
                         UserId = message.BasicProperties.IsUserIdPresent()
                             ? message.BasicProperties.UserId
-                            : null
-                    }
+                            : null,
+                    },
                 },
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
             };
         }
 
@@ -154,36 +168,46 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         var routingKey = metadata.RoutingKey ?? RoutingKey;
         var body = dataToSend.CastObjectData<byte[]>().Body;
 
-        _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter()
-            .GetResult(); // Before sending check if exchange exists
+        _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter().GetResult(); // Before sending check if exchange exists
 
         var basicProperties = CreateBasicProperties(metadata);
         if (basicProperties == null)
         {
-            _channel.BasicPublishAsync(ExchangeName, routingKey, true, body).GetAwaiter()
+            _channel
+                .BasicPublishAsync(ExchangeName, routingKey, true, body)
+                .GetAwaiter()
                 .GetResult();
         }
         else
         {
-            _channel.BasicPublishAsync(ExchangeName, routingKey, true, basicProperties, body).GetAwaiter()
+            _channel
+                .BasicPublishAsync(ExchangeName, routingKey, true, basicProperties, body)
+                .GetAwaiter()
                 .GetResult(); // Assumes data is byte[]
         }
 
-        _logger.LogDebug("Sent message in bytes to Exchange {ExchangeName}, Queue {QueueName}", ExchangeName,
-            _queueName);
+        _logger.LogDebug(
+            "Sent message in bytes to Exchange {ExchangeName}, Queue {QueueName}",
+            ExchangeName,
+            _queueName
+        );
         return dataToSend.CloneDetailed();
     }
 
-    private static IDictionary<string, object?>? NormalizeHeaders(IDictionary<string, object?>? headers) =>
-        headers is { Count: > 0 } ? headers : null;
+    private static IDictionary<string, object?>? NormalizeHeaders(
+        IDictionary<string, object?>? headers
+    ) => headers is { Count: > 0 } ? headers : null;
 
     private static string? NormalizeOptionalString(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
 
     private RabbitMq NormalizeRabbitMqMetadata(RabbitMq? metadata)
     {
-        var defaultMetadata = _defaultMetaData
-                              ?? throw new InvalidOperationException("RabbitMQ sender metadata defaults were not initialized.");
+        var defaultMetadata =
+            _defaultMetaData
+            ?? throw new InvalidOperationException(
+                "RabbitMQ sender metadata defaults were not initialized."
+            );
         var resolvedDeliveryMode = metadata?.DeliveryMode ?? defaultMetadata.DeliveryMode;
         var resolvedPriority = metadata?.Priority ?? defaultMetadata.Priority;
         var resolvedTimestamp = metadata?.TimestampUnixTime ?? defaultMetadata.TimestampUnixTime;
@@ -193,11 +217,19 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
             RoutingKey = NormalizeOptionalString(metadata?.RoutingKey) ?? RoutingKey,
             AppId = NormalizeOptionalString(metadata?.AppId ?? defaultMetadata.AppId),
             ClusterId = NormalizeOptionalString(metadata?.ClusterId ?? defaultMetadata.ClusterId),
-            ContentEncoding = NormalizeOptionalString(metadata?.ContentEncoding ?? defaultMetadata.ContentEncoding),
-            ContentType = NormalizeOptionalString(metadata?.ContentType ?? defaultMetadata.ContentType),
-            CorrelationId = NormalizeOptionalString(metadata?.CorrelationId ?? defaultMetadata.CorrelationId),
+            ContentEncoding = NormalizeOptionalString(
+                metadata?.ContentEncoding ?? defaultMetadata.ContentEncoding
+            ),
+            ContentType = NormalizeOptionalString(
+                metadata?.ContentType ?? defaultMetadata.ContentType
+            ),
+            CorrelationId = NormalizeOptionalString(
+                metadata?.CorrelationId ?? defaultMetadata.CorrelationId
+            ),
             DeliveryMode = NormalizeDeliveryMode(resolvedDeliveryMode),
-            Expiration = NormalizeOptionalString(metadata?.Expiration ?? defaultMetadata.Expiration),
+            Expiration = NormalizeOptionalString(
+                metadata?.Expiration ?? defaultMetadata.Expiration
+            ),
             Headers = NormalizeHeaders(metadata?.Headers ?? defaultMetadata.Headers),
             MessageId = NormalizeOptionalString(metadata?.MessageId ?? defaultMetadata.MessageId),
             Persistent = metadata?.Persistent ?? defaultMetadata.Persistent,
@@ -214,19 +246,56 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         var basicProperties = new BasicProperties();
         var hasProperties = false;
 
-        SetOptionalStringProperty(metadata.AppId, value => basicProperties.AppId = value, ref hasProperties);
-        SetOptionalStringProperty(metadata.ClusterId, value => basicProperties.ClusterId = value, ref hasProperties);
-        SetOptionalStringProperty(metadata.ContentEncoding, value => basicProperties.ContentEncoding = value,
-            ref hasProperties);
-        SetOptionalStringProperty(metadata.ContentType, value => basicProperties.ContentType = value,
-            ref hasProperties);
-        SetOptionalStringProperty(metadata.CorrelationId, value => basicProperties.CorrelationId = value,
-            ref hasProperties);
-        SetOptionalStringProperty(metadata.Expiration, value => basicProperties.Expiration = value, ref hasProperties);
-        SetOptionalStringProperty(metadata.MessageId, value => basicProperties.MessageId = value, ref hasProperties);
-        SetOptionalStringProperty(metadata.ReplyTo, value => basicProperties.ReplyTo = value, ref hasProperties);
-        SetOptionalStringProperty(metadata.Type, value => basicProperties.Type = value, ref hasProperties);
-        SetOptionalStringProperty(metadata.UserId, value => basicProperties.UserId = value, ref hasProperties);
+        SetOptionalStringProperty(
+            metadata.AppId,
+            value => basicProperties.AppId = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.ClusterId,
+            value => basicProperties.ClusterId = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.ContentEncoding,
+            value => basicProperties.ContentEncoding = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.ContentType,
+            value => basicProperties.ContentType = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.CorrelationId,
+            value => basicProperties.CorrelationId = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.Expiration,
+            value => basicProperties.Expiration = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.MessageId,
+            value => basicProperties.MessageId = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.ReplyTo,
+            value => basicProperties.ReplyTo = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.Type,
+            value => basicProperties.Type = value,
+            ref hasProperties
+        );
+        SetOptionalStringProperty(
+            metadata.UserId,
+            value => basicProperties.UserId = value,
+            ref hasProperties
+        );
 
         if (metadata.Headers != null)
         {
@@ -260,9 +329,14 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         return hasProperties ? basicProperties : null;
     }
 
-    private static void SetOptionalStringProperty(string? value, Action<string> setProperty, ref bool hasProperties)
+    private static void SetOptionalStringProperty(
+        string? value,
+        Action<string> setProperty,
+        ref bool hasProperties
+    )
     {
-        if (value == null) return;
+        if (value == null)
+            return;
 
         setProperty(value);
         hasProperties = true;
@@ -270,30 +344,42 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     private static int? NormalizeDeliveryMode(int? value)
     {
-        if (value is null) return null;
+        if (value is null)
+            return null;
         if (value is < 1 or > 2)
-            throw new ArgumentOutOfRangeException(nameof(value), value,
-                "RabbitMQ delivery mode must be 1 (transient) or 2 (persistent).");
+            throw new ArgumentOutOfRangeException(
+                nameof(value),
+                value,
+                "RabbitMQ delivery mode must be 1 (transient) or 2 (persistent)."
+            );
 
         return value;
     }
 
     private static int? NormalizePriority(int? value)
     {
-        if (value is null) return null;
+        if (value is null)
+            return null;
         if (value is < 0 or > byte.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(value), value,
-                "RabbitMQ priority must be between 0 and 255.");
+            throw new ArgumentOutOfRangeException(
+                nameof(value),
+                value,
+                "RabbitMQ priority must be between 0 and 255."
+            );
 
         return value;
     }
 
     private static long? NormalizeTimestamp(long? value)
     {
-        if (value is null) return null;
+        if (value is null)
+            return null;
         if (value < 0)
-            throw new ArgumentOutOfRangeException(nameof(value), value,
-                "RabbitMQ timestamp must be a non-negative Unix time value.");
+            throw new ArgumentOutOfRangeException(
+                nameof(value),
+                value,
+                "RabbitMQ timestamp must be a non-negative Unix time value."
+            );
 
         return value;
     }
@@ -308,18 +394,32 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
     {
         _connection = ConnectionFactory.CreateConnectionAsync().GetAwaiter().GetResult();
         _channel = _connection.CreateChannelAsync().GetAwaiter().GetResult();
-        if (_rabbitMqReaderConfig == null) return;
+        if (_rabbitMqReaderConfig == null)
+            return;
         if (_queueName == null)
-            _channel.QueueDeclareAsync(_defaultQueueName, arguments: new Dictionary<string, object?>
-            {
-                {
-                    "x-expires",
-                    (int)TimeSpan.FromMilliseconds(_rabbitMqReaderConfig.CreatedQueueTimeToExpireMs).TotalMilliseconds
-                }
-            }).GetAwaiter().GetResult();
+            _channel
+                .QueueDeclareAsync(
+                    _defaultQueueName,
+                    arguments: new Dictionary<string, object?>
+                    {
+                        {
+                            "x-expires",
+                            (int)
+                                TimeSpan
+                                    .FromMilliseconds(
+                                        _rabbitMqReaderConfig.CreatedQueueTimeToExpireMs
+                                    )
+                                    .TotalMilliseconds
+                        },
+                    }
+                )
+                .GetAwaiter()
+                .GetResult();
 
-        _channel.QueueBindAsync(_queueName ?? _defaultQueueName, ExchangeName, RoutingKey).GetAwaiter().GetResult();
-
+        _channel
+            .QueueBindAsync(_queueName ?? _defaultQueueName, ExchangeName, RoutingKey)
+            .GetAwaiter()
+            .GetResult();
     }
 
     public void Disconnect()

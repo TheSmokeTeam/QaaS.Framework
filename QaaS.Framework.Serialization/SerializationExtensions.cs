@@ -35,7 +35,11 @@ public static class SerializerExtensions
     /// <remarks>
     /// Example: `if (serializer.TrySerialize(order, out var payload)) { ... }`
     /// </remarks>
-    public static bool TrySerialize(this ISerializer serializer, object? data, out byte[]? serialized)
+    public static bool TrySerialize(
+        this ISerializer serializer,
+        object? data,
+        out byte[]? serialized
+    )
     {
         try
         {
@@ -72,11 +76,14 @@ public static class DeserializerExtensions
     public static TResult? Deserialize<TResult>(this IDeserializer deserializer, byte[]? data)
     {
         var deserialized = deserializer.Deserialize(data, typeof(TResult));
-        if (deserialized is null) return default;
-        if (deserialized is TResult typed) return typed;
+        if (deserialized is null)
+            return default;
+        if (deserialized is TResult typed)
+            return typed;
         throw new QaasSerializationException(
-            $"`{deserializer.GetType().Name}` deserialization produced `{deserialized.GetType()}` which is not" +
-            $" assignable to the requested type `{typeof(TResult)}`");
+            $"`{deserializer.GetType().Name}` deserialization produced `{deserialized.GetType()}` which is not"
+                + $" assignable to the requested type `{typeof(TResult)}`"
+        );
     }
 
     /// <summary>
@@ -92,8 +99,10 @@ public static class DeserializerExtensions
     /// <remarks>
     /// Example: `Order? order = SerializationType.Json.BuildDeserializer().DeserializeFromString&lt;Order&gt;(json);`
     /// </remarks>
-    public static TResult? DeserializeFromString<TResult>(this IDeserializer deserializer, string? data) =>
-        deserializer.Deserialize<TResult>(data is null ? null : Encoding.UTF8.GetBytes(data));
+    public static TResult? DeserializeFromString<TResult>(
+        this IDeserializer deserializer,
+        string? data
+    ) => deserializer.Deserialize<TResult>(data is null ? null : Encoding.UTF8.GetBytes(data));
 
     /// <summary>
     /// Deserializes the given UTF-8 string to an object,
@@ -107,9 +116,15 @@ public static class DeserializerExtensions
     /// <remarks>
     /// Example: `object? parsed = deserializer.DeserializeFromString(json, typeof(Order));`
     /// </remarks>
-    public static object? DeserializeFromString(this IDeserializer deserializer, string? data,
-        Type? deserializeType = null) =>
-        deserializer.Deserialize(data is null ? null : Encoding.UTF8.GetBytes(data), deserializeType);
+    public static object? DeserializeFromString(
+        this IDeserializer deserializer,
+        string? data,
+        Type? deserializeType = null
+    ) =>
+        deserializer.Deserialize(
+            data is null ? null : Encoding.UTF8.GetBytes(data),
+            deserializeType
+        );
 
     /// <summary>
     /// Attempts to deserialize the given byte[] directly to <typeparamref name="TResult"/>, never throws
@@ -122,8 +137,11 @@ public static class DeserializerExtensions
     /// <remarks>
     /// Example: `if (deserializer.TryDeserialize&lt;Order&gt;(payload, out var order)) { ... }`
     /// </remarks>
-    public static bool TryDeserialize<TResult>(this IDeserializer deserializer, byte[]? data,
-        out TResult? deserialized)
+    public static bool TryDeserialize<TResult>(
+        this IDeserializer deserializer,
+        byte[]? data,
+        out TResult? deserialized
+    )
     {
         try
         {

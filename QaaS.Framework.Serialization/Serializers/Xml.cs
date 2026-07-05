@@ -7,7 +7,7 @@ namespace QaaS.Framework.Serialization.Serializers;
 /// <summary>
 /// Serializes XDocument/XElement C# objects (or any xml serializable C# object) to a byte[] representing xml
 /// </summary>
-public class Xml: ISerializer
+public class Xml : ISerializer
 {
     /// <inheritdoc />
     /// <remarks>
@@ -17,7 +17,8 @@ public class Xml: ISerializer
     /// </remarks>
     public byte[]? Serialize(object? data)
     {
-        if (data is null) return null;
+        if (data is null)
+            return null;
         using var memoryStream = new MemoryStream();
         switch (data)
         {

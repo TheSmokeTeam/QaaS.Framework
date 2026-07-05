@@ -14,16 +14,14 @@ public class QaasSerializationException : Exception
     /// Creates a new QaasSerializationException with an indicative message
     /// </summary>
     /// <param name="message"> The indicative message describing the serialization failure </param>
-    public QaasSerializationException(string message) : base(message)
-    {
-    }
+    public QaasSerializationException(string message)
+        : base(message) { }
 
     /// <summary>
     /// Creates a new QaasSerializationException with an indicative message and the original failure
     /// </summary>
     /// <param name="message"> The indicative message describing the serialization failure </param>
     /// <param name="innerException"> The original exception that caused the failure </param>
-    public QaasSerializationException(string message, Exception? innerException) : base(message, innerException)
-    {
-    }
+    public QaasSerializationException(string message, Exception? innerException)
+        : base(message, innerException) { }
 }

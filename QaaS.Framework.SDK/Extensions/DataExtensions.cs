@@ -25,33 +25,26 @@ public static class DataExtensions
     public static Data<TCasted> CastObjectData<TCasted>(this Data<object> data)
     {
         if (data.Body is null)
-            return new Data<TCasted>
-            {
-                Body = default,
-                MetaData = data.MetaData
-            };
+            return new Data<TCasted> { Body = default, MetaData = data.MetaData };
         try
         {
-            return new Data<TCasted>
-            {
-                Body = (TCasted?)data.Body,
-                MetaData = data.MetaData
-            };
+            return new Data<TCasted> { Body = (TCasted?)data.Body, MetaData = data.MetaData };
         }
         catch (Exception e)
         {
-            if (data.Body is not null &&
-                TryConvertRepresentation<TCasted>(data.Body, null, out var converted))
-                return new Data<TCasted>
-                {
-                    Body = converted,
-                    MetaData = data.MetaData
-                };
-            throw new InvalidCastException($"Failed to cast `Data<object>` that is actually " +
-                                           $"`Data<{data.Body?.GetType()}>` to `Data<{typeof(TCasted)}>`", e);
+            if (
+                data.Body is not null
+                && TryConvertRepresentation<TCasted>(data.Body, null, out var converted)
+            )
+                return new Data<TCasted> { Body = converted, MetaData = data.MetaData };
+            throw new InvalidCastException(
+                $"Failed to cast `Data<object>` that is actually "
+                    + $"`Data<{data.Body?.GetType()}>` to `Data<{typeof(TCasted)}>`",
+                e
+            );
         }
     }
-    
+
     /// <summary>
     /// Casts a `Data` of any type to a Data of type object, if the cast is not valid will throw InvalidCastException
     /// </summary>
@@ -60,13 +53,9 @@ public static class DataExtensions
     /// <returns> Data casted to object </returns>
     public static Data<object> CastToObjectData<TData>(this Data<TData> data)
     {
-        return new Data<object>
-        {
-            Body = data.Body,
-            MetaData = data.MetaData
-        };
+        return new Data<object> { Body = data.Body, MetaData = data.MetaData };
     }
-    
+
     /// <summary>
     /// Casts a `DetailedData` of type object to another type, if the cast is not valid will throw InvalidCastException.
     /// A null body always casts successfully and produces the default value of the target type
@@ -79,23 +68,26 @@ public static class DataExtensions
     /// <param name="detailedData"> The DetailedData to cast to another type </param>
     /// <typeparam name="TCasted"> The type to cast to </typeparam>
     /// <returns> DetailedData casted to the cast type </returns>
-    public static DetailedData<TCasted> CastObjectDetailedData<TCasted>(this DetailedData<object> detailedData) =>
-        detailedData.CastObjectDetailedDataCore<TCasted>(null);
+    public static DetailedData<TCasted> CastObjectDetailedData<TCasted>(
+        this DetailedData<object> detailedData
+    ) => detailedData.CastObjectDetailedDataCore<TCasted>(null);
 
     /// <summary>
     /// Casts a `DetailedData` of type object to another type with a known serialization type to prefer when
     /// the body has to be converted from a deserialized representation (e.g. a JsonNode body),
     /// falling back to inferring the serialization type from the body's runtime type when none is given
     /// </summary>
-    internal static DetailedData<TCasted> CastObjectDetailedDataCore<TCasted>(this DetailedData<object> detailedData,
-        SerializationType? declaredSerializationType)
+    internal static DetailedData<TCasted> CastObjectDetailedDataCore<TCasted>(
+        this DetailedData<object> detailedData,
+        SerializationType? declaredSerializationType
+    )
     {
         if (detailedData.Body is null)
             return new DetailedData<TCasted>
             {
                 Body = default,
                 MetaData = detailedData.MetaData,
-                Timestamp = detailedData.Timestamp
+                Timestamp = detailedData.Timestamp,
             };
         try
         {
@@ -103,52 +95,65 @@ public static class DataExtensions
             {
                 Body = (TCasted?)detailedData.Body,
                 MetaData = detailedData.MetaData,
-                Timestamp = detailedData.Timestamp
+                Timestamp = detailedData.Timestamp,
             };
         }
         catch (Exception e)
         {
-            if (detailedData.Body is not null &&
-                TryConvertRepresentation<TCasted>(detailedData.Body, declaredSerializationType, out var converted))
+            if (
+                detailedData.Body is not null
+                && TryConvertRepresentation<TCasted>(
+                    detailedData.Body,
+                    declaredSerializationType,
+                    out var converted
+                )
+            )
                 return new DetailedData<TCasted>
                 {
                     Body = converted,
                     MetaData = detailedData.MetaData,
-                    Timestamp = detailedData.Timestamp
+                    Timestamp = detailedData.Timestamp,
                 };
-            throw new InvalidCastException($"Failed to cast `DetailedData<object>` that is actually " +
-                                          $"`DetailedData<{detailedData.Body?.GetType()}>` to `DetailedData<{typeof(TCasted)}>`",
-                e);
+            throw new InvalidCastException(
+                $"Failed to cast `DetailedData<object>` that is actually "
+                    + $"`DetailedData<{detailedData.Body?.GetType()}>` to `DetailedData<{typeof(TCasted)}>`",
+                e
+            );
         }
     }
-    
+
     /// <summary>
     /// Casts a `DetailedData` of any type to a DetailedData of type object, if the cast is not valid will throw InvalidCastException
     /// </summary>
     /// <param name="detailedData"> The DetailedData to cast to DetailedData object </param>
     /// <typeparam name="TData"> The type to cast from </typeparam>
     /// <returns> DetailedData casted to object</returns>
-    public static DetailedData<object> CastToObjectDetailedData<TData>(this DetailedData<TData> detailedData)
+    public static DetailedData<object> CastToObjectDetailedData<TData>(
+        this DetailedData<TData> detailedData
+    )
     {
         return new DetailedData<object>
         {
             Body = detailedData.Body,
             MetaData = detailedData.MetaData,
-            Timestamp = detailedData.Timestamp
+            Timestamp = detailedData.Timestamp,
         };
     }
-    
+
     /// <summary>
     /// Filters the data of a detailed data item according to the given DataFilter
     /// </summary>
-    public static DetailedData<TData> FilterData<TData>(this DetailedData<TData> dataItemToFilter,
-        DataFilter dataFilter) where TData : class
+    public static DetailedData<TData> FilterData<TData>(
+        this DetailedData<TData> dataItemToFilter,
+        DataFilter dataFilter
+    )
+        where TData : class
     {
-        return dataItemToFilter with 
+        return dataItemToFilter with
         {
             Body = dataFilter.Body ? dataItemToFilter.Body : null,
             Timestamp = dataFilter.Timestamp ? dataItemToFilter.Timestamp : null,
-            MetaData = dataFilter.MetaData ? dataItemToFilter.MetaData : null
+            MetaData = dataFilter.MetaData ? dataItemToFilter.MetaData : null,
         };
     }
 
@@ -164,8 +169,10 @@ public static class DataExtensions
     /// <remarks>
     /// Example: `if (data.TryCastObjectData&lt;byte[]&gt;(out var bytesData)) { ... }`
     /// </remarks>
-    public static bool TryCastObjectData<TCasted>(this Data<object> data,
-        [NotNullWhen(true)] out Data<TCasted>? casted)
+    public static bool TryCastObjectData<TCasted>(
+        this Data<object> data,
+        [NotNullWhen(true)] out Data<TCasted>? casted
+    )
     {
         try
         {
@@ -191,8 +198,10 @@ public static class DataExtensions
     /// <remarks>
     /// Example: `if (detailedData.TryCastObjectDetailedData&lt;byte[]&gt;(out var bytesItem)) { ... }`
     /// </remarks>
-    public static bool TryCastObjectDetailedData<TCasted>(this DetailedData<object> detailedData,
-        [NotNullWhen(true)] out DetailedData<TCasted>? casted)
+    public static bool TryCastObjectDetailedData<TCasted>(
+        this DetailedData<object> detailedData,
+        [NotNullWhen(true)] out DetailedData<TCasted>? casted
+    )
     {
         try
         {
@@ -222,13 +231,17 @@ public static class DataExtensions
     /// <remarks>
     /// Example: `byte[]? raw = detailedData.GetBodyAs&lt;byte[]&gt;();`
     /// </remarks>
-    public static TBody? GetBodyAs<TBody>(this Data<object> data) => GetBodyCore<TBody>(data.Body, null);
+    public static TBody? GetBodyAs<TBody>(this Data<object> data) =>
+        GetBodyCore<TBody>(data.Body, null);
 
     /// <summary>
     /// Retrieves a body directly as the requested type, converting deserialized representations through the
     /// declared serialization type when one is known (preferred) or the inferred one otherwise
     /// </summary>
-    internal static TBody? GetBodyCore<TBody>(object? body, SerializationType? declaredSerializationType)
+    internal static TBody? GetBodyCore<TBody>(
+        object? body,
+        SerializationType? declaredSerializationType
+    )
     {
         switch (body)
         {
@@ -237,13 +250,20 @@ public static class DataExtensions
             case TBody typed:
                 return typed;
             default:
-                if (TryConvertRepresentation<TBody>(body, declaredSerializationType, out var converted))
+                if (
+                    TryConvertRepresentation<TBody>(
+                        body,
+                        declaredSerializationType,
+                        out var converted
+                    )
+                )
                     return converted;
                 throw new InvalidCastException(
-                    $"The body of this `Data<object>` is of type `{body.GetType()}` which is not assignable" +
-                    $" to the requested type `{typeof(TBody)}` and could not be converted to it. If the body" +
-                    $" is a different representation of the same content (e.g. JsonNode or byte[]), use" +
-                    $" `ConvertBodyTo<{typeof(TBody).Name}>` with the matching SerializationType instead");
+                    $"The body of this `Data<object>` is of type `{body.GetType()}` which is not assignable"
+                        + $" to the requested type `{typeof(TBody)}` and could not be converted to it. If the body"
+                        + $" is a different representation of the same content (e.g. JsonNode or byte[]), use"
+                        + $" `ConvertBodyTo<{typeof(TBody).Name}>` with the matching SerializationType instead"
+                );
         }
     }
 
@@ -254,20 +274,25 @@ public static class DataExtensions
     /// runtime type otherwise (raw byte[] bodies are only converted when a serialization type is declared
     /// because their format cannot be inferred)
     /// </summary>
-    private static bool TryConvertRepresentation<TCasted>(object body,
-        SerializationType? declaredSerializationType, out TCasted? converted)
+    private static bool TryConvertRepresentation<TCasted>(
+        object body,
+        SerializationType? declaredSerializationType,
+        out TCasted? converted
+    )
     {
         converted = default;
         var serializationType = declaredSerializationType;
         if (serializationType == null)
         {
-            if (!QaasSerializer.TryInferSerializationType(body, out var inferred)) return false;
+            if (!QaasSerializer.TryInferSerializationType(body, out var inferred))
+                return false;
             serializationType = inferred;
         }
 
         try
         {
-            var serializedBody = body as byte[] ?? QaasSerializer.Serialize(body, serializationType);
+            var serializedBody =
+                body as byte[] ?? QaasSerializer.Serialize(body, serializationType);
             converted = QaasSerializer.Deserialize<TCasted>(serializedBody, serializationType);
             return converted is not null;
         }
@@ -321,11 +346,16 @@ public static class DataExtensions
     /// <remarks>
     /// Example: `Order? order = detailedData.ConvertBodyTo&lt;Order&gt;(SerializationType.Json);`
     /// </remarks>
-    public static TBody? ConvertBodyTo<TBody>(this Data<object> data, SerializationType serializationType)
+    public static TBody? ConvertBodyTo<TBody>(
+        this Data<object> data,
+        SerializationType serializationType
+    )
     {
         var body = data.Body;
-        if (body is null) return default;
-        if (body is TBody typed) return typed;
+        if (body is null)
+            return default;
+        if (body is TBody typed)
+            return typed;
         var serializedBody = body as byte[] ?? QaasSerializer.Serialize(body, serializationType);
         return QaasSerializer.Deserialize<TBody>(serializedBody, serializationType);
     }
@@ -342,12 +372,15 @@ public static class DataExtensions
     /// <remarks>
     /// Example: `Data&lt;Order&gt; typed = data.ConvertData&lt;Order&gt;(SerializationType.Json);`
     /// </remarks>
-    public static Data<TBody> ConvertData<TBody>(this Data<object> data, SerializationType serializationType)
+    public static Data<TBody> ConvertData<TBody>(
+        this Data<object> data,
+        SerializationType serializationType
+    )
     {
         return new Data<TBody>
         {
             Body = data.ConvertBodyTo<TBody>(serializationType),
-            MetaData = data.MetaData
+            MetaData = data.MetaData,
         };
     }
 
@@ -364,14 +397,16 @@ public static class DataExtensions
     /// <remarks>
     /// Example: `DetailedData&lt;Order&gt; typed = detailedData.ConvertDetailedData&lt;Order&gt;(SerializationType.Json);`
     /// </remarks>
-    public static DetailedData<TBody> ConvertDetailedData<TBody>(this DetailedData<object> detailedData,
-        SerializationType serializationType)
+    public static DetailedData<TBody> ConvertDetailedData<TBody>(
+        this DetailedData<object> detailedData,
+        SerializationType serializationType
+    )
     {
         return new DetailedData<TBody>
         {
             Body = detailedData.ConvertBodyTo<TBody>(serializationType),
             MetaData = detailedData.MetaData,
-            Timestamp = detailedData.Timestamp
+            Timestamp = detailedData.Timestamp,
         };
     }
 }

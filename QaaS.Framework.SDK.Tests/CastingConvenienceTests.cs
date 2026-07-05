@@ -18,12 +18,16 @@ public class CastingConvenienceTests
         public int Amount { get; set; }
     }
 
-    private static DetailedData<object> JsonNodeDetailedData(string id, int amount, int? ioMatchIndex = null) =>
+    private static DetailedData<object> JsonNodeDetailedData(
+        string id,
+        int amount,
+        int? ioMatchIndex = null
+    ) =>
         new()
         {
             Body = JsonNode.Parse($"{{\"Id\":\"{id}\",\"Amount\":{amount}}}"),
             MetaData = ioMatchIndex == null ? null : new MetaData { IoMatchIndex = ioMatchIndex },
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
         };
 
     #region Data casting helpers
@@ -59,7 +63,7 @@ public class CastingConvenienceTests
         {
             Body = "hello",
             MetaData = metaData,
-            Timestamp = timestamp
+            Timestamp = timestamp,
         };
 
         var success = detailedData.TryCastObjectDetailedData<string>(out var casted);
@@ -157,8 +161,10 @@ public class CastingConvenienceTests
     [Test]
     public void ConvertBodyTo_DeserializesByteArrayBody()
     {
-        var serialized = QaasSerializer.Serialize(new OrderPayload { Id = "o-2", Amount = 9 },
-            SerializationType.Json);
+        var serialized = QaasSerializer.Serialize(
+            new OrderPayload { Id = "o-2", Amount = 9 },
+            SerializationType.Json
+        );
         var data = new Data<object> { Body = serialized };
 
         var converted = data.ConvertBodyTo<OrderPayload>(SerializationType.Json);
@@ -194,7 +200,7 @@ public class CastingConvenienceTests
         var data = new Data<object>
         {
             Body = JsonNode.Parse("{\"Id\":\"o-4\",\"Amount\":1}"),
-            MetaData = metaData
+            MetaData = metaData,
         };
 
         var converted = data.ConvertData<OrderPayload>(SerializationType.Json);
@@ -215,7 +221,7 @@ public class CastingConvenienceTests
         {
             Body = JsonNode.Parse("{\"Id\":\"o-5\",\"Amount\":2}"),
             MetaData = metaData,
-            Timestamp = timestamp
+            Timestamp = timestamp,
         };
 
         var converted = detailedData.ConvertDetailedData<OrderPayload>(SerializationType.Json);
@@ -234,7 +240,8 @@ public class CastingConvenienceTests
         var data = new Data<object> { Body = "definitely { not json"u8.ToArray() };
 
         Assert.Throws<QaasSerializationException>(() =>
-            data.ConvertBodyTo<OrderPayload>(SerializationType.Json));
+            data.ConvertBodyTo<OrderPayload>(SerializationType.Json)
+        );
     }
 
     #endregion
@@ -248,20 +255,36 @@ public class CastingConvenienceTests
         {
             new() { Name = "unique", Data = [] },
             new() { Name = "duplicated", Data = [] },
-            new() { Name = "duplicated", Data = [] }
+            new() { Name = "duplicated", Data = [] },
         };
 
         Assert.Multiple(() =>
         {
-            Assert.That(communicationDataList.TryGetCommunicationDataByName("unique", out var found), Is.True);
+            Assert.That(
+                communicationDataList.TryGetCommunicationDataByName("unique", out var found),
+                Is.True
+            );
             Assert.That(found!.Name, Is.EqualTo("unique"));
-            Assert.That(communicationDataList.TryGetCommunicationDataByName("missing", out var missing), Is.False);
+            Assert.That(
+                communicationDataList.TryGetCommunicationDataByName("missing", out var missing),
+                Is.False
+            );
             Assert.That(missing, Is.Null);
-            Assert.That(communicationDataList.TryGetCommunicationDataByName("duplicated", out var duplicated),
-                Is.False);
+            Assert.That(
+                communicationDataList.TryGetCommunicationDataByName(
+                    "duplicated",
+                    out var duplicated
+                ),
+                Is.False
+            );
             Assert.That(duplicated, Is.Null);
-            Assert.That(((List<CommunicationData<object>>?)null)
-                .TryGetCommunicationDataByName("any", out _), Is.False);
+            Assert.That(
+                ((List<CommunicationData<object>>?)null).TryGetCommunicationDataByName(
+                    "any",
+                    out _
+                ),
+                Is.False
+            );
         });
     }
 
@@ -271,12 +294,12 @@ public class CastingConvenienceTests
         var castable = new CommunicationData<object>
         {
             Name = "castable",
-            Data = [new DetailedData<object> { Body = "text" }]
+            Data = [new DetailedData<object> { Body = "text" }],
         };
         var notCastable = new CommunicationData<object>
         {
             Name = "not-castable",
-            Data = [new DetailedData<object> { Body = "text" }]
+            Data = [new DetailedData<object> { Body = "text" }],
         };
 
         Assert.Multiple(() =>
@@ -296,9 +319,17 @@ public class CastingConvenienceTests
             Name = "indexed",
             Data =
             [
-                new DetailedData<object> { Body = "first", MetaData = new MetaData { IoMatchIndex = 1 } },
-                new DetailedData<object> { Body = "second", MetaData = new MetaData { IoMatchIndex = 2 } }
-            ]
+                new DetailedData<object>
+                {
+                    Body = "first",
+                    MetaData = new MetaData { IoMatchIndex = 1 },
+                },
+                new DetailedData<object>
+                {
+                    Body = "second",
+                    MetaData = new MetaData { IoMatchIndex = 2 },
+                },
+            ],
         };
 
         Assert.Multiple(() =>
@@ -320,8 +351,8 @@ public class CastingConvenienceTests
             [
                 new DetailedData<string> { Body = "a" },
                 new DetailedData<string> { Body = null },
-                new DetailedData<string> { Body = "c" }
-            ]
+                new DetailedData<string> { Body = "c" },
+            ],
         };
 
         Assert.That(communicationData.GetBodies(), Is.EqualTo(new[] { "a", null, "c" }));
@@ -333,12 +364,16 @@ public class CastingConvenienceTests
         var typed = new CommunicationData<object>
         {
             Name = "typed-bodies",
-            Data = [new DetailedData<object> { Body = "x" }, new DetailedData<object> { Body = "y" }]
+            Data =
+            [
+                new DetailedData<object> { Body = "x" },
+                new DetailedData<object> { Body = "y" },
+            ],
         };
         var mismatched = new CommunicationData<object>
         {
             Name = "mismatched-bodies",
-            Data = [new DetailedData<object> { Body = "x" }, new DetailedData<object> { Body = 5 }]
+            Data = [new DetailedData<object> { Body = "x" }, new DetailedData<object> { Body = 5 }],
         };
 
         Assert.That(typed.GetBodiesAs<string>(), Is.EqualTo(new[] { "x", "y" }));
@@ -354,7 +389,7 @@ public class CastingConvenienceTests
         {
             Name = "orders",
             SerializationType = SerializationType.Json,
-            Data = [JsonNodeDetailedData("o-1", 10), JsonNodeDetailedData("o-2", 20)]
+            Data = [JsonNodeDetailedData("o-1", 10), JsonNodeDetailedData("o-2", 20)],
         };
 
         var converted = communicationData.ConvertCommunicationData<OrderPayload>();
@@ -376,10 +411,12 @@ public class CastingConvenienceTests
         {
             Name = "override",
             SerializationType = null,
-            Data = [JsonNodeDetailedData("o-3", 30)]
+            Data = [JsonNodeDetailedData("o-3", 30)],
         };
 
-        var converted = communicationData.ConvertCommunicationData<OrderPayload>(SerializationType.Json);
+        var converted = communicationData.ConvertCommunicationData<OrderPayload>(
+            SerializationType.Json
+        );
 
         Assert.That(converted.Data[0].Body!.Id, Is.EqualTo("o-3"));
     }
@@ -391,7 +428,7 @@ public class CastingConvenienceTests
         {
             Name = "plain",
             SerializationType = null,
-            Data = [new DetailedData<object> { Body = "text" }]
+            Data = [new DetailedData<object> { Body = "text" }],
         };
 
         var converted = communicationData.ConvertCommunicationData<string>();
@@ -406,11 +443,16 @@ public class CastingConvenienceTests
         {
             Name = "broken",
             SerializationType = SerializationType.Json,
-            Data = [JsonNodeDetailedData("ok", 1), new DetailedData<object> { Body = "}{"u8.ToArray() }]
+            Data =
+            [
+                JsonNodeDetailedData("ok", 1),
+                new DetailedData<object> { Body = "}{"u8.ToArray() },
+            ],
         };
 
         var exception = Assert.Throws<InvalidCastException>(() =>
-            communicationData.ConvertCommunicationData<OrderPayload>());
+            communicationData.ConvertCommunicationData<OrderPayload>()
+        );
 
         Assert.That(exception!.Message, Does.Contain("index 1"));
         Assert.That(exception.Message, Does.Contain("broken"));
@@ -421,28 +463,29 @@ public class CastingConvenienceTests
 
     #region SessionData typed getters
 
-    private static SessionData BuildSessionData() => new()
-    {
-        Name = "session",
-        Inputs =
-        [
-            new CommunicationData<object>
-            {
-                Name = "orders_input",
-                SerializationType = SerializationType.Json,
-                Data = [JsonNodeDetailedData("i-1", 1)]
-            }
-        ],
-        Outputs =
-        [
-            new CommunicationData<object>
-            {
-                Name = "orders_output",
-                SerializationType = SerializationType.Json,
-                Data = [JsonNodeDetailedData("o-1", 10), JsonNodeDetailedData("o-2", 20)]
-            }
-        ]
-    };
+    private static SessionData BuildSessionData() =>
+        new()
+        {
+            Name = "session",
+            Inputs =
+            [
+                new CommunicationData<object>
+                {
+                    Name = "orders_input",
+                    SerializationType = SerializationType.Json,
+                    Data = [JsonNodeDetailedData("i-1", 1)],
+                },
+            ],
+            Outputs =
+            [
+                new CommunicationData<object>
+                {
+                    Name = "orders_output",
+                    SerializationType = SerializationType.Json,
+                    Data = [JsonNodeDetailedData("o-1", 10), JsonNodeDetailedData("o-2", 20)],
+                },
+            ],
+        };
 
     [Test]
     public void GetOutputAs_ReturnsTypedOutputInOneCall()
@@ -488,13 +531,25 @@ public class CastingConvenienceTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(sessionData.TryGetOutputAs<OrderPayload>("orders_output", out var output), Is.True);
+            Assert.That(
+                sessionData.TryGetOutputAs<OrderPayload>("orders_output", out var output),
+                Is.True
+            );
             Assert.That(output!.Data[0].Body!.Id, Is.EqualTo("o-1"));
-            Assert.That(sessionData.TryGetOutputAs<OrderPayload>("missing", out var missingOutput), Is.False);
+            Assert.That(
+                sessionData.TryGetOutputAs<OrderPayload>("missing", out var missingOutput),
+                Is.False
+            );
             Assert.That(missingOutput, Is.Null);
-            Assert.That(sessionData.TryGetInputAs<OrderPayload>("orders_input", out var input), Is.True);
+            Assert.That(
+                sessionData.TryGetInputAs<OrderPayload>("orders_input", out var input),
+                Is.True
+            );
             Assert.That(input!.Data, Has.Count.EqualTo(1));
-            Assert.That(sessionData.TryGetInputAs<OrderPayload>("missing", out var missingInput), Is.False);
+            Assert.That(
+                sessionData.TryGetInputAs<OrderPayload>("missing", out var missingInput),
+                Is.False
+            );
             Assert.That(missingInput, Is.Null);
         });
     }

@@ -38,8 +38,10 @@ public static class QaasSerializer
         catch (Exception e)
         {
             throw new QaasSerializationException(
-                $"Failed to build a serializer for serialization type `{serializationType}`." +
-                " See InnerException for the original failure", e);
+                $"Failed to build a serializer for serialization type `{serializationType}`."
+                    + " See InnerException for the original failure",
+                e
+            );
         }
 
         if (serializer == null)
@@ -48,9 +50,10 @@ public static class QaasSerializer
                 null => null,
                 byte[] raw => raw,
                 _ => throw new QaasSerializationException(
-                    $"No serialization type was given (null) so the data can only pass through as-is, which" +
-                    $" requires it to already be a `byte[]`, but the given data is of type `{data.GetType()}`." +
-                    $" Provide a SerializationType (e.g. SerializationType.Json) to serialize this object")
+                    $"No serialization type was given (null) so the data can only pass through as-is, which"
+                        + $" requires it to already be a `byte[]`, but the given data is of type `{data.GetType()}`."
+                        + $" Provide a SerializationType (e.g. SerializationType.Json) to serialize this object"
+                ),
             };
 
         try
@@ -60,8 +63,10 @@ public static class QaasSerializer
         catch (Exception e)
         {
             throw new QaasSerializationException(
-                $"Failed to serialize data of type `{data?.GetType().ToString() ?? "null"}`" +
-                $" as {serializationType}. See InnerException for the original failure", e);
+                $"Failed to serialize data of type `{data?.GetType().ToString() ?? "null"}`"
+                    + $" as {serializationType}. See InnerException for the original failure",
+                e
+            );
         }
     }
 
@@ -92,7 +97,11 @@ public static class QaasSerializer
     /// <remarks>
     /// Example: `if (QaasSerializer.TrySerialize(order, SerializationType.Json, out var payload)) { ... }`
     /// </remarks>
-    public static bool TrySerialize(object? data, SerializationType? serializationType, out byte[]? serialized)
+    public static bool TrySerialize(
+        object? data,
+        SerializationType? serializationType,
+        out byte[]? serialized
+    )
     {
         try
         {
@@ -119,8 +128,11 @@ public static class QaasSerializer
     /// <remarks>
     /// Example: `object? parsed = QaasSerializer.Deserialize(payload, SerializationType.Json, typeof(Order));`
     /// </remarks>
-    public static object? Deserialize(byte[]? data, SerializationType? serializationType,
-        Type? deserializeType = null)
+    public static object? Deserialize(
+        byte[]? data,
+        SerializationType? serializationType,
+        Type? deserializeType = null
+    )
     {
         IDeserializer? deserializer;
         try
@@ -130,11 +142,14 @@ public static class QaasSerializer
         catch (Exception e)
         {
             throw new QaasSerializationException(
-                $"Failed to build a deserializer for serialization type `{serializationType}`." +
-                " See InnerException for the original failure", e);
+                $"Failed to build a deserializer for serialization type `{serializationType}`."
+                    + " See InnerException for the original failure",
+                e
+            );
         }
 
-        if (deserializer == null) return data;
+        if (deserializer == null)
+            return data;
 
         try
         {
@@ -143,9 +158,11 @@ public static class QaasSerializer
         catch (Exception e)
         {
             throw new QaasSerializationException(
-                $"Failed to deserialize {data?.Length.ToString() ?? "null"} bytes as {serializationType}" +
-                $"{(deserializeType == null ? string.Empty : $" into type `{deserializeType}`")}." +
-                " See InnerException for the original failure", e);
+                $"Failed to deserialize {data?.Length.ToString() ?? "null"} bytes as {serializationType}"
+                    + $"{(deserializeType == null ? string.Empty : $" into type `{deserializeType}`")}."
+                    + " See InnerException for the original failure",
+                e
+            );
         }
     }
 
@@ -171,17 +188,21 @@ public static class QaasSerializer
                 null => default,
                 TResult typed => typed,
                 _ => throw new QaasSerializationException(
-                    $"No serialization type was given (null) so the data can only pass through as-is, which" +
-                    $" requires the requested type to be `byte[]` (or compatible), but `{typeof(TResult)}`" +
-                    $" was requested. Provide a SerializationType (e.g. SerializationType.Json) to deserialize")
+                    $"No serialization type was given (null) so the data can only pass through as-is, which"
+                        + $" requires the requested type to be `byte[]` (or compatible), but `{typeof(TResult)}`"
+                        + $" was requested. Provide a SerializationType (e.g. SerializationType.Json) to deserialize"
+                ),
             };
 
         var deserialized = Deserialize(data, serializationType, typeof(TResult));
-        if (deserialized is null) return default;
-        if (deserialized is TResult result) return result;
+        if (deserialized is null)
+            return default;
+        if (deserialized is TResult result)
+            return result;
         throw new QaasSerializationException(
-            $"{serializationType} deserialization produced `{deserialized.GetType()}` which is not assignable" +
-            $" to the requested type `{typeof(TResult)}`");
+            $"{serializationType} deserialization produced `{deserialized.GetType()}` which is not assignable"
+                + $" to the requested type `{typeof(TResult)}`"
+        );
     }
 
     /// <summary>
@@ -197,7 +218,10 @@ public static class QaasSerializer
     /// <remarks>
     /// Example: `Order? order = QaasSerializer.DeserializeFromString&lt;Order&gt;(json, SerializationType.Json);`
     /// </remarks>
-    public static TResult? DeserializeFromString<TResult>(string? data, SerializationType? serializationType) =>
+    public static TResult? DeserializeFromString<TResult>(
+        string? data,
+        SerializationType? serializationType
+    ) =>
         Deserialize<TResult>(data is null ? null : Encoding.UTF8.GetBytes(data), serializationType);
 
     /// <summary>
@@ -213,9 +237,16 @@ public static class QaasSerializer
     /// <remarks>
     /// Example: `object? parsed = QaasSerializer.DeserializeFromString(json, SerializationType.Json);`
     /// </remarks>
-    public static object? DeserializeFromString(string? data, SerializationType? serializationType,
-        Type? deserializeType = null) =>
-        Deserialize(data is null ? null : Encoding.UTF8.GetBytes(data), serializationType, deserializeType);
+    public static object? DeserializeFromString(
+        string? data,
+        SerializationType? serializationType,
+        Type? deserializeType = null
+    ) =>
+        Deserialize(
+            data is null ? null : Encoding.UTF8.GetBytes(data),
+            serializationType,
+            deserializeType
+        );
 
     /// <summary>
     /// Attempts to deserialize the given byte[] with the given serialization type directly to
@@ -229,8 +260,11 @@ public static class QaasSerializer
     /// <remarks>
     /// Example: `if (QaasSerializer.TryDeserialize&lt;Order&gt;(payload, SerializationType.Json, out var order)) { ... }`
     /// </remarks>
-    public static bool TryDeserialize<TResult>(byte[]? data, SerializationType? serializationType,
-        out TResult? deserialized)
+    public static bool TryDeserialize<TResult>(
+        byte[]? data,
+        SerializationType? serializationType,
+        out TResult? deserialized
+    )
     {
         try
         {
@@ -256,8 +290,11 @@ public static class QaasSerializer
     /// <remarks>
     /// Example: `if (QaasSerializer.TryDeserializeFromString&lt;Order&gt;(json, SerializationType.Json, out var order)) { ... }`
     /// </remarks>
-    public static bool TryDeserializeFromString<TResult>(string? data, SerializationType? serializationType,
-        out TResult? deserialized)
+    public static bool TryDeserializeFromString<TResult>(
+        string? data,
+        SerializationType? serializationType,
+        out TResult? deserialized
+    )
     {
         try
         {

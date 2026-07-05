@@ -93,7 +93,10 @@ public class SerializationConvenienceTests
         var payload = new StringValue { Value = "protobuf" };
 
         var bytes = QaasSerializer.Serialize(payload, SerializationType.ProtobufMessage);
-        var result = QaasSerializer.Deserialize<StringValue>(bytes, SerializationType.ProtobufMessage);
+        var result = QaasSerializer.Deserialize<StringValue>(
+            bytes,
+            SerializationType.ProtobufMessage
+        );
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.Value, Is.EqualTo("protobuf"));
@@ -105,7 +108,10 @@ public class SerializationConvenienceTests
         var payload = new ConveniencePayload { Name = "text", Count = 11 };
 
         var json = QaasSerializer.SerializeToString(payload, SerializationType.Json);
-        var result = QaasSerializer.DeserializeFromString<ConveniencePayload>(json, SerializationType.Json);
+        var result = QaasSerializer.DeserializeFromString<ConveniencePayload>(
+            json,
+            SerializationType.Json
+        );
 
         Assert.That(json, Does.Contain("\"text\""));
         Assert.That(result, Is.Not.Null);
@@ -129,9 +135,17 @@ public class SerializationConvenienceTests
         {
             Assert.That(QaasSerializer.Serialize(null, SerializationType.Json), Is.Null);
             Assert.That(QaasSerializer.SerializeToString(null, SerializationType.Json), Is.Null);
-            Assert.That(QaasSerializer.Deserialize<ConveniencePayload>(null, SerializationType.Json), Is.Null);
-            Assert.That(QaasSerializer.DeserializeFromString<ConveniencePayload>(null, SerializationType.Json),
-                Is.Null);
+            Assert.That(
+                QaasSerializer.Deserialize<ConveniencePayload>(null, SerializationType.Json),
+                Is.Null
+            );
+            Assert.That(
+                QaasSerializer.DeserializeFromString<ConveniencePayload>(
+                    null,
+                    SerializationType.Json
+                ),
+                Is.Null
+            );
         });
     }
 
@@ -154,9 +168,11 @@ public class SerializationConvenienceTests
     public void QaasSerializer_NullSerializationType_WithNonByteData_ThrowsIndicativeException()
     {
         var serializeException = Assert.Throws<QaasSerializationException>(() =>
-            QaasSerializer.Serialize(new ConveniencePayload(), null));
+            QaasSerializer.Serialize(new ConveniencePayload(), null)
+        );
         var deserializeException = Assert.Throws<QaasSerializationException>(() =>
-            QaasSerializer.Deserialize<ConveniencePayload>("raw"u8.ToArray(), null));
+            QaasSerializer.Deserialize<ConveniencePayload>("raw"u8.ToArray(), null)
+        );
 
         Assert.That(serializeException!.Message, Does.Contain("No serialization type was given"));
         Assert.That(deserializeException!.Message, Does.Contain("No serialization type was given"));
@@ -167,7 +183,8 @@ public class SerializationConvenienceTests
     {
         // The Xml serializer requires an XDocument, anything else fails inside the serializer
         var exception = Assert.Throws<QaasSerializationException>(() =>
-            QaasSerializer.Serialize(new ConveniencePayload(), SerializationType.Xml));
+            QaasSerializer.Serialize(new ConveniencePayload(), SerializationType.Xml)
+        );
 
         Assert.That(exception!.Message, Does.Contain("Failed to serialize"));
         Assert.That(exception.Message, Does.Contain(nameof(ConveniencePayload)));
@@ -181,7 +198,8 @@ public class SerializationConvenienceTests
         var notJson = "{definitely-not-json"u8.ToArray();
 
         var exception = Assert.Throws<QaasSerializationException>(() =>
-            QaasSerializer.Deserialize<ConveniencePayload>(notJson, SerializationType.Json));
+            QaasSerializer.Deserialize<ConveniencePayload>(notJson, SerializationType.Json)
+        );
 
         Assert.That(exception!.Message, Does.Contain("Failed to deserialize"));
         Assert.That(exception.Message, Does.Contain("Json"));
@@ -195,7 +213,8 @@ public class SerializationConvenienceTests
         var bytes = QaasSerializer.Serialize(XDocument.Parse("<a/>"), SerializationType.Xml);
 
         var exception = Assert.Throws<QaasSerializationException>(() =>
-            QaasSerializer.Deserialize<ConveniencePayload>(bytes, SerializationType.Xml));
+            QaasSerializer.Deserialize<ConveniencePayload>(bytes, SerializationType.Xml)
+        );
 
         Assert.That(exception!.Message, Does.Contain("Failed to deserialize"));
         Assert.That(exception.Message, Does.Contain(nameof(ConveniencePayload)));
@@ -206,7 +225,11 @@ public class SerializationConvenienceTests
     {
         var payload = new ConveniencePayload { Name = "try", Count = 1 };
 
-        var success = QaasSerializer.TrySerialize(payload, SerializationType.Json, out var serialized);
+        var success = QaasSerializer.TrySerialize(
+            payload,
+            SerializationType.Json,
+            out var serialized
+        );
         var failure = QaasSerializer.TrySerialize(payload, SerializationType.Xml, out var failed);
 
         Assert.Multiple(() =>
@@ -221,13 +244,21 @@ public class SerializationConvenienceTests
     [Test]
     public void QaasSerializer_TryDeserialize_ReportsSuccessAndFailureWithoutThrowing()
     {
-        var valid = QaasSerializer.Serialize(new ConveniencePayload { Name = "ok", Count = 2 },
-            SerializationType.Json);
+        var valid = QaasSerializer.Serialize(
+            new ConveniencePayload { Name = "ok", Count = 2 },
+            SerializationType.Json
+        );
 
-        var success = QaasSerializer.TryDeserialize<ConveniencePayload>(valid, SerializationType.Json,
-            out var deserialized);
-        var failure = QaasSerializer.TryDeserialize<ConveniencePayload>("nope{"u8.ToArray(),
-            SerializationType.Json, out var failed);
+        var success = QaasSerializer.TryDeserialize<ConveniencePayload>(
+            valid,
+            SerializationType.Json,
+            out var deserialized
+        );
+        var failure = QaasSerializer.TryDeserialize<ConveniencePayload>(
+            "nope{"u8.ToArray(),
+            SerializationType.Json,
+            out var failed
+        );
 
         Assert.Multiple(() =>
         {
@@ -242,9 +273,15 @@ public class SerializationConvenienceTests
     public void QaasSerializer_TryDeserializeFromString_ReportsSuccessAndFailureWithoutThrowing()
     {
         var success = QaasSerializer.TryDeserializeFromString<ConveniencePayload>(
-            "{\"Name\":\"ok\",\"Count\":5}", SerializationType.Json, out var deserialized);
+            "{\"Name\":\"ok\",\"Count\":5}",
+            SerializationType.Json,
+            out var deserialized
+        );
         var failure = QaasSerializer.TryDeserializeFromString<ConveniencePayload>(
-            "{broken", SerializationType.Json, out var failed);
+            "{broken",
+            SerializationType.Json,
+            out var failed
+        );
 
         Assert.Multiple(() =>
         {
@@ -264,20 +301,28 @@ public class SerializationConvenienceTests
     {
         foreach (var serializationType in System.Enum.GetValues<SerializationType>())
         {
-            Assert.That(serializationType.BuildSerializer(),
+            Assert.That(
+                serializationType.BuildSerializer(),
                 Is.TypeOf(SerializerFactory.BuildSerializer(serializationType)!.GetType()),
-                $"Serializer mismatch for {serializationType}");
-            Assert.That(serializationType.BuildDeserializer(),
+                $"Serializer mismatch for {serializationType}"
+            );
+            Assert.That(
+                serializationType.BuildDeserializer(),
                 Is.TypeOf(DeserializerFactory.BuildDeserializer(serializationType)!.GetType()),
-                $"Deserializer mismatch for {serializationType}");
+                $"Deserializer mismatch for {serializationType}"
+            );
         }
     }
 
     [Test]
     public void SerializationTypeExtensions_InvalidEnum_ThrowsArgumentOutOfRangeException()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ((SerializationType)999).BuildSerializer());
-        Assert.Throws<ArgumentOutOfRangeException>(() => ((SerializationType)999).BuildDeserializer());
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ((SerializationType)999).BuildSerializer()
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ((SerializationType)999).BuildDeserializer()
+        );
     }
 
     [Test]
@@ -286,7 +331,9 @@ public class SerializationConvenienceTests
         var payload = new ConveniencePayload { Name = "fluent", Count = 9 };
 
         var bytes = SerializationType.Json.BuildSerializer().Serialize(payload);
-        var result = SerializationType.Json.BuildDeserializer().Deserialize<ConveniencePayload>(bytes);
+        var result = SerializationType
+            .Json.BuildDeserializer()
+            .Deserialize<ConveniencePayload>(bytes);
 
         Assert.That(result!.Name, Is.EqualTo("fluent"));
     }
@@ -298,7 +345,9 @@ public class SerializationConvenienceTests
     [Test]
     public void SerializerExtensions_SerializeToString_ReturnsUtf8Text()
     {
-        var json = new Json().SerializeToString(new ConveniencePayload { Name = "stringy", Count = 4 });
+        var json = new Json().SerializeToString(
+            new ConveniencePayload { Name = "stringy", Count = 4 }
+        );
 
         Assert.That(json, Does.Contain("\"stringy\""));
         Assert.That(new Json().SerializeToString(null), Is.Null);
@@ -324,7 +373,9 @@ public class SerializationConvenienceTests
     {
         var bytes = new Json().Serialize(new ConveniencePayload { Name = "typed", Count = 6 });
 
-        ConveniencePayload? result = new Deserializers.Json().Deserialize<ConveniencePayload>(bytes);
+        ConveniencePayload? result = new Deserializers.Json().Deserialize<ConveniencePayload>(
+            bytes
+        );
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.Name, Is.EqualTo("typed"));
@@ -339,7 +390,8 @@ public class SerializationConvenienceTests
         var bytes = new Binary().Serialize("not an int");
 
         var exception = Assert.Throws<QaasSerializationException>(() =>
-            new Deserializers.Binary().Deserialize<int>(bytes));
+            new Deserializers.Binary().Deserialize<int>(bytes)
+        );
 
         Assert.That(exception!.Message, Does.Contain("not assignable"));
     }
@@ -347,8 +399,9 @@ public class SerializationConvenienceTests
     [Test]
     public void DeserializerExtensions_DeserializeFromString_RoundTripsTextFormats()
     {
-        var typed = new Deserializers.Json()
-            .DeserializeFromString<ConveniencePayload>("{\"Name\":\"fromString\",\"Count\":8}");
+        var typed = new Deserializers.Json().DeserializeFromString<ConveniencePayload>(
+            "{\"Name\":\"fromString\",\"Count\":8}"
+        );
         var untyped = new Deserializers.Json().DeserializeFromString("{\"a\": 1}");
 
         Assert.Multiple(() =>
@@ -356,7 +409,10 @@ public class SerializationConvenienceTests
             Assert.That(typed!.Name, Is.EqualTo("fromString"));
             Assert.That(typed.Count, Is.EqualTo(8));
             Assert.That(untyped, Is.Not.Null);
-            Assert.That(new Deserializers.Json().DeserializeFromString<ConveniencePayload>(null), Is.Null);
+            Assert.That(
+                new Deserializers.Json().DeserializeFromString<ConveniencePayload>(null),
+                Is.Null
+            );
             Assert.That(new Deserializers.Json().DeserializeFromString(null), Is.Null);
         });
     }
@@ -368,7 +424,10 @@ public class SerializationConvenienceTests
         var valid = new Json().Serialize(new ConveniencePayload { Name = "ok", Count = 2 });
 
         var success = deserializer.TryDeserialize<ConveniencePayload>(valid, out var deserialized);
-        var failure = deserializer.TryDeserialize<ConveniencePayload>("}{"u8.ToArray(), out var failed);
+        var failure = deserializer.TryDeserialize<ConveniencePayload>(
+            "}{"u8.ToArray(),
+            out var failed
+        );
 
         Assert.Multiple(() =>
         {
@@ -383,13 +442,19 @@ public class SerializationConvenienceTests
     public void DeserializerExtensions_RoundTripThroughStrings_PreservesUnicodeContent()
     {
         const string unicodeName = "שלום-héllo-😀";
-        var json = new Json().SerializeToString(new ConveniencePayload { Name = unicodeName, Count = 1 });
+        var json = new Json().SerializeToString(
+            new ConveniencePayload { Name = unicodeName, Count = 1 }
+        );
 
         var result = new Deserializers.Json().DeserializeFromString<ConveniencePayload>(json);
 
         Assert.That(result!.Name, Is.EqualTo(unicodeName));
-        Assert.That(Encoding.UTF8.GetBytes(json!), Is.EqualTo(new Json().Serialize(
-            new ConveniencePayload { Name = unicodeName, Count = 1 })));
+        Assert.That(
+            Encoding.UTF8.GetBytes(json!),
+            Is.EqualTo(
+                new Json().Serialize(new ConveniencePayload { Name = unicodeName, Count = 1 })
+            )
+        );
     }
 
     #endregion
@@ -405,7 +470,7 @@ public class SerializationConvenienceTests
         {
             "json-node" => JsonNode.Parse("{\"a\":1}")!,
             "json-element" => JsonDocument.Parse("{\"a\":1}").RootElement,
-            _ => JsonDocument.Parse("{\"a\":1}")
+            _ => JsonDocument.Parse("{\"a\":1}"),
         };
 
         var inferred = QaasSerializer.TryInferSerializationType(body, out var serializationType);
@@ -419,17 +484,34 @@ public class SerializationConvenienceTests
     {
         Assert.Multiple(() =>
         {
-            Assert.That(QaasSerializer.TryInferSerializationType(XDocument.Parse("<a/>"), out var xml),
-                Is.True);
+            Assert.That(
+                QaasSerializer.TryInferSerializationType(XDocument.Parse("<a/>"), out var xml),
+                Is.True
+            );
             Assert.That(xml, Is.EqualTo(SerializationType.Xml));
-            Assert.That(QaasSerializer.TryInferSerializationType(XElement.Parse("<a/>"), out var xmlElement),
-                Is.True);
+            Assert.That(
+                QaasSerializer.TryInferSerializationType(
+                    XElement.Parse("<a/>"),
+                    out var xmlElement
+                ),
+                Is.True
+            );
             Assert.That(xmlElement, Is.EqualTo(SerializationType.XmlElement));
-            Assert.That(QaasSerializer.TryInferSerializationType(
-                new Dictionary<object, object> { ["a"] = 1 }, out var yamlMap), Is.True);
+            Assert.That(
+                QaasSerializer.TryInferSerializationType(
+                    new Dictionary<object, object> { ["a"] = 1 },
+                    out var yamlMap
+                ),
+                Is.True
+            );
             Assert.That(yamlMap, Is.EqualTo(SerializationType.Yaml));
-            Assert.That(QaasSerializer.TryInferSerializationType(
-                new List<object> { 1, 2 }, out var yamlList), Is.True);
+            Assert.That(
+                QaasSerializer.TryInferSerializationType(
+                    new List<object> { 1, 2 },
+                    out var yamlList
+                ),
+                Is.True
+            );
             Assert.That(yamlList, Is.EqualTo(SerializationType.Yaml));
         });
     }
@@ -441,9 +523,15 @@ public class SerializationConvenienceTests
         {
             Assert.That(QaasSerializer.TryInferSerializationType(null, out _), Is.False);
             Assert.That(QaasSerializer.TryInferSerializationType("text", out _), Is.False);
-            Assert.That(QaasSerializer.TryInferSerializationType(new byte[] { 1, 2 }, out _), Is.False);
+            Assert.That(
+                QaasSerializer.TryInferSerializationType(new byte[] { 1, 2 }, out _),
+                Is.False
+            );
             Assert.That(QaasSerializer.TryInferSerializationType(42, out _), Is.False);
-            Assert.That(QaasSerializer.TryInferSerializationType(new ConveniencePayload(), out _), Is.False);
+            Assert.That(
+                QaasSerializer.TryInferSerializationType(new ConveniencePayload(), out _),
+                Is.False
+            );
         });
     }
 
@@ -455,10 +543,12 @@ public class SerializationConvenienceTests
         Assert.Multiple(() =>
         {
             var serializeException = Assert.Throws<QaasSerializationException>(() =>
-                QaasSerializer.Serialize("data", unknown));
+                QaasSerializer.Serialize("data", unknown)
+            );
             Assert.That(serializeException!.Message, Does.Contain("999"));
             var deserializeException = Assert.Throws<QaasSerializationException>(() =>
-                QaasSerializer.Deserialize<string>([1], unknown));
+                QaasSerializer.Deserialize<string>([1], unknown)
+            );
             Assert.That(deserializeException!.Message, Does.Contain("999"));
         });
     }
@@ -475,7 +565,9 @@ public class SerializationConvenienceTests
 
     [TestCase(SerializationType.Xml)]
     [TestCase(SerializationType.XmlElement)]
-    public void QaasSerializer_XmlFormats_RoundTripTypedPayloads(SerializationType serializationType)
+    public void QaasSerializer_XmlFormats_RoundTripTypedPayloads(
+        SerializationType serializationType
+    )
     {
         var payload = new XmlRoundTripPayload { Name = "typed-xml", Count = 12 };
 
@@ -497,9 +589,14 @@ public class SerializationConvenienceTests
         Assert.Multiple(() =>
         {
             Assert.That(new Deserializers.Xml().Deserialize(bytes), Is.TypeOf<XDocument>());
-            Assert.That(new Deserializers.Xml().Deserialize(bytes, typeof(XElement)), Is.TypeOf<XElement>());
-            Assert.That(new Deserializers.Xml().Deserialize(bytes, typeof(string)),
-                Does.Contain("<root>"));
+            Assert.That(
+                new Deserializers.Xml().Deserialize(bytes, typeof(XElement)),
+                Is.TypeOf<XElement>()
+            );
+            Assert.That(
+                new Deserializers.Xml().Deserialize(bytes, typeof(string)),
+                Does.Contain("<root>")
+            );
         });
     }
 
@@ -511,17 +608,23 @@ public class SerializationConvenienceTests
         Assert.Multiple(() =>
         {
             Assert.That(new Deserializers.XmlElement().Deserialize(bytes), Is.TypeOf<XElement>());
-            Assert.That(new Deserializers.XmlElement().Deserialize(bytes, typeof(XDocument)),
-                Is.TypeOf<XDocument>());
-            Assert.That(new Deserializers.XmlElement().Deserialize(bytes, typeof(string)),
-                Does.Contain("<root>"));
+            Assert.That(
+                new Deserializers.XmlElement().Deserialize(bytes, typeof(XDocument)),
+                Is.TypeOf<XDocument>()
+            );
+            Assert.That(
+                new Deserializers.XmlElement().Deserialize(bytes, typeof(string)),
+                Does.Contain("<root>")
+            );
         });
     }
 
     [Test]
     public void XmlElementSerializer_TypedPayload_OmitsXmlDeclaration()
     {
-        var bytes = new XmlElement().Serialize(new XmlRoundTripPayload { Name = "no-decl", Count = 1 });
+        var bytes = new XmlElement().Serialize(
+            new XmlRoundTripPayload { Name = "no-decl", Count = 1 }
+        );
 
         var text = Encoding.UTF8.GetString(bytes!);
 
@@ -538,8 +641,10 @@ public class SerializationConvenienceTests
         {
             Assert.That(new Xml().Serialize("<raw/>"), Is.EqualTo("<raw/>"u8.ToArray()));
             Assert.That(new XmlElement().Serialize("<raw/>"), Is.EqualTo("<raw/>"u8.ToArray()));
-            Assert.That(new XmlElement().Serialize(element), Is.EqualTo(
-                Encoding.UTF8.GetBytes(element.ToString())));
+            Assert.That(
+                new XmlElement().Serialize(element),
+                Is.EqualTo(Encoding.UTF8.GetBytes(element.ToString()))
+            );
         });
     }
 

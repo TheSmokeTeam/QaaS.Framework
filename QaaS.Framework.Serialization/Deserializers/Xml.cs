@@ -9,7 +9,7 @@ namespace QaaS.Framework.Serialization.Deserializers;
 /// Deserializes a byte[] of xml to an XDocument C# object by default, or to the requested C# type when a
 /// deserialize type is given
 /// </summary>
-public class Xml: IDeserializer
+public class Xml : IDeserializer
 {
     /// <inheritdoc />
     /// <remarks>
@@ -20,7 +20,8 @@ public class Xml: IDeserializer
     /// </remarks>
     public object? Deserialize(byte[]? data, Type? deserializeType = null)
     {
-        if (data is null) return null;
+        if (data is null)
+            return null;
         if (deserializeType == null || deserializeType == typeof(XDocument))
         {
             using var stream = new MemoryStream(data);
@@ -28,8 +29,10 @@ public class Xml: IDeserializer
             return XDocument.Load(xmlReader);
         }
 
-        if (deserializeType == typeof(XElement)) return XElement.Parse(DecodeText(data));
-        if (deserializeType == typeof(string)) return DecodeText(data);
+        if (deserializeType == typeof(XElement))
+            return XElement.Parse(DecodeText(data));
+        if (deserializeType == typeof(string))
+            return DecodeText(data);
 
         using var typedStream = new MemoryStream(data);
         return new XmlSerializer(deserializeType).Deserialize(typedStream);
@@ -42,7 +45,11 @@ public class Xml: IDeserializer
     private static string DecodeText(byte[] data)
     {
         using var stream = new MemoryStream(data);
-        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        using var reader = new StreamReader(
+            stream,
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: true
+        );
         return reader.ReadToEnd();
     }
 }
