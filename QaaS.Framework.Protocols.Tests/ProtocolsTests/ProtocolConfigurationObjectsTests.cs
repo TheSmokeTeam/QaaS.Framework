@@ -131,6 +131,9 @@ public class ProtocolConfigurationObjectsTests
             Host = "localhost",
             QueueName = string.Empty,
         };
+        var invalidSenderDeliveryMode = sender with { DeliveryMode = 3 };
+        var invalidSenderPriority = sender with { Priority = 256 };
+        var invalidSenderTimestamp = sender with { TimestampUnixTime = -1 };
 
         Assert.Multiple(() =>
         {
@@ -139,12 +142,30 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(baseConfig.Port, Is.EqualTo(5672));
             Assert.That(sender.RoutingKey, Is.EqualTo("/"));
             Assert.That(sender.ExchangeName, Is.Null);
+            Assert.That(sender.AppId, Is.Null);
+            Assert.That(sender.ClusterId, Is.Null);
+            Assert.That(sender.ContentEncoding, Is.Null);
+            Assert.That(sender.ContentType, Is.Null);
+            Assert.That(sender.CorrelationId, Is.Null);
+            Assert.That(sender.DeliveryMode, Is.Null);
+            Assert.That(sender.Expiration, Is.Null);
+            Assert.That(sender.Headers, Is.Null);
+            Assert.That(sender.MessageId, Is.Null);
+            Assert.That(sender.Persistent, Is.Null);
+            Assert.That(sender.Priority, Is.Null);
+            Assert.That(sender.ReplyTo, Is.Null);
+            Assert.That(sender.TimestampUnixTime, Is.Null);
+            Assert.That(sender.Type, Is.Null);
+            Assert.That(sender.UserId, Is.Null);
             Assert.That(reader.CreatedQueueTimeToExpireMs, Is.EqualTo(300000));
             Assert.That(Validate(sender).IsValid, Is.True);
             Assert.That(Validate(reader).IsValid, Is.True);
             Assert.That(Validate(invalidSenderBothTargets).IsValid, Is.False);
             Assert.That(Validate(invalidReaderMissingTarget).IsValid, Is.False);
             Assert.That(Validate(invalidSenderEmptyQueue).IsValid, Is.False);
+            Assert.That(Validate(invalidSenderDeliveryMode).IsValid, Is.False);
+            Assert.That(Validate(invalidSenderPriority).IsValid, Is.False);
+            Assert.That(Validate(invalidSenderTimestamp).IsValid, Is.False);
         });
     }
 

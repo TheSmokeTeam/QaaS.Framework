@@ -124,18 +124,32 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
         {
             using var memoryStream =
                 new MemoryStream(dataToSend.CastObjectData<byte[]>().Body ?? []); // Assumes data is byte[]
-            return _s3Client!.Client.PutObjectAsync(
-                new PutObjectRequest
-                {
-                    BucketName = _senderConfig!.StorageBucket,
-                    Key = objectKey,
-                    InputStream = memoryStream,
-                    StorageClass = _senderConfig!.S3StorageClass.GetS3StorageClassFromEnum()
-                }).GetAwaiter().GetResult();
+            var putObjectRequest = new PutObjectRequest
+            {
+                BucketName = _senderConfig!.StorageBucket,
+                Key = objectKey,
+                InputStream = memoryStream,
+                StorageClass = _senderConfig!.S3StorageClass.GetS3StorageClassFromEnum()
+            };
+
+            AddStorageHeaders(putObjectRequest, dataToSend.MetaData?.Storage?.Headers);
+            return _s3Client!.Client.PutObjectAsync(putObjectRequest).GetAwaiter().GetResult();
         }, "uploading the object to s3", maxRetryCount: _senderConfig!.Retries, logger: _logger);
         _logger.LogInformation("Finished uploading S3 object {ObjectKey} to bucket {BucketName}.",
             objectKey, _senderConfig.StorageBucket);
         return dataToSend.CloneDetailed();
+    }
+
+    private static void AddStorageHeaders(PutObjectRequest putObjectRequest, IDictionary<string, string>? headers)
+    {
+        if (headers is not { Count: > 0 }) return;
+
+        foreach (var (key, value) in headers)
+        {
+            if (string.IsNullOrWhiteSpace(key)) continue;
+
+            putObjectRequest.Metadata[key] = value;
+        }
     }
 
     private bool HasS3ObjectLastModified(S3Object s3Object)

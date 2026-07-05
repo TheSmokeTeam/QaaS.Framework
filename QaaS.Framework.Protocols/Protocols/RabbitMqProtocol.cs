@@ -45,10 +45,21 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         _defaultMetaData = new RabbitMq
         {
             RoutingKey = RoutingKey,
-            Expiration = configurations.Expiration,
+            AppId = configurations.AppId,
+            ClusterId = configurations.ClusterId,
+            ContentEncoding = configurations.ContentEncoding,
             ContentType = configurations.ContentType,
-            Type = configurations.Type,
+            CorrelationId = configurations.CorrelationId,
+            DeliveryMode = configurations.DeliveryMode,
+            Expiration = configurations.Expiration,
             Headers = configurations.Headers,
+            MessageId = configurations.MessageId,
+            Persistent = configurations.Persistent,
+            Priority = configurations.Priority,
+            ReplyTo = configurations.ReplyTo,
+            TimestampUnixTime = configurations.TimestampUnixTime,
+            Type = configurations.Type,
+            UserId = configurations.UserId,
         };
     }
 
@@ -87,10 +98,47 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
                     RabbitMq = new RabbitMq
                     {
                         RoutingKey = message.RoutingKey,
-                        Headers = message.BasicProperties.Headers,
-                        Expiration = message.BasicProperties.Expiration,
-                        ContentType = message.BasicProperties.ContentType,
-                        Type = message.BasicProperties.Type
+                        AppId = message.BasicProperties.IsAppIdPresent() ? message.BasicProperties.AppId : null,
+                        ClusterId = message.BasicProperties.IsClusterIdPresent() ? message.BasicProperties.ClusterId : null,
+                        ContentEncoding = message.BasicProperties.IsContentEncodingPresent()
+                            ? message.BasicProperties.ContentEncoding
+                            : null,
+                        ContentType = message.BasicProperties.IsContentTypePresent()
+                            ? message.BasicProperties.ContentType
+                            : null,
+                        CorrelationId = message.BasicProperties.IsCorrelationIdPresent()
+                            ? message.BasicProperties.CorrelationId
+                            : null,
+                        DeliveryMode = message.BasicProperties.IsDeliveryModePresent()
+                            ? (int)message.BasicProperties.DeliveryMode
+                            : null,
+                        Expiration = message.BasicProperties.IsExpirationPresent()
+                            ? message.BasicProperties.Expiration
+                            : null,
+                        Headers = message.BasicProperties.IsHeadersPresent()
+                            ? message.BasicProperties.Headers
+                            : null,
+                        MessageId = message.BasicProperties.IsMessageIdPresent()
+                            ? message.BasicProperties.MessageId
+                            : null,
+                        Persistent = message.BasicProperties.IsDeliveryModePresent()
+                            ? message.BasicProperties.Persistent
+                            : null,
+                        Priority = message.BasicProperties.IsPriorityPresent()
+                            ? message.BasicProperties.Priority
+                            : null,
+                        ReplyTo = message.BasicProperties.IsReplyToPresent()
+                            ? message.BasicProperties.ReplyTo
+                            : null,
+                        TimestampUnixTime = message.BasicProperties.IsTimestampPresent()
+                            ? message.BasicProperties.Timestamp.UnixTime
+                            : null,
+                        Type = message.BasicProperties.IsTypePresent()
+                            ? message.BasicProperties.Type
+                            : null,
+                        UserId = message.BasicProperties.IsUserIdPresent()
+                            ? message.BasicProperties.UserId
+                            : null
                     }
                 },
                 Timestamp = DateTime.UtcNow
@@ -102,33 +150,21 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        var routingKey = dataToSend.MetaData?.RabbitMq?.RoutingKey ?? RoutingKey;
+        var metadata = NormalizeRabbitMqMetadata(dataToSend.MetaData?.RabbitMq);
+        var routingKey = metadata.RoutingKey ?? RoutingKey;
         var body = dataToSend.CastObjectData<byte[]>().Body;
-        var headers = NormalizeHeaders(dataToSend.MetaData?.RabbitMq?.Headers ?? _defaultMetaData!.Headers);
-        var expiration = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.Expiration ?? _defaultMetaData!.Expiration);
-        var contentType = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.ContentType ?? _defaultMetaData!.ContentType);
-        var type = NormalizeOptionalString(dataToSend.MetaData?.RabbitMq?.Type ?? _defaultMetaData!.Type);
 
         _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter()
             .GetResult(); // Before sending check if exchange exists
 
-        if (headers == null && expiration == null && contentType == null && type == null)
+        var basicProperties = CreateBasicProperties(metadata);
+        if (basicProperties == null)
         {
             _channel.BasicPublishAsync(ExchangeName, routingKey, true, body).GetAwaiter()
                 .GetResult();
         }
         else
         {
-            var basicProperties = new BasicProperties();
-            if (headers != null)
-                basicProperties.Headers = headers;
-            if (expiration != null)
-                basicProperties.Expiration = expiration;
-            if (contentType != null)
-                basicProperties.ContentType = contentType;
-            if (type != null)
-                basicProperties.Type = type;
-
             _channel.BasicPublishAsync(ExchangeName, routingKey, true, basicProperties, body).GetAwaiter()
                 .GetResult(); // Assumes data is byte[]
         }
@@ -143,6 +179,124 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     private static string? NormalizeOptionalString(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private RabbitMq NormalizeRabbitMqMetadata(RabbitMq? metadata)
+    {
+        var defaultMetadata = _defaultMetaData
+                              ?? throw new InvalidOperationException("RabbitMQ sender metadata defaults were not initialized.");
+        var resolvedDeliveryMode = metadata?.DeliveryMode ?? defaultMetadata.DeliveryMode;
+        var resolvedPriority = metadata?.Priority ?? defaultMetadata.Priority;
+        var resolvedTimestamp = metadata?.TimestampUnixTime ?? defaultMetadata.TimestampUnixTime;
+
+        return new RabbitMq
+        {
+            RoutingKey = NormalizeOptionalString(metadata?.RoutingKey) ?? RoutingKey,
+            AppId = NormalizeOptionalString(metadata?.AppId ?? defaultMetadata.AppId),
+            ClusterId = NormalizeOptionalString(metadata?.ClusterId ?? defaultMetadata.ClusterId),
+            ContentEncoding = NormalizeOptionalString(metadata?.ContentEncoding ?? defaultMetadata.ContentEncoding),
+            ContentType = NormalizeOptionalString(metadata?.ContentType ?? defaultMetadata.ContentType),
+            CorrelationId = NormalizeOptionalString(metadata?.CorrelationId ?? defaultMetadata.CorrelationId),
+            DeliveryMode = NormalizeDeliveryMode(resolvedDeliveryMode),
+            Expiration = NormalizeOptionalString(metadata?.Expiration ?? defaultMetadata.Expiration),
+            Headers = NormalizeHeaders(metadata?.Headers ?? defaultMetadata.Headers),
+            MessageId = NormalizeOptionalString(metadata?.MessageId ?? defaultMetadata.MessageId),
+            Persistent = metadata?.Persistent ?? defaultMetadata.Persistent,
+            Priority = NormalizePriority(resolvedPriority),
+            ReplyTo = NormalizeOptionalString(metadata?.ReplyTo ?? defaultMetadata.ReplyTo),
+            TimestampUnixTime = NormalizeTimestamp(resolvedTimestamp),
+            Type = NormalizeOptionalString(metadata?.Type ?? defaultMetadata.Type),
+            UserId = NormalizeOptionalString(metadata?.UserId ?? defaultMetadata.UserId),
+        };
+    }
+
+    private static BasicProperties? CreateBasicProperties(RabbitMq metadata)
+    {
+        var basicProperties = new BasicProperties();
+        var hasProperties = false;
+
+        SetOptionalStringProperty(metadata.AppId, value => basicProperties.AppId = value, ref hasProperties);
+        SetOptionalStringProperty(metadata.ClusterId, value => basicProperties.ClusterId = value, ref hasProperties);
+        SetOptionalStringProperty(metadata.ContentEncoding, value => basicProperties.ContentEncoding = value,
+            ref hasProperties);
+        SetOptionalStringProperty(metadata.ContentType, value => basicProperties.ContentType = value,
+            ref hasProperties);
+        SetOptionalStringProperty(metadata.CorrelationId, value => basicProperties.CorrelationId = value,
+            ref hasProperties);
+        SetOptionalStringProperty(metadata.Expiration, value => basicProperties.Expiration = value, ref hasProperties);
+        SetOptionalStringProperty(metadata.MessageId, value => basicProperties.MessageId = value, ref hasProperties);
+        SetOptionalStringProperty(metadata.ReplyTo, value => basicProperties.ReplyTo = value, ref hasProperties);
+        SetOptionalStringProperty(metadata.Type, value => basicProperties.Type = value, ref hasProperties);
+        SetOptionalStringProperty(metadata.UserId, value => basicProperties.UserId = value, ref hasProperties);
+
+        if (metadata.Headers != null)
+        {
+            basicProperties.Headers = metadata.Headers;
+            hasProperties = true;
+        }
+
+        if (metadata.DeliveryMode.HasValue)
+        {
+            basicProperties.DeliveryMode = (DeliveryModes)metadata.DeliveryMode.Value;
+            hasProperties = true;
+        }
+        else if (metadata.Persistent.HasValue)
+        {
+            basicProperties.Persistent = metadata.Persistent.Value;
+            hasProperties = true;
+        }
+
+        if (metadata.Priority.HasValue)
+        {
+            basicProperties.Priority = (byte)metadata.Priority.Value;
+            hasProperties = true;
+        }
+
+        if (metadata.TimestampUnixTime.HasValue)
+        {
+            basicProperties.Timestamp = new AmqpTimestamp(metadata.TimestampUnixTime.Value);
+            hasProperties = true;
+        }
+
+        return hasProperties ? basicProperties : null;
+    }
+
+    private static void SetOptionalStringProperty(string? value, Action<string> setProperty, ref bool hasProperties)
+    {
+        if (value == null) return;
+
+        setProperty(value);
+        hasProperties = true;
+    }
+
+    private static int? NormalizeDeliveryMode(int? value)
+    {
+        if (value is null) return null;
+        if (value is < 1 or > 2)
+            throw new ArgumentOutOfRangeException(nameof(value), value,
+                "RabbitMQ delivery mode must be 1 (transient) or 2 (persistent).");
+
+        return value;
+    }
+
+    private static int? NormalizePriority(int? value)
+    {
+        if (value is null) return null;
+        if (value is < 0 or > byte.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(value), value,
+                "RabbitMQ priority must be between 0 and 255.");
+
+        return value;
+    }
+
+    private static long? NormalizeTimestamp(long? value)
+    {
+        if (value is null) return null;
+        if (value < 0)
+            throw new ArgumentOutOfRangeException(nameof(value), value,
+                "RabbitMQ timestamp must be a non-negative Unix time value.");
+
+        return value;
+    }
 
     public void Dispose()
     {

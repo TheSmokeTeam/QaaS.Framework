@@ -542,7 +542,18 @@ public class ProtocolAdvancedBehaviorTests
             new Data<object>
             {
                 Body = Encoding.UTF8.GetBytes("payload"),
-                MetaData = new MetaData { Storage = new Storage { Key = "k1" } },
+                MetaData = new MetaData
+                {
+                    Storage = new Storage
+                    {
+                        Key = "k1",
+                        Headers = new Dictionary<string, string>
+                        {
+                            ["trace-id"] = "abc",
+                            ["source"] = "qaas",
+                        },
+                    },
+                },
             }
         );
 
@@ -559,7 +570,10 @@ public class ProtocolAdvancedBehaviorTests
                 client =>
                     client.PutObjectAsync(
                         It.Is<PutObjectRequest>(request =>
-                            request.BucketName == "bucket" && request.Key == "pref-k1"
+                            request.BucketName == "bucket"
+                            && request.Key == "pref-k1"
+                            && request.Metadata["trace-id"] == "abc"
+                            && request.Metadata["source"] == "qaas"
                         ),
                         default
                     ),
