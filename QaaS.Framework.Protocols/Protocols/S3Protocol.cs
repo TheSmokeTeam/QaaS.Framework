@@ -16,6 +16,7 @@ namespace QaaS.Framework.Protocols.Protocols;
 
 public class S3Protocol : IChunkReader, ISender, IDisposable
 {
+    private const string S3UserMetadataPrefix = "x-amz-meta-";
     private readonly ILogger _logger;
     private IS3Client? _s3Client;
     private readonly S3BucketSenderConfig? _senderConfig;
@@ -82,7 +83,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
                 {
                     Body = null,
                     Timestamp = GetS3ObjectTimestampUtc(s3Object),
-                    MetaData = new MetaData { Storage = new Storage { Key = s3Object.Key } },
+                    MetaData = new MetaData { Storage = BuildStorageMetadata(s3Object) },
                 });
         }
         else
@@ -103,7 +104,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
                 {
                     Body = pair.Value,
                     Timestamp = GetS3ObjectTimestampUtc(pair.Key),
-                    MetaData = new MetaData { Storage = new Storage { Key = pair.Key.Key } },
+                    MetaData = new MetaData { Storage = BuildStorageMetadata(pair.Key) },
                 });
         }
 
@@ -180,6 +181,52 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
         );
         return false;
     }
+
+    private Storage BuildStorageMetadata(S3Object s3Object) =>
+        new() { Key = s3Object.Key, Headers = GetStorageHeaders(s3Object) };
+
+    private IDictionary<string, string>? GetStorageHeaders(S3Object s3Object)
+    {
+        if (string.IsNullOrWhiteSpace(s3Object.Key))
+            return null;
+
+        var response = S3Extentions.RunS3OperationWithRetryMechanism(
+            () =>
+                _s3Client!
+                    .Client.GetObjectMetadataAsync(
+                        _readerConfig!.StorageBucket!,
+                        s3Object.Key,
+                        null
+                    )
+                    .GetAwaiter()
+                    .GetResult(),
+            $"retrieving metadata for s3 object {s3Object.Key}",
+            maxRetryCount: _readerConfig!.MaximumRetryCount,
+            logger: _logger
+        );
+        if (response?.Metadata == null)
+            return null;
+
+        var headers = new Dictionary<string, string>();
+        foreach (var key in response.Metadata.Keys)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                continue;
+
+            var value = response.Metadata[key];
+            if (value is null)
+                continue;
+
+            headers[NormalizeStorageHeaderKey(key)] = value;
+        }
+
+        return headers.Count == 0 ? null : headers;
+    }
+
+    private static string NormalizeStorageHeaderKey(string key) =>
+        key.StartsWith(S3UserMetadataPrefix, StringComparison.OrdinalIgnoreCase)
+            ? key[S3UserMetadataPrefix.Length..]
+            : key;
 
     private bool IsS3ObjectRelevant(S3Object s3Object)
     {

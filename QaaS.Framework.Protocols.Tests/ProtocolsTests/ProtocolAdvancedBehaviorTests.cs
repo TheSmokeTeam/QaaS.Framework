@@ -481,9 +481,20 @@ public class ProtocolAdvancedBehaviorTests
         };
 
         var amazonClientMock = new Mock<IAmazonS3>();
+        var firstObjectMetadata = new GetObjectMetadataResponse();
+        firstObjectMetadata.Metadata["trace-id"] = "abc";
+        firstObjectMetadata.Metadata["source"] = "qaas";
+        var secondObjectMetadata = new GetObjectMetadataResponse();
+        secondObjectMetadata.Metadata["trace-id"] = "def";
         amazonClientMock
             .Setup(client => client.PutObjectAsync(It.IsAny<PutObjectRequest>(), default))
             .ReturnsAsync(new PutObjectResponse());
+        amazonClientMock
+            .Setup(client => client.GetObjectMetadataAsync("bucket", "a", null, default))
+            .ReturnsAsync(firstObjectMetadata);
+        amazonClientMock
+            .Setup(client => client.GetObjectMetadataAsync("bucket", "b", null, default))
+            .ReturnsAsync(secondObjectMetadata);
 
         var fakeClient = new FakeS3Client
         {
@@ -564,8 +575,20 @@ public class ProtocolAdvancedBehaviorTests
         {
             Assert.That(withBody, Has.Count.EqualTo(2));
             Assert.That(withBody.All(item => item.Body is byte[]), Is.True);
+            Assert.That(
+                withBody
+                    .Single(item => item.MetaData?.Storage?.Key == "a")
+                    .MetaData?.Storage?.Headers,
+                Does.ContainKey("trace-id").WithValue("abc")
+            );
             Assert.That(noBody, Has.Count.EqualTo(2));
             Assert.That(noBody.All(item => item.Body == null), Is.True);
+            Assert.That(
+                noBody
+                    .Single(item => item.MetaData?.Storage?.Key == "a")
+                    .MetaData?.Storage?.Headers,
+                Does.ContainKey("source").WithValue("qaas")
+            );
             Assert.That(sent.Body, Is.TypeOf<byte[]>());
             amazonClientMock.Verify(
                 client =>
