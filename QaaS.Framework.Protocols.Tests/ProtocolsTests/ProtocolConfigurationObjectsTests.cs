@@ -7,6 +7,7 @@ using QaaS.Framework.Protocols.ConfigurationObjects.Http;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 using QaaS.Framework.Protocols.ConfigurationObjects.Redis;
+using QaaS.Framework.Protocols.ConfigurationObjects.S3;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
@@ -115,6 +116,22 @@ public class ProtocolConfigurationObjectsTests
                 Is.False,
                 "above upper bound must be invalid"
             );
+        });
+    }
+
+    [Test]
+    public void S3BucketReaderConfig_DefaultsKeepLegacyReadBehavior()
+    {
+        var reader = new S3BucketReaderConfig();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.ReadFromRunStartTime, Is.False);
+            Assert.That(reader.ReadStorageHeaders, Is.False);
+            Assert.That(reader.SkipEmptyObjects, Is.False);
+            Assert.That(reader.Prefix, Is.Empty);
+            Assert.That(reader.Delimiter, Is.Empty);
+            Assert.That(reader.MaximumRetryCount, Is.Null);
         });
     }
 

@@ -183,7 +183,11 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
     }
 
     private Storage BuildStorageMetadata(S3Object s3Object) =>
-        new() { Key = s3Object.Key, Headers = GetStorageHeaders(s3Object) };
+        new()
+        {
+            Key = s3Object.Key,
+            Headers = _readerConfig!.ReadStorageHeaders ? GetStorageHeaders(s3Object) : null,
+        };
 
     private IDictionary<string, string>? GetStorageHeaders(S3Object s3Object)
     {

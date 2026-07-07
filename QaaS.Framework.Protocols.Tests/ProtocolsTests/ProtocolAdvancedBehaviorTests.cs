@@ -461,6 +461,82 @@ public class ProtocolAdvancedBehaviorTests
     }
 
     [Test]
+    public void S3Protocol_ReadChunk_DefaultsToStorageKeyOnly_AndDoesNotFetchHeaders()
+    {
+        var now = DateTime.UtcNow;
+        var objects = new[]
+        {
+            new S3Object
+            {
+                Key = "a",
+                LastModified = now.AddSeconds(-2),
+                Size = 3,
+            },
+        };
+
+        var amazonClientMock = new Mock<IAmazonS3>(MockBehavior.Strict);
+        var fakeClient = new FakeS3Client
+        {
+            Client = amazonClientMock.Object,
+            ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
+            GetAllObjects = (_, _, _, _) =>
+                objects.Select(obj => new KeyValuePair<S3Object, byte[]?>(
+                    obj,
+                    Encoding.UTF8.GetBytes(obj.Key!)
+                )),
+        };
+
+        var readerProtocol = new S3Protocol(
+            new S3BucketReaderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://127.0.0.1",
+                AccessKey = "ak",
+                SecretKey = "sk",
+                ReadFromRunStartTime = false,
+            },
+            new DataFilter { Body = true },
+            Globals.Logger
+        );
+        SetPrivateField(readerProtocol, "_s3Client", fakeClient);
+
+        var readerNoBodyProtocol = new S3Protocol(
+            new S3BucketReaderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://127.0.0.1",
+                AccessKey = "ak",
+                SecretKey = "sk",
+                ReadFromRunStartTime = false,
+            },
+            new DataFilter { Body = false },
+            Globals.Logger
+        );
+        SetPrivateField(readerNoBodyProtocol, "_s3Client", fakeClient);
+
+        var withBody = readerProtocol.ReadChunk(TimeSpan.Zero).Single();
+        var noBody = readerNoBodyProtocol.ReadChunk(TimeSpan.Zero).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(withBody.MetaData?.Storage?.Key, Is.EqualTo("a"));
+            Assert.That(withBody.MetaData?.Storage?.Headers, Is.Null);
+            Assert.That(noBody.MetaData?.Storage?.Key, Is.EqualTo("a"));
+            Assert.That(noBody.MetaData?.Storage?.Headers, Is.Null);
+        });
+        amazonClientMock.Verify(
+            client =>
+                client.GetObjectMetadataAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+    }
+
+    [Test]
     public void S3Protocol_ReadChunkAndSend_WorkWithInjectedClient()
     {
         var now = DateTime.UtcNow;
@@ -515,6 +591,7 @@ public class ProtocolAdvancedBehaviorTests
                 AccessKey = "ak",
                 SecretKey = "sk",
                 ReadFromRunStartTime = false,
+                ReadStorageHeaders = true,
             },
             new DataFilter { Body = true },
             Globals.Logger
@@ -529,6 +606,7 @@ public class ProtocolAdvancedBehaviorTests
                 AccessKey = "ak",
                 SecretKey = "sk",
                 ReadFromRunStartTime = false,
+                ReadStorageHeaders = true,
             },
             new DataFilter { Body = false },
             Globals.Logger
