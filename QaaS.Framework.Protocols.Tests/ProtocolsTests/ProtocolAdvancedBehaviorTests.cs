@@ -367,29 +367,27 @@ public class ProtocolAdvancedBehaviorTests
     public async Task S3Client_EmptyS3Bucket_DoesNotDeleteWhenBucketHasNoObjects()
     {
         var s3Mock = new Mock<IAmazonS3>();
-        s3Mock.Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
-            .ReturnsAsync(new ListObjectsV2Response
-            {
-                IsTruncated = false,
-                S3Objects = []
-            });
+        s3Mock
+            .Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
+            .ReturnsAsync(new ListObjectsV2Response { IsTruncated = false, S3Objects = [] });
 
         var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
         var responses = (await client.EmptyS3Bucket("bucket")).ToList();
 
         Assert.That(responses, Is.Empty);
-        s3Mock.Verify(m => m.DeleteObjectsAsync(It.IsAny<DeleteObjectsRequest>(), default), Times.Never);
+        s3Mock.Verify(
+            m => m.DeleteObjectsAsync(It.IsAny<DeleteObjectsRequest>(), default),
+            Times.Never
+        );
     }
 
     [Test]
     public async Task S3Client_ListOperations_TreatNullS3ObjectCollectionAsEmpty()
     {
         var s3Mock = new Mock<IAmazonS3>();
-        s3Mock.Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
-            .ReturnsAsync(new ListObjectsV2Response
-            {
-                S3Objects = null
-            });
+        s3Mock
+            .Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
+            .ReturnsAsync(new ListObjectsV2Response { S3Objects = null });
 
         var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
 
@@ -401,7 +399,10 @@ public class ProtocolAdvancedBehaviorTests
             Assert.That(listedObjects, Is.Empty);
             Assert.That(deletionResponses, Is.Empty);
         });
-        s3Mock.Verify(m => m.DeleteObjectsAsync(It.IsAny<DeleteObjectsRequest>(), default), Times.Never);
+        s3Mock.Verify(
+            m => m.DeleteObjectsAsync(It.IsAny<DeleteObjectsRequest>(), default),
+            Times.Never
+        );
     }
 
     [Test]
@@ -460,7 +461,7 @@ public class ProtocolAdvancedBehaviorTests
     }
 
     [Test]
-    public void S3Protocol_ReadChunkAndSend_WorkWithInjectedClient()
+    public void S3Protocol_ReadChunk_DefaultsToStorageKeyOnly_AndDoesNotFetchHeaders()
     {
         var now = DateTime.UtcNow;
         var objects = new[]
@@ -471,19 +472,9 @@ public class ProtocolAdvancedBehaviorTests
                 LastModified = now.AddSeconds(-2),
                 Size = 3,
             },
-            new S3Object
-            {
-                Key = "b",
-                LastModified = now.AddSeconds(-1),
-                Size = 4,
-            },
         };
 
-        var amazonClientMock = new Mock<IAmazonS3>();
-        amazonClientMock
-            .Setup(client => client.PutObjectAsync(It.IsAny<PutObjectRequest>(), default))
-            .ReturnsAsync(new PutObjectResponse());
-
+        var amazonClientMock = new Mock<IAmazonS3>(MockBehavior.Strict);
         var fakeClient = new FakeS3Client
         {
             Client = amazonClientMock.Object,
@@ -523,6 +514,105 @@ public class ProtocolAdvancedBehaviorTests
         );
         SetPrivateField(readerNoBodyProtocol, "_s3Client", fakeClient);
 
+        var withBody = readerProtocol.ReadChunk(TimeSpan.Zero).Single();
+        var noBody = readerNoBodyProtocol.ReadChunk(TimeSpan.Zero).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(withBody.MetaData?.Storage?.Key, Is.EqualTo("a"));
+            Assert.That(withBody.MetaData?.Storage?.Headers, Is.Null);
+            Assert.That(noBody.MetaData?.Storage?.Key, Is.EqualTo("a"));
+            Assert.That(noBody.MetaData?.Storage?.Headers, Is.Null);
+        });
+        amazonClientMock.Verify(
+            client =>
+                client.GetObjectMetadataAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<CancellationToken>()
+                ),
+            Times.Never
+        );
+    }
+
+    [Test]
+    public void S3Protocol_ReadChunkAndSend_WorkWithInjectedClient()
+    {
+        var now = DateTime.UtcNow;
+        var objects = new[]
+        {
+            new S3Object
+            {
+                Key = "a",
+                LastModified = now.AddSeconds(-2),
+                Size = 3,
+            },
+            new S3Object
+            {
+                Key = "b",
+                LastModified = now.AddSeconds(-1),
+                Size = 4,
+            },
+        };
+
+        var amazonClientMock = new Mock<IAmazonS3>();
+        var firstObjectMetadata = new GetObjectMetadataResponse();
+        firstObjectMetadata.Metadata["trace-id"] = "abc";
+        firstObjectMetadata.Metadata["source"] = "qaas";
+        var secondObjectMetadata = new GetObjectMetadataResponse();
+        secondObjectMetadata.Metadata["trace-id"] = "def";
+        amazonClientMock
+            .Setup(client => client.PutObjectAsync(It.IsAny<PutObjectRequest>(), default))
+            .ReturnsAsync(new PutObjectResponse());
+        amazonClientMock
+            .Setup(client => client.GetObjectMetadataAsync("bucket", "a", null, default))
+            .ReturnsAsync(firstObjectMetadata);
+        amazonClientMock
+            .Setup(client => client.GetObjectMetadataAsync("bucket", "b", null, default))
+            .ReturnsAsync(secondObjectMetadata);
+
+        var fakeClient = new FakeS3Client
+        {
+            Client = amazonClientMock.Object,
+            ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
+            GetAllObjects = (_, _, _, _) =>
+                objects.Select(obj => new KeyValuePair<S3Object, byte[]?>(
+                    obj,
+                    Encoding.UTF8.GetBytes(obj.Key!)
+                )),
+        };
+
+        var readerProtocol = new S3Protocol(
+            new S3BucketReaderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://127.0.0.1",
+                AccessKey = "ak",
+                SecretKey = "sk",
+                ReadFromRunStartTime = false,
+                ReadStorageHeaders = true,
+            },
+            new DataFilter { Body = true },
+            Globals.Logger
+        );
+        SetPrivateField(readerProtocol, "_s3Client", fakeClient);
+
+        var readerNoBodyProtocol = new S3Protocol(
+            new S3BucketReaderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://127.0.0.1",
+                AccessKey = "ak",
+                SecretKey = "sk",
+                ReadFromRunStartTime = false,
+                ReadStorageHeaders = true,
+            },
+            new DataFilter { Body = false },
+            Globals.Logger
+        );
+        SetPrivateField(readerNoBodyProtocol, "_s3Client", fakeClient);
+
         var senderProtocol = new S3Protocol(
             new S3BucketSenderConfig
             {
@@ -542,7 +632,18 @@ public class ProtocolAdvancedBehaviorTests
             new Data<object>
             {
                 Body = Encoding.UTF8.GetBytes("payload"),
-                MetaData = new MetaData { Storage = new Storage { Key = "k1" } },
+                MetaData = new MetaData
+                {
+                    Storage = new Storage
+                    {
+                        Key = "k1",
+                        Headers = new Dictionary<string, string>
+                        {
+                            ["trace-id"] = "abc",
+                            ["source"] = "qaas",
+                        },
+                    },
+                },
             }
         );
 
@@ -552,14 +653,29 @@ public class ProtocolAdvancedBehaviorTests
         {
             Assert.That(withBody, Has.Count.EqualTo(2));
             Assert.That(withBody.All(item => item.Body is byte[]), Is.True);
+            Assert.That(
+                withBody
+                    .Single(item => item.MetaData?.Storage?.Key == "a")
+                    .MetaData?.Storage?.Headers,
+                Does.ContainKey("trace-id").WithValue("abc")
+            );
             Assert.That(noBody, Has.Count.EqualTo(2));
             Assert.That(noBody.All(item => item.Body == null), Is.True);
+            Assert.That(
+                noBody
+                    .Single(item => item.MetaData?.Storage?.Key == "a")
+                    .MetaData?.Storage?.Headers,
+                Does.ContainKey("source").WithValue("qaas")
+            );
             Assert.That(sent.Body, Is.TypeOf<byte[]>());
             amazonClientMock.Verify(
                 client =>
                     client.PutObjectAsync(
                         It.Is<PutObjectRequest>(request =>
-                            request.BucketName == "bucket" && request.Key == "pref-k1"
+                            request.BucketName == "bucket"
+                            && request.Key == "pref-k1"
+                            && request.Metadata["trace-id"] == "abc"
+                            && request.Metadata["source"] == "qaas"
                         ),
                         default
                     ),
@@ -783,35 +899,56 @@ public class ProtocolAdvancedBehaviorTests
         var now = DateTime.UtcNow;
         var objects = new[]
         {
-            new S3Object { Key = "missing-timestamp", LastModified = null, Size = 4 },
-            new S3Object { Key = "valid", LastModified = now, Size = 4 }
+            new S3Object
+            {
+                Key = "missing-timestamp",
+                LastModified = null,
+                Size = 4,
+            },
+            new S3Object
+            {
+                Key = "valid",
+                LastModified = now,
+                Size = 4,
+            },
         };
         var fakeClient = new FakeS3Client
         {
             Client = new Mock<IAmazonS3>().Object,
             ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
-            GetAllObjects = (_, _, _, _) => objects.Select(s3Object =>
-                new KeyValuePair<S3Object, byte[]?>(s3Object, Encoding.UTF8.GetBytes(s3Object.Key!)))
+            GetAllObjects = (_, _, _, _) =>
+                objects.Select(s3Object => new KeyValuePair<S3Object, byte[]?>(
+                    s3Object,
+                    Encoding.UTF8.GetBytes(s3Object.Key!)
+                )),
         };
 
-        var withBodyProtocol = new S3Protocol(new S3BucketReaderConfig
-        {
-            StorageBucket = "bucket",
-            ServiceURL = "http://127.0.0.1",
-            AccessKey = "ak",
-            SecretKey = "sk",
-            ReadFromRunStartTime = false
-        }, new DataFilter { Body = true }, Globals.Logger);
+        var withBodyProtocol = new S3Protocol(
+            new S3BucketReaderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://127.0.0.1",
+                AccessKey = "ak",
+                SecretKey = "sk",
+                ReadFromRunStartTime = false,
+            },
+            new DataFilter { Body = true },
+            Globals.Logger
+        );
         SetPrivateField(withBodyProtocol, "_s3Client", fakeClient);
 
-        var noBodyProtocol = new S3Protocol(new S3BucketReaderConfig
-        {
-            StorageBucket = "bucket",
-            ServiceURL = "http://127.0.0.1",
-            AccessKey = "ak",
-            SecretKey = "sk",
-            ReadFromRunStartTime = false
-        }, new DataFilter { Body = false }, Globals.Logger);
+        var noBodyProtocol = new S3Protocol(
+            new S3BucketReaderConfig
+            {
+                StorageBucket = "bucket",
+                ServiceURL = "http://127.0.0.1",
+                AccessKey = "ak",
+                SecretKey = "sk",
+                ReadFromRunStartTime = false,
+            },
+            new DataFilter { Body = false },
+            Globals.Logger
+        );
         SetPrivateField(noBodyProtocol, "_s3Client", fakeClient);
 
         var withBody = withBodyProtocol.ReadChunk(TimeSpan.Zero).ToList();
@@ -819,8 +956,14 @@ public class ProtocolAdvancedBehaviorTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(withBody.Select(item => item.MetaData?.Storage?.Key), Is.EqualTo(new[] { "valid" }));
-            Assert.That(noBody.Select(item => item.MetaData?.Storage?.Key), Is.EqualTo(new[] { "valid" }));
+            Assert.That(
+                withBody.Select(item => item.MetaData?.Storage?.Key),
+                Is.EqualTo(new[] { "valid" })
+            );
+            Assert.That(
+                noBody.Select(item => item.MetaData?.Storage?.Key),
+                Is.EqualTo(new[] { "valid" })
+            );
         });
     }
 

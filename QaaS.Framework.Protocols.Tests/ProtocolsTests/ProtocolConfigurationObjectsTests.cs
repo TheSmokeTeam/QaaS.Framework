@@ -7,6 +7,7 @@ using QaaS.Framework.Protocols.ConfigurationObjects.Http;
 using QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 using QaaS.Framework.Protocols.ConfigurationObjects.Redis;
+using QaaS.Framework.Protocols.ConfigurationObjects.S3;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
@@ -119,6 +120,22 @@ public class ProtocolConfigurationObjectsTests
     }
 
     [Test]
+    public void S3BucketReaderConfig_DefaultsKeepLegacyReadBehavior()
+    {
+        var reader = new S3BucketReaderConfig();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(reader.ReadFromRunStartTime, Is.False);
+            Assert.That(reader.ReadStorageHeaders, Is.False);
+            Assert.That(reader.SkipEmptyObjects, Is.False);
+            Assert.That(reader.Prefix, Is.Empty);
+            Assert.That(reader.Delimiter, Is.Empty);
+            Assert.That(reader.MaximumRetryCount, Is.Null);
+        });
+    }
+
+    [Test]
     public void RabbitMqConfigurationObjects_DefaultValues_AndMutualExclusionRules_Work()
     {
         var baseConfig = new BaseRabbitMqConfig { Host = "localhost" };
@@ -131,6 +148,9 @@ public class ProtocolConfigurationObjectsTests
             Host = "localhost",
             QueueName = string.Empty,
         };
+        var invalidSenderDeliveryMode = sender with { DeliveryMode = 3 };
+        var invalidSenderPriority = sender with { Priority = 256 };
+        var invalidSenderTimestamp = sender with { TimestampUnixTime = -1 };
 
         Assert.Multiple(() =>
         {
@@ -139,12 +159,30 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(baseConfig.Port, Is.EqualTo(5672));
             Assert.That(sender.RoutingKey, Is.EqualTo("/"));
             Assert.That(sender.ExchangeName, Is.Null);
+            Assert.That(sender.AppId, Is.Null);
+            Assert.That(sender.ClusterId, Is.Null);
+            Assert.That(sender.ContentEncoding, Is.Null);
+            Assert.That(sender.ContentType, Is.Null);
+            Assert.That(sender.CorrelationId, Is.Null);
+            Assert.That(sender.DeliveryMode, Is.Null);
+            Assert.That(sender.Expiration, Is.Null);
+            Assert.That(sender.Headers, Is.Null);
+            Assert.That(sender.MessageId, Is.Null);
+            Assert.That(sender.Persistent, Is.Null);
+            Assert.That(sender.Priority, Is.Null);
+            Assert.That(sender.ReplyTo, Is.Null);
+            Assert.That(sender.TimestampUnixTime, Is.Null);
+            Assert.That(sender.Type, Is.Null);
+            Assert.That(sender.UserId, Is.Null);
             Assert.That(reader.CreatedQueueTimeToExpireMs, Is.EqualTo(300000));
             Assert.That(Validate(sender).IsValid, Is.True);
             Assert.That(Validate(reader).IsValid, Is.True);
             Assert.That(Validate(invalidSenderBothTargets).IsValid, Is.False);
             Assert.That(Validate(invalidReaderMissingTarget).IsValid, Is.False);
             Assert.That(Validate(invalidSenderEmptyQueue).IsValid, Is.False);
+            Assert.That(Validate(invalidSenderDeliveryMode).IsValid, Is.False);
+            Assert.That(Validate(invalidSenderPriority).IsValid, Is.False);
+            Assert.That(Validate(invalidSenderTimestamp).IsValid, Is.False);
         });
     }
 

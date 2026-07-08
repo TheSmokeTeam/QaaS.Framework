@@ -22,20 +22,29 @@ public class ProtocolCoverageEdgeCaseTests
     private sealed class FormattingSqlProtocol(SqlConfig config, IDbConnection dbConnection)
         : MockSqlProtocol("tbl", config, Globals.Logger, dbConnection)
     {
-        protected override string GetTimeFieldSqlFormat(DateTime time) => $"TO_DATE('{time:yyyy-MM-dd HH:mm:ss}')";
+        protected override string GetTimeFieldSqlFormat(DateTime time) =>
+            $"TO_DATE('{time:yyyy-MM-dd HH:mm:ss}')";
     }
 
     private static void SetPrivateField<TValue>(object instance, string fieldName, TValue value)
     {
-        instance.GetType()
+        instance
+            .GetType()
             .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(instance, value);
     }
 
-    private static bool? TryGetRabbitMqBasicPropertyPresenceFlag(BasicProperties properties, string propertyName)
+    private static bool? TryGetRabbitMqBasicPropertyPresenceFlag(
+        BasicProperties properties,
+        string propertyName
+    )
     {
-        var method = properties.GetType()
-            .GetMethod($"Is{propertyName}Present", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        var method = properties
+            .GetType()
+            .GetMethod(
+                $"Is{propertyName}Present",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            );
         return method == null ? null : (bool)method.Invoke(properties, null)!;
     }
 
@@ -44,18 +53,20 @@ public class ProtocolCoverageEdgeCaseTests
     {
         string? commandText = null;
         var dbCommandMock = new Mock<IDbCommand>();
-        dbCommandMock.SetupSet(command => command.CommandText = It.IsAny<string>())
+        dbCommandMock
+            .SetupSet(command => command.CommandText = It.IsAny<string>())
             .Callback<string>(value => commandText = value);
         dbCommandMock.Setup(command => command.ExecuteNonQuery()).Returns(1);
 
         var connectionMock = new Mock<IDbConnection>();
-        connectionMock.Setup(connection => connection.CreateCommand()).Returns(dbCommandMock.Object);
+        connectionMock
+            .Setup(connection => connection.CreateCommand())
+            .Returns(dbCommandMock.Object);
 
-        var protocol = new FormattingSqlProtocol(new SqlConfig
-        {
-            ConnectionString = "Host=localhost",
-            TableName = "tbl"
-        }, connectionMock.Object);
+        var protocol = new FormattingSqlProtocol(
+            new SqlConfig { ConnectionString = "Host=localhost", TableName = "tbl" },
+            connectionMock.Object
+        );
 
         var dataTable = new DataTable();
         dataTable.Columns.Add("created_at", typeof(DateTime));
@@ -75,19 +86,41 @@ public class ProtocolCoverageEdgeCaseTests
         var winterUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(3, false);
         var summerUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(3, true);
         var winterLocal = winterUtc.ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(3, false);
-        var londonWinterUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(1, timeZoneId: "Europe/London");
-        var londonSummerLocal = new DateTime(2026, 7, 1, 11, 0, 0, DateTimeKind.Utc)
-            .ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(1, timeZoneId: "Europe/London");
+        var londonWinterUtc = localTime.ConvertDateTimeToUtcByTimeZoneOffset(
+            1,
+            timeZoneId: "Europe/London"
+        );
+        var londonSummerLocal = new DateTime(
+            2026,
+            7,
+            1,
+            11,
+            0,
+            0,
+            DateTimeKind.Utc
+        ).ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(1, timeZoneId: "Europe/London");
         var invalidCharacter = Path.GetInvalidFileNameChars().First();
         var sanitized = FileSystemExtensions.MakeValidDirectoryName($"bad{invalidCharacter}name");
 
         Assert.Multiple(() =>
         {
-            Assert.That(winterUtc, Is.EqualTo(new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc)));
+            Assert.That(
+                winterUtc,
+                Is.EqualTo(new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc))
+            );
             Assert.That(summerUtc, Is.EqualTo(new DateTime(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc)));
-            Assert.That(winterLocal, Is.EqualTo(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Unspecified)));
-            Assert.That(londonWinterUtc, Is.EqualTo(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc)));
-            Assert.That(londonSummerLocal, Is.EqualTo(new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Unspecified)));
+            Assert.That(
+                winterLocal,
+                Is.EqualTo(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Unspecified))
+            );
+            Assert.That(
+                londonWinterUtc,
+                Is.EqualTo(new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc))
+            );
+            Assert.That(
+                londonSummerLocal,
+                Is.EqualTo(new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Unspecified))
+            );
             Assert.That(sanitized, Is.EqualTo("bad_name"));
             Assert.That(FileSystemExtensions.MakeValidDirectoryName(null), Is.Null);
         });
@@ -97,49 +130,64 @@ public class ProtocolCoverageEdgeCaseTests
     public void RedisReaderProtocol_Read_ConsumesRightListSetAndSortedSetValues()
     {
         var listDatabase = new Mock<IDatabase>();
-        listDatabase.Setup(database => database.ListRightPop("right", CommandFlags.None))
+        listDatabase
+            .Setup(database => database.ListRightPop("right", CommandFlags.None))
             .Returns((RedisValue)Encoding.UTF8.GetBytes("right-value"));
-        var listProtocol = new RedisReaderProtocol(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "right",
-            RedisDataType = RedisDataType.ListRightPush,
-            PollIntervalMs = 1
-        }, Globals.Logger);
+        var listProtocol = new RedisReaderProtocol(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "right",
+                RedisDataType = RedisDataType.ListRightPush,
+                PollIntervalMs = 1,
+            },
+            Globals.Logger
+        );
         SetPrivateField(listProtocol, "_redisDb", listDatabase.Object);
 
         var setDatabase = new Mock<IDatabase>();
-        setDatabase.Setup(database => database.SetPop("set", CommandFlags.None))
+        setDatabase
+            .Setup(database => database.SetPop("set", CommandFlags.None))
             .Returns((RedisValue)Encoding.UTF8.GetBytes("set-value"));
-        var setProtocol = new RedisReaderProtocol(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "set",
-            RedisDataType = RedisDataType.SetAdd,
-            PollIntervalMs = 1
-        }, Globals.Logger);
+        var setProtocol = new RedisReaderProtocol(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "set",
+                RedisDataType = RedisDataType.SetAdd,
+                PollIntervalMs = 1,
+            },
+            Globals.Logger
+        );
         SetPrivateField(setProtocol, "_redisDb", setDatabase.Object);
 
         var sortedDatabase = new Mock<IDatabase>();
-        sortedDatabase.Setup(database => database.SortedSetRangeByRankWithScores(
-                "sorted",
-                0,
-                0,
-                Order.Ascending,
-                CommandFlags.None))
-            .Returns([
-                new SortedSetEntry((RedisValue)Encoding.UTF8.GetBytes("sorted-value"), 1.5)
-            ]);
-        sortedDatabase.Setup(database =>
-                database.SortedSetRemove("sorted", It.IsAny<RedisValue>(), CommandFlags.None))
+        sortedDatabase
+            .Setup(database =>
+                database.SortedSetRangeByRankWithScores(
+                    "sorted",
+                    0,
+                    0,
+                    Order.Ascending,
+                    CommandFlags.None
+                )
+            )
+            .Returns([new SortedSetEntry((RedisValue)Encoding.UTF8.GetBytes("sorted-value"), 1.5)]);
+        sortedDatabase
+            .Setup(database =>
+                database.SortedSetRemove("sorted", It.IsAny<RedisValue>(), CommandFlags.None)
+            )
             .Returns(true);
-        var sortedProtocol = new RedisReaderProtocol(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "sorted",
-            RedisDataType = RedisDataType.SortedSetAdd,
-            PollIntervalMs = 1
-        }, Globals.Logger);
+        var sortedProtocol = new RedisReaderProtocol(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "sorted",
+                RedisDataType = RedisDataType.SortedSetAdd,
+                PollIntervalMs = 1,
+            },
+            Globals.Logger
+        );
         SetPrivateField(sortedProtocol, "_redisDb", sortedDatabase.Object);
 
         var rightResult = listProtocol.Read(TimeSpan.FromMilliseconds(10));
@@ -148,9 +196,15 @@ public class ProtocolCoverageEdgeCaseTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(Encoding.UTF8.GetString((byte[])rightResult!.Body!), Is.EqualTo("right-value"));
+            Assert.That(
+                Encoding.UTF8.GetString((byte[])rightResult!.Body!),
+                Is.EqualTo("right-value")
+            );
             Assert.That(Encoding.UTF8.GetString((byte[])setResult!.Body!), Is.EqualTo("set-value"));
-            Assert.That(Encoding.UTF8.GetString((byte[])sortedResult!.Body!), Is.EqualTo("sorted-value"));
+            Assert.That(
+                Encoding.UTF8.GetString((byte[])sortedResult!.Body!),
+                Is.EqualTo("sorted-value")
+            );
             Assert.That(sortedResult.MetaData?.Redis?.SetScore, Is.EqualTo(1.5));
         });
     }
@@ -159,16 +213,20 @@ public class ProtocolCoverageEdgeCaseTests
     public void RedisReaderProtocol_Read_ConsumesLeftListValue()
     {
         var databaseMock = new Mock<IDatabase>();
-        databaseMock.Setup(database => database.ListLeftPop("left", CommandFlags.None))
+        databaseMock
+            .Setup(database => database.ListLeftPop("left", CommandFlags.None))
             .Returns((RedisValue)Encoding.UTF8.GetBytes("left-value"));
 
-        var protocol = new RedisReaderProtocol(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "left",
-            RedisDataType = RedisDataType.ListLeftPush,
-            PollIntervalMs = 1
-        }, Globals.Logger);
+        var protocol = new RedisReaderProtocol(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "left",
+                RedisDataType = RedisDataType.ListLeftPush,
+                PollIntervalMs = 1,
+            },
+            Globals.Logger
+        );
         SetPrivateField(protocol, "_redisDb", databaseMock.Object);
 
         var result = protocol.Read(TimeSpan.FromMilliseconds(10));
@@ -186,56 +244,86 @@ public class ProtocolCoverageEdgeCaseTests
     {
         var databaseMock = new Mock<IDatabase>();
 
-        var missingHashFieldProtocol = new RedisReaderProtocol(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "hash",
-            RedisDataType = RedisDataType.HashSet,
-            PollIntervalMs = 1
-        }, Globals.Logger);
+        var missingHashFieldProtocol = new RedisReaderProtocol(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "hash",
+                RedisDataType = RedisDataType.HashSet,
+                PollIntervalMs = 1,
+            },
+            Globals.Logger
+        );
         SetPrivateField(missingHashFieldProtocol, "_redisDb", databaseMock.Object);
 
-        var missingTypeProtocol = new RedisReaderProtocol(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "none",
-            RedisDataType = null,
-            PollIntervalMs = 1
-        }, Globals.Logger);
+        var missingTypeProtocol = new RedisReaderProtocol(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "none",
+                RedisDataType = null,
+                PollIntervalMs = 1,
+            },
+            Globals.Logger
+        );
         SetPrivateField(missingTypeProtocol, "_redisDb", databaseMock.Object);
 
-        Assert.Throws<ArgumentException>(() => missingHashFieldProtocol.Read(TimeSpan.FromMilliseconds(1)));
-        Assert.Throws<InvalidOperationException>(() => missingTypeProtocol.Read(TimeSpan.FromMilliseconds(1)));
+        Assert.Throws<ArgumentException>(() =>
+            missingHashFieldProtocol.Read(TimeSpan.FromMilliseconds(1))
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            missingTypeProtocol.Read(TimeSpan.FromMilliseconds(1))
+        );
     }
 
     [Test]
     public void RabbitMqProtocol_Read_ReturnsMessageAfterPollingQueue()
     {
         var channelMock = new Mock<IChannel>();
-        channelMock.Setup(mock => mock.QueueDeclarePassiveAsync("queue", It.IsAny<CancellationToken>()))
+        channelMock
+            .Setup(mock => mock.QueueDeclarePassiveAsync("queue", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new QueueDeclareOk("queue", 0, 0));
-        channelMock.SetupSequence(mock => mock.BasicGetAsync("queue", true, It.IsAny<CancellationToken>()))
+        channelMock
+            .SetupSequence(mock => mock.BasicGetAsync("queue", true, It.IsAny<CancellationToken>()))
             .ReturnsAsync((BasicGetResult?)null)
-            .ReturnsAsync(new BasicGetResult(
-                deliveryTag: 1,
-                redelivered: false,
-                exchange: "exchange",
-                routingKey: "queue",
-                messageCount: 0,
-                basicProperties: new BasicProperties
-                {
-                    ContentType = "application/octet-stream",
-                    Headers = new Dictionary<string, object?> { ["h"] = "v" }
-                },
-                body: Encoding.UTF8.GetBytes("rabbit")));
+            .ReturnsAsync(
+                new BasicGetResult(
+                    deliveryTag: 1,
+                    redelivered: false,
+                    exchange: "exchange",
+                    routingKey: "queue",
+                    messageCount: 0,
+                    basicProperties: new BasicProperties
+                    {
+                        AppId = "app",
+                        ClusterId = "cluster",
+                        ContentEncoding = "gzip",
+                        ContentType = "application/octet-stream",
+                        CorrelationId = "correlation",
+                        DeliveryMode = DeliveryModes.Persistent,
+                        Expiration = "3000",
+                        Headers = new Dictionary<string, object?> { ["h"] = "v" },
+                        MessageId = "message",
+                        Priority = 7,
+                        ReplyTo = "reply",
+                        Timestamp = new AmqpTimestamp(123456789),
+                        Type = "event",
+                        UserId = "user",
+                    },
+                    body: Encoding.UTF8.GetBytes("rabbit")
+                )
+            );
 
-        var protocol = new RabbitMqProtocol(new RabbitMqReaderConfig
-        {
-            Host = "localhost",
-            QueueName = "queue",
-            ExchangeName = "exchange",
-            RoutingKey = "queue"
-        }, NullLogger.Instance);
+        var protocol = new RabbitMqProtocol(
+            new RabbitMqReaderConfig
+            {
+                Host = "localhost",
+                QueueName = "queue",
+                ExchangeName = "exchange",
+                RoutingKey = "queue",
+            },
+            NullLogger.Instance
+        );
         SetPrivateField(protocol, "_channel", channelMock.Object);
 
         var result = protocol.Read(TimeSpan.FromMilliseconds(50));
@@ -245,63 +333,112 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(result, Is.Not.Null);
             Assert.That(Encoding.UTF8.GetString((byte[])result!.Body!), Is.EqualTo("rabbit"));
             Assert.That(result.MetaData?.RabbitMq?.RoutingKey, Is.EqualTo("queue"));
-            Assert.That(result.MetaData?.RabbitMq?.ContentType, Is.EqualTo("application/octet-stream"));
+            Assert.That(result.MetaData?.RabbitMq?.AppId, Is.EqualTo("app"));
+            Assert.That(result.MetaData?.RabbitMq?.ClusterId, Is.EqualTo("cluster"));
+            Assert.That(result.MetaData?.RabbitMq?.ContentEncoding, Is.EqualTo("gzip"));
+            Assert.That(
+                result.MetaData?.RabbitMq?.ContentType,
+                Is.EqualTo("application/octet-stream")
+            );
+            Assert.That(result.MetaData?.RabbitMq?.CorrelationId, Is.EqualTo("correlation"));
+            Assert.That(result.MetaData?.RabbitMq?.DeliveryMode, Is.EqualTo(2));
+            Assert.That(result.MetaData?.RabbitMq?.Expiration, Is.EqualTo("3000"));
+            Assert.That(result.MetaData?.RabbitMq?.Headers, Contains.Key("h"));
+            Assert.That(result.MetaData?.RabbitMq?.MessageId, Is.EqualTo("message"));
+            Assert.That(result.MetaData?.RabbitMq?.Persistent, Is.True);
+            Assert.That(result.MetaData?.RabbitMq?.Priority, Is.EqualTo(7));
+            Assert.That(result.MetaData?.RabbitMq?.ReplyTo, Is.EqualTo("reply"));
+            Assert.That(result.MetaData?.RabbitMq?.TimestampUnixTime, Is.EqualTo(123456789));
+            Assert.That(result.MetaData?.RabbitMq?.Type, Is.EqualTo("event"));
+            Assert.That(result.MetaData?.RabbitMq?.UserId, Is.EqualTo("user"));
         });
     }
 
     [Test]
     public void RabbitMqProtocol_UsesSenderDefaultsAndReaderDefaultQueueBranches()
     {
-        var queueSender = new RabbitMqProtocol(new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            QueueName = "queue-name"
-        }, NullLogger.Instance);
-        var exchangeSender = new RabbitMqProtocol(new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            ExchangeName = "exchange-name",
-            RoutingKey = "routing-key",
-            Headers = new Dictionary<string, object?> { ["h"] = "v" },
-            ContentType = "application/octet-stream",
-            Type = "kind",
-            Expiration = "1000"
-        }, NullLogger.Instance);
+        var queueSender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig { Host = "localhost", QueueName = "queue-name" },
+            NullLogger.Instance
+        );
+        var exchangeSender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig
+            {
+                Host = "localhost",
+                ExchangeName = "exchange-name",
+                RoutingKey = "routing-key",
+                Headers = new Dictionary<string, object?> { ["h"] = "v" },
+                ContentType = "application/octet-stream",
+                Type = "kind",
+                Expiration = "1000",
+            },
+            NullLogger.Instance
+        );
         var senderChannelMock = new Mock<IChannel>();
         senderChannelMock
-            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>())
+            )
             .Returns(Task.CompletedTask);
         senderChannelMock
-            .Setup(mock => mock.BasicPublishAsync("exchange-name", "routing-key", true,
-                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.BasicPublishAsync(
+                    "exchange-name",
+                    "routing-key",
+                    true,
+                    It.IsAny<BasicProperties>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
             .Returns(ValueTask.CompletedTask);
         SetPrivateField(exchangeSender, "_channel", senderChannelMock.Object);
 
         var queueReadChannelMock = new Mock<IChannel>();
-        queueReadChannelMock.Setup(mock => mock.QueueDeclarePassiveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        queueReadChannelMock
+            .Setup(mock =>
+                mock.QueueDeclarePassiveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync(new QueueDeclareOk("generated", 0, 0));
-        queueReadChannelMock.Setup(mock => mock.BasicGetAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()))
+        queueReadChannelMock
+            .Setup(mock =>
+                mock.BasicGetAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>())
+            )
             .ReturnsAsync((BasicGetResult?)null);
-        var reader = new RabbitMqProtocol(new RabbitMqReaderConfig
-        {
-            Host = "localhost",
-            QueueName = null,
-            ExchangeName = "exchange",
-            RoutingKey = "route"
-        }, NullLogger.Instance);
+        var reader = new RabbitMqProtocol(
+            new RabbitMqReaderConfig
+            {
+                Host = "localhost",
+                QueueName = null,
+                ExchangeName = "exchange",
+                RoutingKey = "route",
+            },
+            NullLogger.Instance
+        );
         SetPrivateField(reader, "_channel", queueReadChannelMock.Object);
 
-        var queueRoutingKey = (string)typeof(RabbitMqProtocol)
-            .GetProperty("RoutingKey", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
-            .GetValue(queueSender)!;
-        var queueExchangeName = (string)typeof(RabbitMqProtocol)
-            .GetProperty("ExchangeName", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
-            .GetValue(queueSender)!;
-        var readerDefaultQueueName = (string)typeof(RabbitMqProtocol)
-            .GetField("_defaultQueueName", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(reader)!;
+        var queueRoutingKey = (string)
+            typeof(RabbitMqProtocol)
+                .GetProperty(
+                    "RoutingKey",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                )!
+                .GetValue(queueSender)!;
+        var queueExchangeName = (string)
+            typeof(RabbitMqProtocol)
+                .GetProperty(
+                    "ExchangeName",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                )!
+                .GetValue(queueSender)!;
+        var readerDefaultQueueName = (string)
+            typeof(RabbitMqProtocol)
+                .GetField("_defaultQueueName", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(reader)!;
 
-        var sent = exchangeSender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("body"), MetaData = null });
+        var sent = exchangeSender.Send(
+            new Data<object> { Body = Encoding.UTF8.GetBytes("body"), MetaData = null }
+        );
         var read = reader.Read(TimeSpan.FromMilliseconds(5));
 
         Assert.Multiple(() =>
@@ -321,46 +458,79 @@ public class ProtocolCoverageEdgeCaseTests
         string? publishedRoutingKey = null;
         var channelMock = new Mock<IChannel>();
         channelMock
-            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>())
+            )
             .Returns(Task.CompletedTask);
         channelMock
-            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
-                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
+            .Setup(mock =>
+                mock.BasicPublishAsync(
+                    "exchange-name",
+                    It.IsAny<string>(),
+                    true,
+                    It.IsAny<BasicProperties>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<
+                string,
+                string,
+                bool,
+                BasicProperties,
+                ReadOnlyMemory<byte>,
+                CancellationToken
+            >(
                 (_, routingKey, _, properties, _, _) =>
                 {
                     publishedRoutingKey = routingKey;
                     publishedProperties = properties;
-                })
+                }
+            )
             .Returns(ValueTask.CompletedTask);
 
-        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            ExchangeName = "exchange-name",
-            RoutingKey = "default-route",
-            Headers = new Dictionary<string, object?> { ["default"] = "value" },
-            Expiration = "1000",
-            ContentType = "application/json",
-            Type = "default-type"
-        }, NullLogger.Instance);
+        var sender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig
+            {
+                Host = "localhost",
+                ExchangeName = "exchange-name",
+                RoutingKey = "default-route",
+                Headers = new Dictionary<string, object?> { ["default"] = "value" },
+                Expiration = "1000",
+                ContentType = "application/json",
+                Type = "default-type",
+            },
+            NullLogger.Instance
+        );
         SetPrivateField(sender, "_channel", channelMock.Object);
 
-        var sent = sender.Send(new Data<object>
-        {
-            Body = Encoding.UTF8.GetBytes("payload"),
-            MetaData = new MetaData
+        var sent = sender.Send(
+            new Data<object>
             {
-                RabbitMq = new RabbitMq
+                Body = Encoding.UTF8.GetBytes("payload"),
+                MetaData = new MetaData
                 {
-                    RoutingKey = "override-route",
-                    Headers = new Dictionary<string, object?> { ["override"] = "value" },
-                    Expiration = "2000",
-                    ContentType = "application/octet-stream",
-                    Type = "override-type"
-                }
+                    RabbitMq = new RabbitMq
+                    {
+                        RoutingKey = "override-route",
+                        Headers = new Dictionary<string, object?> { ["override"] = "value" },
+                        Expiration = "2000",
+                        AppId = "override-app",
+                        ClusterId = "override-cluster",
+                        ContentEncoding = "br",
+                        ContentType = "application/octet-stream",
+                        CorrelationId = "override-correlation",
+                        DeliveryMode = 2,
+                        MessageId = "override-message",
+                        Priority = 5,
+                        ReplyTo = "override-reply",
+                        TimestampUnixTime = 987654321,
+                        Type = "override-type",
+                        UserId = "override-user",
+                    },
+                },
             }
-        });
+        );
 
         Assert.Multiple(() =>
         {
@@ -369,8 +539,19 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(publishedProperties, Is.Not.Null);
             Assert.That(publishedProperties!.Headers, Contains.Key("override"));
             Assert.That(publishedProperties.Expiration, Is.EqualTo("2000"));
+            Assert.That(publishedProperties.AppId, Is.EqualTo("override-app"));
+            Assert.That(publishedProperties.ClusterId, Is.EqualTo("override-cluster"));
+            Assert.That(publishedProperties.ContentEncoding, Is.EqualTo("br"));
             Assert.That(publishedProperties.ContentType, Is.EqualTo("application/octet-stream"));
+            Assert.That(publishedProperties.CorrelationId, Is.EqualTo("override-correlation"));
+            Assert.That((int)publishedProperties.DeliveryMode, Is.EqualTo(2));
+            Assert.That(publishedProperties.MessageId, Is.EqualTo("override-message"));
+            Assert.That(publishedProperties.Persistent, Is.True);
+            Assert.That(publishedProperties.Priority, Is.EqualTo(5));
+            Assert.That(publishedProperties.ReplyTo, Is.EqualTo("override-reply"));
+            Assert.That(publishedProperties.Timestamp.UnixTime, Is.EqualTo(987654321));
             Assert.That(publishedProperties.Type, Is.EqualTo("override-type"));
+            Assert.That(publishedProperties.UserId, Is.EqualTo("override-user"));
         });
     }
 
@@ -379,28 +560,36 @@ public class ProtocolCoverageEdgeCaseTests
     {
         var channelMock = new Mock<IChannel>();
         channelMock
-            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>())
+            )
             .Returns(Task.CompletedTask);
 
-        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            ExchangeName = "exchange-name"
-        }, NullLogger.Instance);
+        var sender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig { Host = "localhost", ExchangeName = "exchange-name" },
+            NullLogger.Instance
+        );
         SetPrivateField(sender, "_channel", channelMock.Object);
 
-        var sent = sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
+        var sent = sender.Send(
+            new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null }
+        );
         var publishInvocation = channelMock.Invocations.Single(invocation =>
-            invocation.Method.Name == nameof(IChannel.BasicPublishAsync));
+            invocation.Method.Name == nameof(IChannel.BasicPublishAsync)
+        );
 
         Assert.Multiple(() =>
         {
             Assert.That(sent.Body, Is.TypeOf<byte[]>());
             Assert.That((string)publishInvocation.Arguments[1], Is.EqualTo("/"));
-            Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
-                Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
-            Assert.That(publishInvocation.Arguments[3].GetType().FullName,
-                Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+            Assert.That(
+                publishInvocation.Method.GetGenericArguments().Single().FullName,
+                Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty")
+            );
+            Assert.That(
+                publishInvocation.Arguments[3].GetType().FullName,
+                Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty")
+            );
         });
     }
 
@@ -409,28 +598,38 @@ public class ProtocolCoverageEdgeCaseTests
     {
         var channelMock = new Mock<IChannel>();
         channelMock
-            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>())
+            )
             .Returns(Task.CompletedTask);
 
-        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            ExchangeName = "exchange-name",
-            Headers = [],
-            Expiration = "",
-            ContentType = "   ",
-            Type = string.Empty
-        }, NullLogger.Instance);
+        var sender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig
+            {
+                Host = "localhost",
+                ExchangeName = "exchange-name",
+                Headers = [],
+                Expiration = "",
+                ContentType = "   ",
+                Type = string.Empty,
+            },
+            NullLogger.Instance
+        );
         SetPrivateField(sender, "_channel", channelMock.Object);
 
         sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
         var publishInvocation = channelMock.Invocations.Single(invocation =>
-            invocation.Method.Name == nameof(IChannel.BasicPublishAsync));
+            invocation.Method.Name == nameof(IChannel.BasicPublishAsync)
+        );
 
-        Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
-            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
-        Assert.That(publishInvocation.Arguments[3].GetType().FullName,
-            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
+        Assert.That(
+            publishInvocation.Method.GetGenericArguments().Single().FullName,
+            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty")
+        );
+        Assert.That(
+            publishInvocation.Arguments[3].GetType().FullName,
+            Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty")
+        );
     }
 
     [Test]
@@ -439,29 +638,51 @@ public class ProtocolCoverageEdgeCaseTests
         BasicProperties? publishedProperties = null;
         var channelMock = new Mock<IChannel>();
         channelMock
-            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>())
+            )
             .Returns(Task.CompletedTask);
         channelMock
-            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
-                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
-                (_, _, _, properties, _, _) => publishedProperties = properties)
+            .Setup(mock =>
+                mock.BasicPublishAsync(
+                    "exchange-name",
+                    It.IsAny<string>(),
+                    true,
+                    It.IsAny<BasicProperties>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<
+                string,
+                string,
+                bool,
+                BasicProperties,
+                ReadOnlyMemory<byte>,
+                CancellationToken
+            >((_, _, _, properties, _, _) => publishedProperties = properties)
             .Returns(ValueTask.CompletedTask);
 
-        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            ExchangeName = "exchange-name",
-            Headers = new Dictionary<string, object?> { ["correlation-id"] = "abc" },
-            ContentType = null,
-            Type = null
-        }, NullLogger.Instance);
+        var sender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig
+            {
+                Host = "localhost",
+                ExchangeName = "exchange-name",
+                Headers = new Dictionary<string, object?> { ["correlation-id"] = "abc" },
+                ContentType = null,
+                Type = null,
+            },
+            NullLogger.Instance
+        );
         SetPrivateField(sender, "_channel", channelMock.Object);
 
         sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
 
         Assert.That(publishedProperties, Is.Not.Null);
-        var contentTypePresence = TryGetRabbitMqBasicPropertyPresenceFlag(publishedProperties!, "ContentType");
+        var contentTypePresence = TryGetRabbitMqBasicPropertyPresenceFlag(
+            publishedProperties!,
+            "ContentType"
+        );
         var typePresence = TryGetRabbitMqBasicPropertyPresenceFlag(publishedProperties!, "Type");
         Assert.Multiple(() =>
         {
@@ -474,35 +695,123 @@ public class ProtocolCoverageEdgeCaseTests
     }
 
     [Test]
+    public void RabbitMqProtocol_Send_UsesPersistentConvenienceWhenDeliveryModeIsUnset()
+    {
+        BasicProperties? publishedProperties = null;
+        var channelMock = new Mock<IChannel>();
+        channelMock
+            .Setup(mock =>
+                mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>())
+            )
+            .Returns(Task.CompletedTask);
+        channelMock
+            .Setup(mock =>
+                mock.BasicPublishAsync(
+                    "exchange-name",
+                    It.IsAny<string>(),
+                    true,
+                    It.IsAny<BasicProperties>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<
+                string,
+                string,
+                bool,
+                BasicProperties,
+                ReadOnlyMemory<byte>,
+                CancellationToken
+            >((_, _, _, properties, _, _) => publishedProperties = properties)
+            .Returns(ValueTask.CompletedTask);
+
+        var sender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig { Host = "localhost", ExchangeName = "exchange-name" },
+            NullLogger.Instance
+        );
+        SetPrivateField(sender, "_channel", channelMock.Object);
+
+        sender.Send(
+            new Data<object>
+            {
+                Body = Encoding.UTF8.GetBytes("payload"),
+                MetaData = new MetaData { RabbitMq = new RabbitMq { Persistent = true } },
+            }
+        );
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(publishedProperties, Is.Not.Null);
+            Assert.That(publishedProperties!.Persistent, Is.True);
+            Assert.That((int)publishedProperties.DeliveryMode, Is.EqualTo(2));
+            Assert.That(
+                TryGetRabbitMqBasicPropertyPresenceFlag(publishedProperties, "DeliveryMode"),
+                Is.True
+            );
+        });
+    }
+
+    [Test]
     public void RabbitMqProtocol_Send_UsesConfiguredDefaultMetadata_WhenMessageMetadataIsNull()
     {
         BasicProperties? publishedProperties = null;
         string? publishedRoutingKey = null;
         var channelMock = new Mock<IChannel>();
         channelMock
-            .Setup(mock => mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>()))
+            .Setup(mock =>
+                mock.ExchangeDeclarePassiveAsync("exchange-name", It.IsAny<CancellationToken>())
+            )
             .Returns(Task.CompletedTask);
         channelMock
-            .Setup(mock => mock.BasicPublishAsync("exchange-name", It.IsAny<string>(), true,
-                It.IsAny<BasicProperties>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
-            .Callback<string, string, bool, BasicProperties, ReadOnlyMemory<byte>, CancellationToken>(
+            .Setup(mock =>
+                mock.BasicPublishAsync(
+                    "exchange-name",
+                    It.IsAny<string>(),
+                    true,
+                    It.IsAny<BasicProperties>(),
+                    It.IsAny<ReadOnlyMemory<byte>>(),
+                    It.IsAny<CancellationToken>()
+                )
+            )
+            .Callback<
+                string,
+                string,
+                bool,
+                BasicProperties,
+                ReadOnlyMemory<byte>,
+                CancellationToken
+            >(
                 (_, routingKey, _, properties, _, _) =>
                 {
                     publishedRoutingKey = routingKey;
                     publishedProperties = properties;
-                })
+                }
+            )
             .Returns(ValueTask.CompletedTask);
 
-        var sender = new RabbitMqProtocol(new RabbitMqSenderConfig
-        {
-            Host = "localhost",
-            ExchangeName = "exchange-name",
-            RoutingKey = "default-route",
-            Headers = new Dictionary<string, object?> { ["default"] = "value" },
-            Expiration = "1500",
-            ContentType = "application/json",
-            Type = "default-type"
-        }, NullLogger.Instance);
+        var sender = new RabbitMqProtocol(
+            new RabbitMqSenderConfig
+            {
+                Host = "localhost",
+                ExchangeName = "exchange-name",
+                RoutingKey = "default-route",
+                Headers = new Dictionary<string, object?> { ["default"] = "value" },
+                Expiration = "1500",
+                AppId = "default-app",
+                ClusterId = "default-cluster",
+                ContentEncoding = "gzip",
+                ContentType = "application/json",
+                CorrelationId = "default-correlation",
+                DeliveryMode = 2,
+                MessageId = "default-message",
+                Priority = 3,
+                ReplyTo = "default-reply",
+                TimestampUnixTime = 456,
+                Type = "default-type",
+                UserId = "default-user",
+            },
+            NullLogger.Instance
+        );
         SetPrivateField(sender, "_channel", channelMock.Object);
 
         sender.Send(new Data<object> { Body = Encoding.UTF8.GetBytes("payload"), MetaData = null });
@@ -513,126 +822,239 @@ public class ProtocolCoverageEdgeCaseTests
             Assert.That(publishedProperties, Is.Not.Null);
             Assert.That(publishedProperties!.Headers, Contains.Key("default"));
             Assert.That(publishedProperties.Expiration, Is.EqualTo("1500"));
+            Assert.That(publishedProperties.AppId, Is.EqualTo("default-app"));
+            Assert.That(publishedProperties.ClusterId, Is.EqualTo("default-cluster"));
+            Assert.That(publishedProperties.ContentEncoding, Is.EqualTo("gzip"));
             Assert.That(publishedProperties.ContentType, Is.EqualTo("application/json"));
+            Assert.That(publishedProperties.CorrelationId, Is.EqualTo("default-correlation"));
+            Assert.That((int)publishedProperties.DeliveryMode, Is.EqualTo(2));
+            Assert.That(publishedProperties.MessageId, Is.EqualTo("default-message"));
+            Assert.That(publishedProperties.Priority, Is.EqualTo(3));
+            Assert.That(publishedProperties.ReplyTo, Is.EqualTo("default-reply"));
+            Assert.That(publishedProperties.Timestamp.UnixTime, Is.EqualTo(456));
             Assert.That(publishedProperties.Type, Is.EqualTo("default-type"));
+            Assert.That(publishedProperties.UserId, Is.EqualTo("default-user"));
         });
     }
 
     [Test]
     public void RedisPrivateHelpers_CoverNullAndUnsupportedBranches()
     {
-        var senderProtocol = new QaaS.Framework.Protocols.Protocols.RedisProtocol(new RedisSenderConfig
-        {
-            HostNames = ["localhost:6379"],
-            RedisDataType = RedisDataType.SetString
-        }, Globals.Logger);
+        var senderProtocol = new QaaS.Framework.Protocols.Protocols.RedisProtocol(
+            new RedisSenderConfig
+            {
+                HostNames = ["localhost:6379"],
+                RedisDataType = RedisDataType.SetString,
+            },
+            Globals.Logger
+        );
         Assert.Throws<InvalidOperationException>(() => senderProtocol.SendChunk([]).ToList());
 
-        var addToTransaction = typeof(QaaS.Framework.Protocols.Protocols.RedisProtocol)
-            .GetMethod("AddToRedisTransactionByRedisType", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var addToTransaction = typeof(QaaS.Framework.Protocols.Protocols.RedisProtocol).GetMethod(
+            "AddToRedisTransactionByRedisType",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        )!;
         var transaction = new Mock<ITransaction>().Object;
 
         void InvokeAdd(RedisDataType redisType, MetaData? metaData = null)
         {
-            var protocol = new QaaS.Framework.Protocols.Protocols.RedisProtocol(new RedisSenderConfig
-            {
-                HostNames = ["localhost:6379"],
-                RedisDataType = redisType
-            }, Globals.Logger);
-            addToTransaction.Invoke(protocol, [transaction, new Data<byte[]>
-            {
-                Body = Encoding.UTF8.GetBytes("value"),
-                MetaData = metaData
-            }]);
+            var protocol = new QaaS.Framework.Protocols.Protocols.RedisProtocol(
+                new RedisSenderConfig { HostNames = ["localhost:6379"], RedisDataType = redisType },
+                Globals.Logger
+            );
+            addToTransaction.Invoke(
+                protocol,
+                [
+                    transaction,
+                    new Data<byte[]>
+                    {
+                        Body = Encoding.UTF8.GetBytes("value"),
+                        MetaData = metaData,
+                    },
+                ]
+            );
         }
 
-        Assert.Throws<TargetInvocationException>(() => InvokeAdd(RedisDataType.HashSet,
-            new MetaData { Redis = new Redis { Key = "k" } }));
-        Assert.Throws<TargetInvocationException>(() => InvokeAdd(RedisDataType.SortedSetAdd,
-            new MetaData { Redis = new Redis { Key = "k" } }));
-        Assert.Throws<TargetInvocationException>(() => InvokeAdd(RedisDataType.GeoAdd,
-            new MetaData { Redis = new Redis { Key = "k", GeoLongitude = 1 } }));
+        Assert.Throws<TargetInvocationException>(() =>
+            InvokeAdd(RedisDataType.HashSet, new MetaData { Redis = new Redis { Key = "k" } })
+        );
+        Assert.Throws<TargetInvocationException>(() =>
+            InvokeAdd(RedisDataType.SortedSetAdd, new MetaData { Redis = new Redis { Key = "k" } })
+        );
+        Assert.Throws<TargetInvocationException>(() =>
+            InvokeAdd(
+                RedisDataType.GeoAdd,
+                new MetaData
+                {
+                    Redis = new Redis { Key = "k", GeoLongitude = 1 },
+                }
+            )
+        );
 
-        var invalidProtocol = new QaaS.Framework.Protocols.Protocols.RedisProtocol(new RedisSenderConfig
-        {
-            HostNames = ["localhost:6379"],
-            RedisDataType = (RedisDataType)999
-        }, Globals.Logger);
-        Assert.Throws<TargetInvocationException>(() => addToTransaction.Invoke(invalidProtocol, [transaction, new Data<byte[]>
-        {
-            Body = Encoding.UTF8.GetBytes("value"),
-            MetaData = new MetaData { Redis = new Redis { Key = "k", HashField = "h", SetScore = 1, GeoLatitude = 1, GeoLongitude = 1 } }
-        }]));
+        var invalidProtocol = new QaaS.Framework.Protocols.Protocols.RedisProtocol(
+            new RedisSenderConfig
+            {
+                HostNames = ["localhost:6379"],
+                RedisDataType = (RedisDataType)999,
+            },
+            Globals.Logger
+        );
+        Assert.Throws<TargetInvocationException>(() =>
+            addToTransaction.Invoke(
+                invalidProtocol,
+                [
+                    transaction,
+                    new Data<byte[]>
+                    {
+                        Body = Encoding.UTF8.GetBytes("value"),
+                        MetaData = new MetaData
+                        {
+                            Redis = new Redis
+                            {
+                                Key = "k",
+                                HashField = "h",
+                                SetScore = 1,
+                                GeoLatitude = 1,
+                                GeoLongitude = 1,
+                            },
+                        },
+                    },
+                ]
+            )
+        );
 
         var readerDatabase = new Mock<IDatabase>();
-        readerDatabase.Setup(database => database.StringGetDelete("string", CommandFlags.None)).Returns(RedisValue.Null);
-        readerDatabase.Setup(database => database.ListRightPop("right", CommandFlags.None)).Returns(RedisValue.Null);
-        readerDatabase.Setup(database => database.SetPop("set", CommandFlags.None)).Returns(RedisValue.Null);
-        readerDatabase.Setup(database => database.HashGet("hash", "field", CommandFlags.None)).Returns(RedisValue.Null);
-        readerDatabase.Setup(database => database.SortedSetRangeByRankWithScores("sorted", 0, 0, Order.Ascending, CommandFlags.None))
+        readerDatabase
+            .Setup(database => database.StringGetDelete("string", CommandFlags.None))
+            .Returns(RedisValue.Null);
+        readerDatabase
+            .Setup(database => database.ListRightPop("right", CommandFlags.None))
+            .Returns(RedisValue.Null);
+        readerDatabase
+            .Setup(database => database.SetPop("set", CommandFlags.None))
+            .Returns(RedisValue.Null);
+        readerDatabase
+            .Setup(database => database.HashGet("hash", "field", CommandFlags.None))
+            .Returns(RedisValue.Null);
+        readerDatabase
+            .Setup(database =>
+                database.SortedSetRangeByRankWithScores(
+                    "sorted",
+                    0,
+                    0,
+                    Order.Ascending,
+                    CommandFlags.None
+                )
+            )
             .Returns([]);
 
         DetailedData<object>? InvokeRead(RedisReaderConfig config, string methodName)
         {
             var protocol = new RedisReaderProtocol(config, Globals.Logger);
             SetPrivateField(protocol, "_redisDb", readerDatabase.Object);
-            return (DetailedData<object>?)typeof(RedisReaderProtocol)
-                .GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(protocol, null);
+            return (DetailedData<object>?)
+                typeof(RedisReaderProtocol)
+                    .GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(protocol, null);
         }
 
-        var createDetailedData = typeof(RedisReaderProtocol).GetMethod("CreateDetailedData",
-            BindingFlags.Static | BindingFlags.NonPublic)!;
-        var invalidReader = new RedisReaderProtocol(new RedisReaderConfig
-        {
-            HostNames = ["localhost:6379"],
-            Key = "invalid",
-            RedisDataType = (RedisDataType)999,
-            PollIntervalMs = 1
-        }, Globals.Logger);
+        var createDetailedData = typeof(RedisReaderProtocol).GetMethod(
+            "CreateDetailedData",
+            BindingFlags.Static | BindingFlags.NonPublic
+        )!;
+        var invalidReader = new RedisReaderProtocol(
+            new RedisReaderConfig
+            {
+                HostNames = ["localhost:6379"],
+                Key = "invalid",
+                RedisDataType = (RedisDataType)999,
+                PollIntervalMs = 1,
+            },
+            Globals.Logger
+        );
         SetPrivateField(invalidReader, "_redisDb", readerDatabase.Object);
 
         Assert.Multiple(() =>
         {
-            Assert.That(InvokeRead(new RedisReaderConfig
-            {
-                HostNames = ["localhost:6379"],
-                Key = "string",
-                RedisDataType = RedisDataType.SetString
-            }, "ReadString"), Is.Null);
-            Assert.That(InvokeRead(new RedisReaderConfig
-            {
-                HostNames = ["localhost:6379"],
-                Key = "right",
-                RedisDataType = RedisDataType.ListRightPush
-            }, "ReadListRight"), Is.Null);
-            Assert.That(InvokeRead(new RedisReaderConfig
-            {
-                HostNames = ["localhost:6379"],
-                Key = "set",
-                RedisDataType = RedisDataType.SetAdd
-            }, "ReadSet"), Is.Null);
-            Assert.That(InvokeRead(new RedisReaderConfig
-            {
-                HostNames = ["localhost:6379"],
-                Key = "hash",
-                HashField = "field",
-                RedisDataType = RedisDataType.HashSet
-            }, "ReadHash"), Is.Null);
-            Assert.That(InvokeRead(new RedisReaderConfig
-            {
-                HostNames = ["localhost:6379"],
-                Key = "sorted",
-                RedisDataType = RedisDataType.SortedSetAdd
-            }, "ReadSortedSet"), Is.Null);
-            Assert.That(createDetailedData.Invoke(null, [RedisValue.Null, new Redis { Key = "k" }]), Is.Null);
-            Assert.Throws<InvalidOperationException>(() => new RedisReaderProtocol(new RedisReaderConfig
-            {
-                HostNames = ["localhost:6379"],
-                Key = "missing",
-                RedisDataType = RedisDataType.SetString
-            }, Globals.Logger).Read(TimeSpan.FromMilliseconds(1)));
-            Assert.Throws<ArgumentOutOfRangeException>(() => invalidReader.Read(TimeSpan.FromMilliseconds(1)));
+            Assert.That(
+                InvokeRead(
+                    new RedisReaderConfig
+                    {
+                        HostNames = ["localhost:6379"],
+                        Key = "string",
+                        RedisDataType = RedisDataType.SetString,
+                    },
+                    "ReadString"
+                ),
+                Is.Null
+            );
+            Assert.That(
+                InvokeRead(
+                    new RedisReaderConfig
+                    {
+                        HostNames = ["localhost:6379"],
+                        Key = "right",
+                        RedisDataType = RedisDataType.ListRightPush,
+                    },
+                    "ReadListRight"
+                ),
+                Is.Null
+            );
+            Assert.That(
+                InvokeRead(
+                    new RedisReaderConfig
+                    {
+                        HostNames = ["localhost:6379"],
+                        Key = "set",
+                        RedisDataType = RedisDataType.SetAdd,
+                    },
+                    "ReadSet"
+                ),
+                Is.Null
+            );
+            Assert.That(
+                InvokeRead(
+                    new RedisReaderConfig
+                    {
+                        HostNames = ["localhost:6379"],
+                        Key = "hash",
+                        HashField = "field",
+                        RedisDataType = RedisDataType.HashSet,
+                    },
+                    "ReadHash"
+                ),
+                Is.Null
+            );
+            Assert.That(
+                InvokeRead(
+                    new RedisReaderConfig
+                    {
+                        HostNames = ["localhost:6379"],
+                        Key = "sorted",
+                        RedisDataType = RedisDataType.SortedSetAdd,
+                    },
+                    "ReadSortedSet"
+                ),
+                Is.Null
+            );
+            Assert.That(
+                createDetailedData.Invoke(null, [RedisValue.Null, new Redis { Key = "k" }]),
+                Is.Null
+            );
+            Assert.Throws<InvalidOperationException>(() =>
+                new RedisReaderProtocol(
+                    new RedisReaderConfig
+                    {
+                        HostNames = ["localhost:6379"],
+                        Key = "missing",
+                        RedisDataType = RedisDataType.SetString,
+                    },
+                    Globals.Logger
+                ).Read(TimeSpan.FromMilliseconds(1))
+            );
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                invalidReader.Read(TimeSpan.FromMilliseconds(1))
+            );
         });
     }
 }
