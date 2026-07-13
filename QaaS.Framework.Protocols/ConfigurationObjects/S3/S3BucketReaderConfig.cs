@@ -10,9 +10,10 @@ public record S3BucketReaderConfig : S3BucketConfig, IReaderConfig
 
     [
         Description(
-            "Delimiter of the objects to read from s3 bucket, this determines what objects will be retrieved from the bucket, "
-                + $"objects that have at least one occurence of the delimiter in their relative path after the `{nameof(Prefix)}` "
-                + "will not be retrieved from the bucket."
+            "Optional S3 key delimiter used with `Prefix` to browse one hierarchy level. S3 returns objects whose remaining key "
+                + $"after `{nameof(Prefix)}` does not contain the delimiter and rolls deeper keys into common prefixes, which are not consumed as objects. "
+                + $"For example, `{nameof(Prefix)}: events/` with `Delimiter: /` reads objects directly under `events/`, but not objects under `events/archive/`. "
+                + "Leave empty to read every object matching the prefix, including objects at deeper levels. A delimiter selects a hierarchy level; use `Prefix` to select a path."
         ),
         DefaultValue("")
     ]
@@ -42,7 +43,10 @@ public record S3BucketReaderConfig : S3BucketConfig, IReaderConfig
     public bool ReadFromRunStartTime { get; set; } = false;
 
     [
-        Description("Whether to read S3 user metadata headers for each consumed object"),
+        Description(
+            "Whether to read S3 user-defined metadata for each consumed object into `MetaData.Storage.Headers`, where assertions can access it. "
+                + "Enabling this performs one additional S3 metadata request per object; leave false to avoid those requests."
+        ),
         DefaultValue(false)
     ]
     public bool ReadStorageHeaders { get; set; } = false;

@@ -9,7 +9,7 @@ namespace QaaS.Framework.Protocols.Extentions;
 public static class S3Extentions
 {
     /// <summary>
-    /// Runs any s3 operation with a retry mechanism that handles the too many requests exception 
+    /// Runs any s3 operation with a retry mechanism that handles the too many requests exception
     /// </summary>
     /// <param name="s3OperationWithParameters"> A function that performs an s3 operation and returns
     /// the result of the operation</param>
@@ -20,8 +20,12 @@ public static class S3Extentions
     /// <param name="logger"> The logger to log with </param>
     /// <typeparam name="T"> The return type of the given function </typeparam>
     /// <returns> The return value the given function returns </returns>
-    public static T RunS3OperationWithRetryMechanism<T>(Func<T> s3OperationWithParameters,
-        string operationDescription, int? maxRetryCount = null, ILogger? logger = null)
+    public static T RunS3OperationWithRetryMechanism<T>(
+        Func<T> s3OperationWithParameters,
+        string operationDescription,
+        int? maxRetryCount = null,
+        ILogger? logger = null
+    )
     {
         var retryCount = 0;
         while (true)
@@ -30,24 +34,35 @@ public static class S3Extentions
             {
                 return s3OperationWithParameters.Invoke();
             }
-            catch (AmazonS3Exception ex) when (ex.ErrorCode == "TooManyRequests" &&
-                                               (!maxRetryCount.HasValue || retryCount < maxRetryCount.Value))
+            catch (AmazonS3Exception ex)
+                when (ex.ErrorCode == "TooManyRequests"
+                    && (!maxRetryCount.HasValue || retryCount < maxRetryCount.Value)
+                )
             {
                 // Retry only the throttling case; all other S3 failures should bubble immediately so
                 // callers do not mask authentication, missing bucket, or transport problems as retries.
                 retryCount++;
-                logger?.LogWarning(ex,
-                    "S3 returned TooManyRequests while executing {OperationDescription}. Retry {RetryAttempt}{RetryLimit}.",
+                logger?.LogWarning(
+                    "S3 returned TooManyRequests while executing {OperationDescription}. Retry {RetryAttempt}{RetryLimit}. {ExceptionType}: {ExceptionMessage}",
                     operationDescription,
                     retryCount,
-                    maxRetryCount.HasValue ? $"/{maxRetryCount.Value}" : "/unbounded");
+                    maxRetryCount.HasValue ? $"/{maxRetryCount.Value}" : "/unbounded",
+                    ex.GetType().Name,
+                    ex.Message
+                );
             }
             catch (AmazonS3Exception ex)
             {
-                logger?.LogError(ex,
-                    "S3 operation {OperationDescription} failed after {RetryCount} retries.",
+                // The exception is rethrown to the execution boundary, which records the authoritative
+                // failure. Logging it as an exception here as well duplicates its message and stack for
+                // every object in parallel S3 reads. Keep the per-operation context as one concise line.
+                logger?.LogError(
+                    "S3 operation {OperationDescription} failed after {RetryCount} retries. {ExceptionType}: {ExceptionMessage}",
                     operationDescription,
-                    retryCount);
+                    retryCount,
+                    ex.GetType().Name,
+                    ex.Message
+                );
                 throw;
             }
         }
