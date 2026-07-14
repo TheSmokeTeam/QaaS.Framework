@@ -337,6 +337,56 @@ public class ProtocolAdvancedBehaviorTests
     }
 
     [Test]
+    public async Task S3Client_ListObjects_UsesPrefixAndDelimiterForOneHierarchyLevelAndPaginates()
+    {
+        var requests = new List<(string? Prefix, string? Delimiter, string? ContinuationToken)>();
+        var s3Mock = new Mock<IAmazonS3>();
+        s3Mock
+            .Setup(client => client.ListObjectsV2Async(It.IsAny<ListObjectsV2Request>(), default))
+            .ReturnsAsync(
+                (ListObjectsV2Request request, CancellationToken _) =>
+                {
+                    requests.Add((request.Prefix, request.Delimiter, request.ContinuationToken));
+                    return request.ContinuationToken == null
+                        ? new ListObjectsV2Response
+                        {
+                            IsTruncated = true,
+                            NextContinuationToken = "next-page",
+                            S3Objects = [new S3Object { Key = "events/current.json", Size = 1 }],
+                            CommonPrefixes = ["events/archive/"],
+                        }
+                        : new ListObjectsV2Response
+                        {
+                            IsTruncated = false,
+                            S3Objects = [new S3Object { Key = "events/latest.json", Size = 1 }],
+                        };
+                }
+            );
+        var client = new S3Client(s3Mock.Object, NullLogger.Instance, maxRetryCount: 1);
+
+        var objects = (
+            await client.ListAllObjectsInS3Bucket(
+                "bucket",
+                prefix: "events/",
+                delimiter: "/",
+                skipEmptyObjects: false
+            )
+        ).ToList();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                objects.Select(item => item.Key),
+                Is.EqualTo(new[] { "events/current.json", "events/latest.json" })
+            );
+            Assert.That(
+                requests,
+                Is.EqualTo(new[] { ("events/", "/", (string?)null), ("events/", "/", "next-page") })
+            );
+        });
+    }
+
+    [Test]
     public void S3Client_EmptyS3Bucket_DeletesObjects()
     {
         var s3Mock = new Mock<IAmazonS3>();
@@ -628,6 +678,7 @@ public class ProtocolAdvancedBehaviorTests
 
         var withBody = readerProtocol.ReadChunk(TimeSpan.Zero).ToList();
         var noBody = readerNoBodyProtocol.ReadChunk(TimeSpan.Zero).ToList();
+        Data<object> assertionInput = withBody.Single(item => item.MetaData?.Storage?.Key == "a");
         var sent = senderProtocol.Send(
             new Data<object>
             {
@@ -654,9 +705,7 @@ public class ProtocolAdvancedBehaviorTests
             Assert.That(withBody, Has.Count.EqualTo(2));
             Assert.That(withBody.All(item => item.Body is byte[]), Is.True);
             Assert.That(
-                withBody
-                    .Single(item => item.MetaData?.Storage?.Key == "a")
-                    .MetaData?.Storage?.Headers,
+                assertionInput.MetaData?.Storage?.Headers,
                 Does.ContainKey("trace-id").WithValue("abc")
             );
             Assert.That(noBody, Has.Count.EqualTo(2));
@@ -1055,14 +1104,17 @@ public class ProtocolAdvancedBehaviorTests
     [Test]
     public void S3Protocol_PrivateInactivityHelper_HandlesMissingObjectsAndUnspecifiedDateKinds()
     {
+        var listRequests = new List<(string Prefix, string Delimiter)>();
         var fakeClient = new FakeS3Client
         {
             Client = new Mock<IAmazonS3>().Object,
-            ListObjects = (_, _, _) =>
-                Task.FromResult<IEnumerable<S3Object>>([
+            ListObjects = (_, prefix, delimiter) =>
+            {
+                listRequests.Add((prefix, delimiter));
+                return Task.FromResult<IEnumerable<S3Object>>([
                     new S3Object
                     {
-                        Key = "unspecified",
+                        Key = "events/unspecified",
                         LastModified = new DateTime(
                             2026,
                             3,
@@ -1074,7 +1126,8 @@ public class ProtocolAdvancedBehaviorTests
                         ),
                         Size = 1,
                     },
-                ]),
+                ]);
+            },
         };
         var protocol = new ControlledTimeS3Protocol(
             new S3BucketReaderConfig
@@ -1083,6 +1136,8 @@ public class ProtocolAdvancedBehaviorTests
                 ServiceURL = "http://127.0.0.1",
                 AccessKey = "ak",
                 SecretKey = "sk",
+                Prefix = "events/",
+                Delimiter = "/",
                 ReadFromRunStartTime = false,
             },
             new DataFilter { Body = false },
@@ -1109,6 +1164,7 @@ public class ProtocolAdvancedBehaviorTests
         {
             Assert.That(unspecifiedResult, Is.Null);
             Assert.That(emptyResult, Is.Null);
+            Assert.That(listRequests, Is.EqualTo(new[] { ("events/", "/") }));
         });
     }
 

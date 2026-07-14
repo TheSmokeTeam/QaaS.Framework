@@ -251,7 +251,11 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
     private long? GetNumberOfMilliSecondsPassedSinceLastS3ObjectModification()
     {
         var allS3ObjectsInBucket = _s3Client!
-            .ListAllObjectsInS3Bucket(_readerConfig!.StorageBucket!, _readerConfig.Prefix)
+            .ListAllObjectsInS3Bucket(
+                _readerConfig!.StorageBucket!,
+                _readerConfig.Prefix,
+                _readerConfig.Delimiter
+            )
             .GetAwaiter()
             .GetResult()
             .Where(HasS3ObjectLastModified)

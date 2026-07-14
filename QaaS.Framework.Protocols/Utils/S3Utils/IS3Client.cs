@@ -18,25 +18,35 @@ public interface IS3Client : IDisposable
     /// </summary>
     /// <param name="bucketName"> The name of the s3 bucket to empty </param>
     /// <param name="prefix"> Prefix of all objects to delete </param>
-    /// <param name="delimiter">Delimiter to use between object names to use when deleting,
-    /// objects that don't have the delimiter in their path in the bucket will be deleted</param>
+    /// <param name="delimiter">Optional S3 key delimiter. When set, only objects at the hierarchy
+    /// level selected by <paramref name="prefix"/> are returned for deletion; deeper keys are rolled
+    /// up by S3 into common prefixes and are not deleted by this operation.</param>
     /// <returns> Delete responses of all the delete requests performed by the function (each delete request
     /// can only delete up to 1000 objects so multiple responses will be returned if there are more than
     /// 1000 objects in the bucket) </returns>
-    public Task<IEnumerable<DeleteObjectsResponse>> EmptyS3Bucket(string bucketName,
-        string prefix = "", string delimiter = "");
+    public Task<IEnumerable<DeleteObjectsResponse>> EmptyS3Bucket(
+        string bucketName,
+        string prefix = "",
+        string delimiter = ""
+    );
 
     /// <summary>
     /// Lists all the objects with the given prefix in the given bucket
     /// </summary>
     /// <param name="bucketName"> The name of the s3 bucket to list the objects in</param>
     /// <param name="prefix"> prefix of all objects to list </param>
-    /// <param name="delimiter">delimiter of the message keys</param>
+    /// <param name="delimiter">Optional S3 key delimiter used with <paramref name="prefix"/> to
+    /// return objects at one hierarchy level. Deeper keys are represented by S3 as common prefixes
+    /// and are not returned as objects. Leave empty to return all objects matching the prefix.</param>
     /// <param name="skipEmptyObjects"> Whether to skip found empty s3Objects or not, by default is true which
     /// means it skips them, if false will simply save their stream as null </param>
     /// <returns>an enumerable of all the objects with the given prefix in the given bucket</returns>
-    public Task<IEnumerable<S3Object>> ListAllObjectsInS3Bucket(string bucketName,
-        string prefix = "", string delimiter = "", bool skipEmptyObjects = true);
+    public Task<IEnumerable<S3Object>> ListAllObjectsInS3Bucket(
+        string bucketName,
+        string prefix = "",
+        string delimiter = "",
+        bool skipEmptyObjects = true
+    );
 
     /// <summary>
     /// Retrieves an enumerable of all objects with a given prefix in the given bucket in no particular order that contains a
@@ -45,13 +55,19 @@ public interface IS3Client : IDisposable
     /// </summary>
     /// <param name="bucketName"> The name of the bucket the objects are in </param>
     /// <param name="prefix"> The prefix of all the desired objects </param>
-    /// <param name="delimiter">delimiter of the message keys</param>
+    /// <param name="delimiter">Optional S3 key delimiter used with <paramref name="prefix"/> to
+    /// load objects at one hierarchy level. Deeper keys are represented by S3 as common prefixes
+    /// and are not loaded. Leave empty to load all objects matching the prefix.</param>
     /// <param name="skipEmptyObjects"> Whether to skip found empty s3Objects or not, by default is true which
     /// means it skips them, if false will simply save their stream as null </param>
     /// <returns> All objects metadata as key and their data in byte[] form as value in a key value pair enumerable
     /// </returns>
     public IEnumerable<KeyValuePair<S3Object, byte[]?>> GetAllObjectsInS3BucketUnOrdered(
-        string bucketName, string prefix = "", string delimiter = "", bool skipEmptyObjects = true);
+        string bucketName,
+        string prefix = "",
+        string delimiter = "",
+        bool skipEmptyObjects = true
+    );
 
     /// <summary>
     /// Retrieves an object in the given bucket
@@ -63,7 +79,9 @@ public interface IS3Client : IDisposable
     /// <returns> All objects metadata as key and their data in byte[] form as value in a key value pair enumerable
     /// </returns>
     public KeyValuePair<S3Object, byte[]?> GetObjectFromObjectMetadata(
-        S3Object s3ObjectMetadata, string bucketName);
+        S3Object s3ObjectMetadata,
+        string bucketName
+    );
 
     /// <summary>
     /// Puts the given items by their order from first to last synchronously and lazily in an s3 bucket where the key is the
@@ -73,6 +91,8 @@ public interface IS3Client : IDisposable
     /// <param name="s3KeyValueItems"> The items to put in the s3 bucket, the key is the item's key and its value is its serialized value</param>
     /// <returns> Returns an enumerable of the responses from putting every item in the s3 bucket </returns>
     /// <exception cref="HttpRequestException"> Thrown when a response does not contain a valid http status code </exception>
-    public IEnumerable<PutObjectResponse> PutObjectsInS3BucketSync(string bucketName,
-        IEnumerable<KeyValuePair<string, byte[]>> s3KeyValueItems);
+    public IEnumerable<PutObjectResponse> PutObjectsInS3BucketSync(
+        string bucketName,
+        IEnumerable<KeyValuePair<string, byte[]>> s3KeyValueItems
+    );
 }
