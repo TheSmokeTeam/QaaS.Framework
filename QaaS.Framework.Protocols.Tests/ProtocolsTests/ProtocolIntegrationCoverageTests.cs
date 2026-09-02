@@ -396,7 +396,7 @@ public class ProtocolIntegrationCoverageTests
         Assert.That(publishInvocation.Method.GetGenericArguments().Single().FullName,
             Is.EqualTo("RabbitMQ.Client.Impl.EmptyBasicProperty"));
         channelMock.Verify(mock => mock.QueueDeleteAsync(It.IsAny<string>(), false, false, false,
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<CancellationToken>()), Times.Never);
         channelMock.Verify(mock => mock.Dispose(), Times.Once);
         connectionMock.Verify(mock => mock.Dispose(), Times.Once);
     }

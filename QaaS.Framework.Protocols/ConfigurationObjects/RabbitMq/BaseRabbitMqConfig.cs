@@ -32,4 +32,16 @@ public record BaseRabbitMqConfig
          "Amount of time protocol handshake operations are allowed to take before timing out in seconds"),
      DefaultValue(10)]
     public int HandshakeContinuationTimeoutSeconds { get; set; } = 10;
+
+    [Description("Whether the queue is durable (survives broker restart)"), DefaultValue(false)]
+    public bool Durable { get; set; } = false;
+
+    [Description("Whether the queue is exclusive (used by only one connection and deleted when connection closes)"), DefaultValue(false)]
+    public bool Exclusive { get; set; } = false;
+
+    [Description("Whether the queue is auto-deleted when all consumers unsubscribe"), DefaultValue(false)]
+    public bool AutoDelete { get; set; } = false;
+
+    [Description("Custom queue declaration arguments / x-arguments (e.g. x-message-ttl, x-dead-letter-exchange, x-max-length, etc.)"), DefaultValue(null)]
+    public Dictionary<string, object?>? Arguments { get; set; } = null;
 }

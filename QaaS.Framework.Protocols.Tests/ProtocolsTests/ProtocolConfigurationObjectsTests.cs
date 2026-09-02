@@ -157,8 +157,16 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(baseConfig.Username, Is.EqualTo("admin"));
             Assert.That(baseConfig.Password, Is.EqualTo("admin"));
             Assert.That(baseConfig.Port, Is.EqualTo(5672));
+            Assert.That(baseConfig.Durable, Is.False);
+            Assert.That(baseConfig.Exclusive, Is.False);
+            Assert.That(baseConfig.AutoDelete, Is.False);
+            Assert.That(baseConfig.Arguments, Is.Null);
             Assert.That(sender.RoutingKey, Is.EqualTo("/"));
             Assert.That(sender.ExchangeName, Is.Null);
+            Assert.That(sender.Durable, Is.False);
+            Assert.That(sender.Exclusive, Is.False);
+            Assert.That(sender.AutoDelete, Is.False);
+            Assert.That(sender.Arguments, Is.Null);
             Assert.That(sender.AppId, Is.Null);
             Assert.That(sender.ClusterId, Is.Null);
             Assert.That(sender.ContentEncoding, Is.Null);
@@ -175,6 +183,22 @@ public class ProtocolConfigurationObjectsTests
             Assert.That(sender.Type, Is.Null);
             Assert.That(sender.UserId, Is.Null);
             Assert.That(reader.CreatedQueueTimeToExpireMs, Is.EqualTo(300000));
+            Assert.That(reader.Durable, Is.False);
+            Assert.That(reader.Exclusive, Is.False);
+            Assert.That(reader.AutoDelete, Is.False);
+            Assert.That(reader.Arguments, Is.Null);
+            var customReader = reader with
+            {
+                Durable = true,
+                Exclusive = true,
+                AutoDelete = true,
+                Arguments = new Dictionary<string, object?> { ["x-message-ttl"] = 5000 }
+            };
+            Assert.That(Validate(customReader).IsValid, Is.True);
+            Assert.That(customReader.Durable, Is.True);
+            Assert.That(customReader.Exclusive, Is.True);
+            Assert.That(customReader.AutoDelete, Is.True);
+            Assert.That(customReader.Arguments?["x-message-ttl"], Is.EqualTo(5000));
             Assert.That(Validate(sender).IsValid, Is.True);
             Assert.That(Validate(reader).IsValid, Is.True);
             Assert.That(Validate(invalidSenderBothTargets).IsValid, Is.False);
