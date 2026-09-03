@@ -241,14 +241,22 @@ public static class ConfigurationUtils
     /// parameterless configuration resolution extensions to the build process
     /// </summary>
     public static IConfiguration EnrichedBuild(this IConfigurationBuilder configurationBuilder,
-        bool addEnvironmentVariables)
+        bool addEnvironmentVariables) =>
+        EnrichedBuild(configurationBuilder, addEnvironmentVariables, resolveMissingPlaceholderDefaults: true);
+
+    /// <summary>
+    /// Builds an enriched configuration while controlling whether defaults for currently missing placeholder paths
+    /// are resolved. Reference preprocessing defers those defaults until the final combined build.
+    /// </summary>
+    internal static IConfiguration EnrichedBuild(this IConfigurationBuilder configurationBuilder,
+        bool addEnvironmentVariables, bool resolveMissingPlaceholderDefaults)
     {
         var baseConfiguration = configurationBuilder.Build();
         var placeholderResolutionConfiguration = BuildPlaceholderResolutionConfiguration(baseConfiguration,
             addEnvironmentVariables);
         var resolvedConfiguration = new ConfigurationBuilder()
             .AddConfiguration(new ConfigurationPlaceholderParser(placeholderResolutionConfiguration)
-                .ResolvePlaceholders())
+                .ResolvePlaceholders(resolveMissingPlaceholderDefaults))
             .Build()
             .CollapseShiftLeftArrowsInConfiguration();
 

@@ -147,6 +147,7 @@ public static class ConfigurationReferencesParser
         var referenceConfigurationBuilder = new ConfigurationBuilder();
         foreach (var path in referenceConfig.ReferenceFilesPaths ?? Enumerable.Empty<string>())
             referenceConfigurationBuilder.AddYaml(path);
-        return referenceConfigurationBuilder.EnrichedBuild(resolveReferencesWithEnvironmentVariables);
+        return referenceConfigurationBuilder.EnrichedBuild(resolveReferencesWithEnvironmentVariables,
+            resolveMissingPlaceholderDefaults: false);
     }
 }

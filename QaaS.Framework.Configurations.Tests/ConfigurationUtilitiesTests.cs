@@ -480,6 +480,98 @@ public class ConfigurationUtilitiesTests
     }
 
     [Test]
+    public void ResolveReferencesInConfiguration_MainValueOverridesDeferredDefault()
+    {
+        var resolved = ResolveReferenceWithFinalBuild(
+            "items:\n  - id: ${variables:name??fallback}\n",
+            new Dictionary<string, string?> { ["variables:name"] = "main" });
+
+        Assert.That(resolved["items:0:id"], Is.EqualTo("__REF__main"));
+    }
+
+    [Test]
+    public void ResolveReferencesInConfiguration_MissingMainValueUsesDeferredDefault()
+    {
+        var resolved = ResolveReferenceWithFinalBuild(
+            "items:\n  - id: ${variables:name??fallback}\n");
+
+        Assert.That(resolved["items:0:id"], Is.EqualTo("__REF__fallback"));
+    }
+
+    [Test]
+    public void ResolveReferencesInConfiguration_ReferenceLocalValueResolvesBeforeMainValue()
+    {
+        var resolved = ResolveReferenceWithFinalBuild(
+            "variables:\n  name: reference\nitems:\n  - id: ${variables:name??fallback}\n",
+            new Dictionary<string, string?> { ["variables:name"] = "main" });
+
+        Assert.That(resolved["items:0:id"], Is.EqualTo("__REF__reference"));
+    }
+
+    [Test]
+    public void ResolveReferencesInConfiguration_DeferredDefaultDoesNotBlockLaterLocalPlaceholder()
+    {
+        var resolved = ResolveReferenceWithFinalBuild(
+            "local:\n  value: reference\nitems:\n  - id: ${main:missing??fallback}-${local:value}\n");
+
+        Assert.That(resolved["items:0:id"], Is.EqualTo("__REF__fallback-reference"));
+    }
+
+    [Test]
+    public void ResolveReferencesInConfiguration_MainObjectPlaceholderStillCopiesObject()
+    {
+        var resolved = ResolveReferenceWithFinalBuild(
+            "items:\n  - id: object\n    settings: ${shared}\n",
+            new Dictionary<string, string?> { ["shared:child:id"] = "42" });
+
+        Assert.That(resolved["items:0:settings:child:id"], Is.EqualTo("42"));
+    }
+
+    [Test]
+    public void ResolveReferencesInConfiguration_CircularReferenceAcrossCombinedConfigurationThrows()
+    {
+        Assert.Throws<InvalidOperationException>(() => ResolveReferenceWithFinalBuild(
+            "items:\n  - id: ${variables:name??fallback}\n",
+            new Dictionary<string, string?> { ["variables:name"] = "${items:0:id}" }));
+    }
+
+    private static IConfiguration ResolveReferenceWithFinalBuild(string referenceYaml,
+        IDictionary<string, string?>? baseValues = null)
+    {
+        var referenceFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
+        File.WriteAllText(referenceFile, referenceYaml);
+
+        try
+        {
+            var configurationValues = new Dictionary<string, string?>(baseValues ??
+                                                                      new Dictionary<string, string?>())
+            {
+                ["items:0:id"] = "__REF__"
+            };
+            var baseConfiguration = new ConfigurationBuilder()
+                .AddInMemoryCollection(configurationValues)
+                .Build();
+            var resolvedReferences = baseConfiguration.ResolveReferencesInConfiguration(
+                [new ReferenceConfig
+                {
+                    ReferenceReplaceKeyword = "__REF__",
+                    ReferenceFilesPaths = [referenceFile]
+                }],
+                ["items"],
+                [@"items:\d+:id"],
+                resolveReferencesWithEnvironmentVariables: false);
+
+            return new ConfigurationBuilder()
+                .AddConfiguration(resolvedReferences)
+                .EnrichedBuild(addEnvironmentVariables: false);
+        }
+        finally
+        {
+            File.Delete(referenceFile);
+        }
+    }
+
+    [Test]
     public void ResolveReferencesInConfiguration_WithMultipleReplaceKeywords_Throws()
     {
         var referenceFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
