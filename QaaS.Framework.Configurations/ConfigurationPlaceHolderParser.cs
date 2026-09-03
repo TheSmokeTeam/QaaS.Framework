@@ -86,13 +86,20 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
             
 
             var placeholderResolvedConfigurationObject = GetObjectFromConfiguration(placeholderValuePath);
-            if (placeholderResolvedConfigurationObject == null && defaultValue == null) break; 
+            if (placeholderResolvedConfigurationObject == null && defaultValue == null)
+            {
+                if (resolveMissingPlaceholderDefaults) break;
+
+                lastEnd = end + 1;
+                continue;
+            }
 
             // Reference preprocessing must keep unresolved defaults intact for the final combined configuration.
-            // Continue scanning so later reference-local placeholders in the same value can still resolve.
+            // Continue scanning inside the default and then after the outer placeholder so reference-local
+            // placeholders in either position can still resolve.
             if (placeholderResolvedConfigurationObject == null && !resolveMissingPlaceholderDefaults)
             {
-                lastEnd = end + 1;
+                lastEnd = placeholderStartIndex + Prefix.Length;
                 continue;
             }
 

@@ -518,6 +518,15 @@ public class ConfigurationUtilitiesTests
     }
 
     [Test]
+    public void ResolveReferencesInConfiguration_ReferenceLocalPlaceholderInsideDeferredDefaultResolves()
+    {
+        var resolved = ResolveReferenceWithFinalBuild(
+            "local:\n  value: reference\nitems:\n  - id: ${main:missing??${local:value}}\n");
+
+        Assert.That(resolved["items:0:id"], Is.EqualTo("__REF__reference"));
+    }
+
+    [Test]
     public void ResolveReferencesInConfiguration_MainObjectPlaceholderStillCopiesObject()
     {
         var resolved = ResolveReferenceWithFinalBuild(
