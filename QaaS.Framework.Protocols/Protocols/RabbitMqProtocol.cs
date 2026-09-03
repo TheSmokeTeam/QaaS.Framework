@@ -23,7 +23,7 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
     private readonly RabbitMqReaderConfig? _rabbitMqReaderConfig;
     private readonly string _defaultQueueName = $"{DefaultName}_{Guid.NewGuid()}";
 
-    private ConnectionFactory ConnectionFactory { get; set; }
+    private IConnectionFactory ConnectionFactory { get; set; }
 
     public RabbitMqProtocol(RabbitMqReaderConfig configurations, ILogger logger)
         : this((BaseRabbitMqConfig)configurations, logger)
@@ -168,7 +168,10 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         var routingKey = metadata.RoutingKey ?? RoutingKey;
         var body = dataToSend.CastObjectData<byte[]>().Body;
 
-        _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter().GetResult(); // Before sending check if exchange exists
+        if (!string.IsNullOrEmpty(ExchangeName))
+        {
+            _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter().GetResult(); // Before sending check if exchange exists
+        }
 
         var basicProperties = CreateBasicProperties(metadata);
         if (basicProperties == null)
@@ -396,35 +399,79 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         _channel = _connection.CreateChannelAsync().GetAwaiter().GetResult();
         if (_rabbitMqReaderConfig == null)
             return;
-        if (_queueName == null)
-            _channel
-                .QueueDeclareAsync(
-                    _defaultQueueName,
-                    arguments: new Dictionary<string, object?>
-                    {
-                        {
-                            "x-expires",
-                            (int)
-                                TimeSpan
-                                    .FromMilliseconds(
-                                        _rabbitMqReaderConfig.CreatedQueueTimeToExpireMs
-                                    )
-                                    .TotalMilliseconds
-                        },
-                    }
-                )
-                .GetAwaiter()
-                .GetResult();
+
+        var queueToDeclare = _queueName ?? _defaultQueueName;
+        var arguments = BuildReaderQueueArguments();
 
         _channel
-            .QueueBindAsync(_queueName ?? _defaultQueueName, ExchangeName, RoutingKey)
+            .QueueDeclareAsync(
+                queue: queueToDeclare,
+                durable: _rabbitMqReaderConfig.Durable,
+                exclusive: _rabbitMqReaderConfig.Exclusive,
+                autoDelete: _rabbitMqReaderConfig.AutoDelete,
+                arguments: arguments.Count > 0 ? arguments : null
+            )
             .GetAwaiter()
             .GetResult();
+
+        if (!string.IsNullOrEmpty(ExchangeName))
+        {
+            _channel
+                .QueueBindAsync(queueToDeclare, ExchangeName, RoutingKey)
+                .GetAwaiter()
+                .GetResult();
+        }
+    }
+
+    private Dictionary<string, object?> BuildReaderQueueArguments()
+    {
+        var rawArguments = _rabbitMqReaderConfig?.Arguments != null
+            ? new Dictionary<string, object?>(_rabbitMqReaderConfig.Arguments)
+            : new Dictionary<string, object?>();
+
+        var arguments = new Dictionary<string, object?>();
+        foreach (var (key, value) in rawArguments)
+        {
+            if (value is string strVal)
+            {
+                if (int.TryParse(strVal, out var intVal))
+                {
+                    arguments[key] = intVal;
+                }
+                else if (long.TryParse(strVal, out var longVal))
+                {
+                    arguments[key] = longVal;
+                }
+                else if (bool.TryParse(strVal, out var boolVal))
+                {
+                    arguments[key] = boolVal;
+                }
+                else
+                {
+                    arguments[key] = strVal;
+                }
+            }
+            else
+            {
+                arguments[key] = value;
+            }
+        }
+
+        if (_queueName == null && !arguments.ContainsKey("x-expires") && _rabbitMqReaderConfig != null)
+        {
+            arguments["x-expires"] = (int)
+                TimeSpan.FromMilliseconds(_rabbitMqReaderConfig.CreatedQueueTimeToExpireMs).TotalMilliseconds;
+        }
+
+        return arguments;
     }
 
     public void Disconnect()
     {
-        _channel.QueueDeleteAsync(_defaultQueueName).GetAwaiter().GetResult();
+        if (_rabbitMqReaderConfig != null && _queueName == null)
+        {
+            _channel.QueueDeleteAsync(_defaultQueueName).GetAwaiter().GetResult();
+        }
         _channel.CloseAsync().GetAwaiter().GetResult();
         _connection.CloseAsync().GetAwaiter().GetResult();
     }
