@@ -7,7 +7,9 @@ validation.
 
 1. **Load**: file / HTTP / embedded resource → string.
 2. **Placeholder resolution** (`${section.path ?? default}`): iterative
-   with circular-reference detection (`_resolutionStack`). Throws
+   with circular-reference detection (`_resolutionStack`). Reference files
+   resolve their local placeholders first but preserve defaults for missing
+   paths until the final combined configuration pass. Throws
    `InvalidOperationException` on cycles.
 3. **Reference resolution**: a single keyword inside a list expands to
    referenced items; subsequent indices shift to maintain order.
