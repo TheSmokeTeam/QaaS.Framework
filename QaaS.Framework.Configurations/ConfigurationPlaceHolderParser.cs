@@ -18,14 +18,12 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     /// <summary>
     /// Resolves all the placeholders in the configuration and returns the resolved configuration.
     /// </summary>
-    public IConfiguration ResolvePlaceholders() => ResolvePlaceholders(resolveMissingPlaceholderDefaults: true);
+    public IConfiguration ResolvePlaceholders() => ResolvePlaceholders(preserveUnresolvedPlaceholders: false);
 
     /// <summary>
-    /// Resolves placeholders while optionally preserving defaults whose paths are not available in the current
-    /// configuration. Reference preprocessing uses the deferred mode so the final combined configuration can resolve
-    /// the path before applying its default.
+    /// Resolves placeholders while optionally preserving values that require configuration from a later build pass.
     /// </summary>
-    internal IConfiguration ResolvePlaceholders(bool resolveMissingPlaceholderDefaults)
+    internal IConfiguration ResolvePlaceholders(bool preserveUnresolvedPlaceholders)
     {
         List<KeyValuePair<string, string?>> previousConfigurationKeys;
         List<KeyValuePair<string, string?>> configurationKeys;
@@ -33,24 +31,24 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
         {
             previousConfigurationKeys = configuration.AsEnumerable().ToList();
 
-            ResolveSection(configuration.GetChildren(), resolveMissingPlaceholderDefaults);
+            ResolveSection(configuration.GetChildren(), preserveUnresolvedPlaceholders);
             configurationKeys = configuration.AsEnumerable().ToList();
         } while (!configurationKeys.SequenceEqual(previousConfigurationKeys));
 
         return configuration;
     }
 
-    private void ResolveSection(IEnumerable<IConfigurationSection> sections, bool resolveMissingPlaceholderDefaults)
+    private void ResolveSection(IEnumerable<IConfigurationSection> sections, bool preserveUnresolvedPlaceholders)
     {
         foreach (var section in sections)
         {
             if (IsConfigurationSectionString(section))
             {
-                ResolvePlaceholderValue(section.Path, resolveMissingPlaceholderDefaults);
+                ResolvePlaceholderValue(section.Path, preserveUnresolvedPlaceholders);
             }
             else
             {
-                ResolveSection(section.GetChildren(), resolveMissingPlaceholderDefaults);
+                ResolveSection(section.GetChildren(), preserveUnresolvedPlaceholders);
             }
         }
     }
@@ -60,7 +58,7 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
     /// </summary>
     /// <param name="path">The path to the placeholder</param>
     /// <returns>The <see cref="IConfigurationSection"/> of the resolved placeholder</returns>
-    private IConfigurationSection ResolvePlaceholderValue(string path, bool resolveMissingPlaceholderDefaults)
+    private IConfigurationSection ResolvePlaceholderValue(string path, bool preserveUnresolvedPlaceholders)
     {
         var currentSection = GetObjectFromConfiguration(path);
         var lastEnd = 0;
@@ -86,37 +84,29 @@ public class ConfigurationPlaceholderParser(IConfiguration configuration)
             
 
             var placeholderResolvedConfigurationObject = GetObjectFromConfiguration(placeholderValuePath);
-            if (placeholderResolvedConfigurationObject == null && defaultValue == null)
-            {
-                if (resolveMissingPlaceholderDefaults) break;
-
-                lastEnd = end + 1;
-                continue;
-            }
-
-            // Reference preprocessing must keep unresolved defaults intact for the final combined configuration.
-            // Continue scanning inside the default and then after the outer placeholder so reference-local
-            // placeholders in either position can still resolve.
-            if (placeholderResolvedConfigurationObject == null && !resolveMissingPlaceholderDefaults)
-            {
-                lastEnd = placeholderStartIndex + Prefix.Length;
-                continue;
-            }
-
-            // If placeholder was not found but there is a default value, sets the default value to be the placeholder value and call the function again.
             if (placeholderResolvedConfigurationObject == null)
             {
+                if (preserveUnresolvedPlaceholders)
+                {
+                    // Scan nested defaults before continuing with placeholders after the unresolved expression.
+                    lastEnd = defaultValue == null ? end + 1 : placeholderStartIndex + Prefix.Length;
+                    continue;
+                }
+
+                if (defaultValue == null) break;
+
+                // Apply the default, then resolve any placeholders introduced by it.
                 sectionValue = sectionValue.Substring(0, placeholderStartIndex) + defaultValue +
                                sectionValue.Substring(end + 1);
                 configuration[path] = sectionValue;
-                currentSection = ResolvePlaceholderValue(path, resolveMissingPlaceholderDefaults);
+                currentSection = ResolvePlaceholderValue(path, preserveUnresolvedPlaceholders);
             }
             else
             {
                 // Recursively resolves the placeholder value path. 
                 _resolutionStack.Add(placeholderValuePath);
                 var resolvedSection = ResolvePlaceholderValue(placeholderValuePath,
-                    resolveMissingPlaceholderDefaults);
+                    preserveUnresolvedPlaceholders);
                 var hasLeadingTrailingCharsFromPlaceholder = !(sectionValue.StartsWith(Prefix) &&
                                                                sectionValue.EndsWith(Suffix) && sectionValue.Skip(end)
                                                                    .Any(chr => chr == CloseCurlyBracket));

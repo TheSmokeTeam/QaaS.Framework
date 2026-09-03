@@ -242,21 +242,20 @@ public static class ConfigurationUtils
     /// </summary>
     public static IConfiguration EnrichedBuild(this IConfigurationBuilder configurationBuilder,
         bool addEnvironmentVariables) =>
-        EnrichedBuild(configurationBuilder, addEnvironmentVariables, resolveMissingPlaceholderDefaults: true);
+        EnrichedBuild(configurationBuilder, addEnvironmentVariables, preserveUnresolvedPlaceholders: false);
 
     /// <summary>
-    /// Builds an enriched configuration while controlling whether defaults for currently missing placeholder paths
-    /// are resolved. Reference preprocessing defers those defaults until the final combined build.
+    /// Builds an enriched configuration while optionally preserving placeholders for a later build pass.
     /// </summary>
     internal static IConfiguration EnrichedBuild(this IConfigurationBuilder configurationBuilder,
-        bool addEnvironmentVariables, bool resolveMissingPlaceholderDefaults)
+        bool addEnvironmentVariables, bool preserveUnresolvedPlaceholders)
     {
         var baseConfiguration = configurationBuilder.Build();
         var placeholderResolutionConfiguration = BuildPlaceholderResolutionConfiguration(baseConfiguration,
             addEnvironmentVariables);
         var resolvedConfiguration = new ConfigurationBuilder()
             .AddConfiguration(new ConfigurationPlaceholderParser(placeholderResolutionConfiguration)
-                .ResolvePlaceholders(resolveMissingPlaceholderDefaults))
+                .ResolvePlaceholders(preserveUnresolvedPlaceholders))
             .Build()
             .CollapseShiftLeftArrowsInConfiguration();
 
