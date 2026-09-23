@@ -23,15 +23,13 @@ public class HttpProtocol : ITransactor, IDisposable
         _logger = logger;
         Method = configuration.Method;
         _transactorConfiguration = configuration;
-        var baseAddress = configuration.BaseAddress!.EndsWith('/')
-            ? configuration.BaseAddress.Remove(configuration.BaseAddress.Length - 1)
-            : configuration.BaseAddress;
+        var baseAddress = new UriBuilder(configuration.BaseAddress!);
+        if (configuration.Port is { } port)
+            baseAddress.Port = port;
         _httpClient = new HttpClient
         {
             Timeout = TimeSpan.FromMilliseconds(timeout.TotalMilliseconds),
-            BaseAddress = configuration.Port != null
-                ? new Uri($"{baseAddress}:{configuration.Port}")
-                : new Uri(baseAddress)
+            BaseAddress = baseAddress.Uri,
         };
 
         if (configuration.JwtAuth != null)
@@ -39,18 +37,21 @@ public class HttpProtocol : ITransactor, IDisposable
     }
 
     /// <summary>
-    /// Generating and adding a JWT as a Bearer authorization header 
+    /// Generating and adding a JWT as a Bearer authorization header
     /// </summary>
     private void AddJwtAuthByConfig(JwtAuthConfig jwtAuthConfig)
     {
         if (!jwtAuthConfig.BuildJwtConfig)
         {
-            _httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue(jwtAuthConfig.HttpAuthScheme.ToString(), jwtAuthConfig.Secret);
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                jwtAuthConfig.HttpAuthScheme.ToString(),
+                jwtAuthConfig.Secret
+            );
             return;
         }
 
-        var builder = JwtBuilder.Create()
+        var builder = JwtBuilder
+            .Create()
             .WithAlgorithm(HttpExtentions.GetJwtAlgorithmFromJwtEnum(jwtAuthConfig.JwtAlgorithm))
             .WithSecret(jwtAuthConfig.Secret!);
         if (jwtAuthConfig.HierarchicalClaims == null)
@@ -62,7 +63,9 @@ public class HttpProtocol : ITransactor, IDisposable
         }
         else
         {
-            var claims = HttpExtentions.GetClaimsFromHierarchicalClaims(jwtAuthConfig.HierarchicalClaims);
+            var claims = HttpExtentions.GetClaimsFromHierarchicalClaims(
+                jwtAuthConfig.HierarchicalClaims
+            );
             foreach (var claim in claims)
             {
                 builder.AddClaim(claim.Key, claim.Value);
@@ -70,26 +73,34 @@ public class HttpProtocol : ITransactor, IDisposable
         }
 
         var token = builder.Encode();
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue(jwtAuthConfig.HttpAuthScheme.ToString(), token);
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            jwtAuthConfig.HttpAuthScheme.ToString(),
+            token
+        );
     }
 
     public Tuple<DetailedData<object>, DetailedData<object>?> Transact(Data<object> dataToSend)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var requestUri = $"{_httpClient.BaseAddress}{_transactorConfiguration.Route}";
+        var requestUri = HttpRequestUriResolver.JoinRoute(
+            _httpClient.BaseAddress!,
+            _transactorConfiguration.Route
+        );
         var totalAttempts = Math.Max(1, _transactorConfiguration.Retries);
         _logger.LogDebug(
-            "Starting HTTP {HttpMethod} request to {RequestUri}. Configured retries: {RetryCount}. Effective attempts: {AttemptCount}. Payload bytes: {PayloadLength}.",
+            "Preparing HTTP {HttpMethod} with configured fallback {RequestUri}. Configured retries: {RetryCount}. Effective attempts: {AttemptCount}. Payload bytes: {PayloadLength}.",
             Method,
             requestUri,
             _transactorConfiguration.Retries,
             totalAttempts,
-            dataToSend.CastObjectData<byte[]>().Body?.Length ?? 0);
+            dataToSend.CastObjectData<byte[]>().Body?.Length ?? 0
+        );
         var result = InvokeHttpRequest(dataToSend.CastObjectData<byte[]>(), requestUri);
-        return new Tuple<DetailedData<object>, DetailedData<object>?>(dataToSend.CloneDetailed(result.Key),
-            result.Value?.CastToObjectDetailedData());
+        return new Tuple<DetailedData<object>, DetailedData<object>?>(
+            dataToSend.CloneDetailed(result.Key),
+            result.Value?.CastToObjectDetailedData()
+        );
     }
 
     public SerializationType? GetInputCommunicationSerializationType() => null;
@@ -109,7 +120,10 @@ public class HttpProtocol : ITransactor, IDisposable
     /// Sends the request with retry semantics and captures a null response on final transport failure
     /// so callers can handle "no response" as data instead of an unhandled null dereference.
     /// </summary>
-    private KeyValuePair<DateTime, DetailedData<byte[]>?> InvokeHttpRequest(Data<byte[]> data, string requestUri)
+    private KeyValuePair<DateTime, DetailedData<byte[]>?> InvokeHttpRequest(
+        Data<byte[]> data,
+        string requestUri
+    )
     {
         var requestUtcTime = DateTime.UtcNow;
         var totalAttempts = Math.Max(1, _transactorConfiguration.Retries);
@@ -118,83 +132,119 @@ public class HttpProtocol : ITransactor, IDisposable
         {
             // HttpRequestMessage is single-use, so each retry must create a fresh request instance.
             using var requestData = CreateRequest(data, requestUri);
+            _logger.LogDebug(
+                "Sending HTTP {HttpMethod} request to {RequestUri} on attempt {Attempt}/{TotalAttempts}.",
+                requestData.Method,
+                requestData.RequestUri,
+                attempt,
+                totalAttempts
+            );
             try
             {
                 using var responseData = _httpClient.Send(requestData);
                 var responseUtcTime = DateTime.UtcNow;
                 _logger.LogInformation(
                     "HTTP {HttpMethod} request to {RequestUri} completed with status {StatusCode}.",
-                    Method,
+                    requestData.Method,
                     requestData.RequestUri,
-                    (int)responseData.StatusCode);
+                    (int)responseData.StatusCode
+                );
 
                 return new KeyValuePair<DateTime, DetailedData<byte[]>?>(
                     requestUtcTime,
                     new DetailedData<byte[]>
                     {
-                        Body = responseData.Content.ReadAsByteArrayAsync().ConfigureAwait(false).GetAwaiter().GetResult(),
+                        Body = responseData
+                            .Content.ReadAsByteArrayAsync()
+                            .ConfigureAwait(false)
+                            .GetAwaiter()
+                            .GetResult(),
                         MetaData = new MetaData
                         {
                             Http = new Http
                             {
+                                Uri =
+                                    responseData.RequestMessage?.RequestUri
+                                    ?? requestData.RequestUri,
+                                Method =
+                                    responseData.RequestMessage?.Method.Method
+                                    ?? requestData.Method.Method,
                                 StatusCode = (int?)responseData.StatusCode,
                                 ReasonPhrase = responseData.ReasonPhrase,
                                 Version = responseData.Version.ToString(),
-                                Headers = responseData.Content.Headers.ToDictionary(header =>
-                                    header.Key, header => string.Join(",", header.Value)),
-                                ResponseHeaders = responseData.Headers.ToDictionary(header =>
-                                    header.Key, header => string.Join(",", header.Value)),
-                                TrailingHeaders = responseData.TrailingHeaders.ToDictionary(header =>
-                                    header.Key, header => string.Join(",", header.Value))
-                            }
+                                Headers = responseData.Content.Headers.ToDictionary(
+                                    header => header.Key,
+                                    header => string.Join(",", header.Value)
+                                ),
+                                ResponseHeaders = responseData.Headers.ToDictionary(
+                                    header => header.Key,
+                                    header => string.Join(",", header.Value)
+                                ),
+                                TrailingHeaders = responseData.TrailingHeaders.ToDictionary(
+                                    header => header.Key,
+                                    header => string.Join(",", header.Value)
+                                ),
+                            },
                         },
-                        Timestamp = responseUtcTime
-                    });
+                        Timestamp = responseUtcTime,
+                    }
+                );
             }
             catch (TaskCanceledException transactException) when (attempt < totalAttempts)
             {
-                _logger.LogWarning(transactException,
+                _logger.LogWarning(
+                    transactException,
                     "HTTP {HttpMethod} request to {RequestUri} timed out on attempt {Attempt}/{TotalAttempts}. Retrying after {RetryDelayMs} ms.",
-                    Method,
+                    requestData.Method,
                     requestData.RequestUri,
                     attempt,
                     totalAttempts,
-                    _transactorConfiguration.MessageSendRetriesIntervalMs);
+                    _transactorConfiguration.MessageSendRetriesIntervalMs
+                );
             }
             catch (HttpRequestException transactException) when (attempt < totalAttempts)
             {
-                _logger.LogWarning(transactException,
+                _logger.LogWarning(
+                    transactException,
                     "HTTP {HttpMethod} request to {RequestUri} failed on attempt {Attempt}/{TotalAttempts}. Retrying after {RetryDelayMs} ms.",
-                    Method,
+                    requestData.Method,
                     requestData.RequestUri,
                     attempt,
                     totalAttempts,
-                    _transactorConfiguration.MessageSendRetriesIntervalMs);
+                    _transactorConfiguration.MessageSendRetriesIntervalMs
+                );
             }
             catch (TaskCanceledException transactException)
             {
-                _logger.LogWarning(transactException,
+                _logger.LogWarning(
+                    transactException,
                     "HTTP {HttpMethod} request to {RequestUri} timed out on the final attempt.",
-                    Method,
-                    requestData.RequestUri);
+                    requestData.Method,
+                    requestData.RequestUri
+                );
                 return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
             }
             catch (HttpRequestException transactException)
             {
-                _logger.LogWarning(transactException,
+                _logger.LogWarning(
+                    transactException,
                     "HTTP {HttpMethod} request to {RequestUri} failed on the final attempt.",
-                    Method,
-                    requestData.RequestUri);
+                    requestData.Method,
+                    requestData.RequestUri
+                );
                 return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
             }
 
-            Thread.Sleep(TimeSpan.FromMilliseconds(_transactorConfiguration.MessageSendRetriesIntervalMs));
+            Thread.Sleep(
+                TimeSpan.FromMilliseconds(_transactorConfiguration.MessageSendRetriesIntervalMs)
+            );
         }
 
         _logger.LogWarning(
             "HTTP {HttpMethod} request to {RequestUri} exhausted all retries without capturing a response.",
             Method,
-            requestUri);
+            requestUri
+        );
         return new KeyValuePair<DateTime, DetailedData<byte[]>?>(requestUtcTime, null);
     }
 
@@ -203,23 +253,44 @@ public class HttpProtocol : ITransactor, IDisposable
     /// </summary>
     private HttpRequestMessage CreateRequest(Data<byte[]> data, string requestUri)
     {
-        var requestData = new HttpRequestMessage(GetHttpMethod(), data.MetaData?.Http?.Uri?.AbsoluteUri ?? requestUri)
+        var requestData = new HttpRequestMessage(
+            data.MetaData?.Http?.Method is { } method ? new HttpMethod(method) : GetHttpMethod(),
+            HttpRequestUriResolver.Resolve(
+                _httpClient.BaseAddress!,
+                requestUri,
+                data.MetaData?.Http
+            )
+        )
         {
-            Content = new ByteArrayContent(data.Body ?? [])
+            Content = new ByteArrayContent(data.Body ?? []),
         };
 
-        return AddHeadersToRequest(requestData,
-            data.MetaData?.Http?.Headers ?? _transactorConfiguration.Headers,
-            data.MetaData?.Http?.RequestHeaders ?? _transactorConfiguration.RequestHeaders);
+        try
+        {
+            return AddHeadersToRequest(
+                requestData,
+                data.MetaData?.Http?.Headers ?? _transactorConfiguration.Headers,
+                data.MetaData?.Http?.RequestHeaders ?? _transactorConfiguration.RequestHeaders
+            );
+        }
+        catch
+        {
+            requestData.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
     /// Adds headers to the given content.
     /// </summary>
-    private HttpRequestMessage AddHeadersToRequest(HttpRequestMessage message,
-        IDictionary<string, string>? contentHeaders, IDictionary<string, string>? requestHeaders)
+    private HttpRequestMessage AddHeadersToRequest(
+        HttpRequestMessage message,
+        IDictionary<string, string>? contentHeaders,
+        IDictionary<string, string>? requestHeaders
+    )
     {
-        if (contentHeaders == null && requestHeaders == null) return message;
+        if (contentHeaders == null && requestHeaders == null)
+            return message;
         // Add Content Headers
         foreach (var key in contentHeaders?.Keys ?? Enumerable.Empty<string>())
             message.Content?.Headers.Add(key, contentHeaders?[key]);
@@ -237,8 +308,12 @@ public class HttpProtocol : ITransactor, IDisposable
             HttpMethods.Put => HttpMethod.Put,
             HttpMethods.Get => HttpMethod.Get,
             HttpMethods.Delete => HttpMethod.Delete,
+            HttpMethods.Head => HttpMethod.Head,
+            HttpMethods.Patch => HttpMethod.Patch,
+            HttpMethods.Options => HttpMethod.Options,
             _ => throw new ArgumentOutOfRangeException(
-                $"Invalid Http Method - {Method}, selected while retrieving Method from configuration")
+                $"Invalid Http Method - {Method}, selected while retrieving Method from configuration"
+            ),
         };
     }
 }
