@@ -89,6 +89,25 @@ Supported protocol families in `QaaS.Framework.Protocols`:
 | File / Storage | S3, SFTP, Socket |
 
 ## Quick Start
+### Explicit SQL column types
+
+SQL sender configuration accepts an optional `ColumnTypes` mapping. For PostgreSQL:
+
+```yaml
+ColumnTypes:
+  price: double precision
+  created_at: timestamp with time zone
+  description: text
+```
+
+Each configured column uses `CAST(value AS type)` instead of date/UDT inference.
+For example, a price of `1.12` stays numeric, and date-like text can remain text.
+Unconfigured columns keep the existing inference order. Null values remain SQL NULL.
+Use type expressions supported by your database; these are trusted SQL configuration,
+like the table name. Invalid casts fail in the database without falling back to inference.
+This applies to individual sends and chunk sends. Configuring any column types makes
+chunk sends use row inserts instead of bulk COPY so that the casts are applied.
+
 Install package(s):
 
 ```bash

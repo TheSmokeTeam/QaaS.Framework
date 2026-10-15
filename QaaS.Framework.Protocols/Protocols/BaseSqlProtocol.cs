@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Data;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -18,6 +19,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     private readonly int _insertionTimeTimeZoneOffsetSummerTime;
     private readonly string? _timeZoneId;
     private readonly double _filterSecondsBeforeRunStartTime;
+    private readonly Dictionary<string, string>? _columnTypes;
     private protected readonly string TableName;
     protected readonly ILogger Logger;
     protected readonly int CommandTimeoutSeconds;
@@ -26,36 +28,49 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     protected TDbConnection DbConnection = null!;
     protected string? InsertionTimeField { get; set; }
     public DateTime? StartTimeDbTimeZone { get; set; }
+
     protected virtual DateTime GetCurrentUtcDateTime() => DateTime.UtcNow;
+
     protected string? WhereStatement { get; set; }
 
     protected bool FilterFromStartTime { get; set; }
 
-
-    protected BaseSqlProtocol(SqlReaderConfig configurations, ILogger logger,
+    protected BaseSqlProtocol(
+        SqlReaderConfig configurations,
+        ILogger logger,
         TDbConnection? dbConnection = null,
-        string? timeZoneId = null) : this((SqlConfig)configurations, logger, dbConnection, timeZoneId)
+        string? timeZoneId = null
+    )
+        : this((SqlConfig)configurations, logger, dbConnection, timeZoneId)
     {
-        _insertionTimeTimeZoneOffsetSummerTime = configurations.InsertionTimeTimeZoneOffsetSummerTime;
+        _insertionTimeTimeZoneOffsetSummerTime =
+            configurations.InsertionTimeTimeZoneOffsetSummerTime;
         ColumnsToFilter = configurations.ColumnsToIgnore;
         _filterSecondsBeforeRunStartTime = configurations.FilterSecondsBeforeRunStartTime;
         WhereStatement = configurations.WhereStatement;
         FilterFromStartTime = configurations.ReadFromRunStartTime;
         InsertionTimeField = configurations.InsertionTimeField;
         if (InsertionTimeField == null && !configurations.AllowNoInsertionTimeField)
-            Logger.LogWarning("No {InsertionTimeFieldField} was configured for table {TableName}." +
-                              " Reads will use a constant timeout and emitted rows will have no Timestamp." +
-                              " Set AllowNoInsertionTimeField=true to suppress this warning.",
-                nameof(InsertionTimeField), TableName);
+            Logger.LogWarning(
+                "No {InsertionTimeFieldField} was configured for table {TableName}."
+                    + " Reads will use a constant timeout and emitted rows will have no Timestamp."
+                    + " Set AllowNoInsertionTimeField=true to suppress this warning.",
+                nameof(InsertionTimeField),
+                TableName
+            );
     }
 
-
-    protected BaseSqlProtocol(SqlConfig configurations, ILogger logger,
+    protected BaseSqlProtocol(
+        SqlConfig configurations,
+        ILogger logger,
         TDbConnection? dbConnection = null,
-        string? timeZoneId = null)
+        string? timeZoneId = null
+    )
     {
-        if (dbConnection != null) DbConnection = dbConnection;
+        if (dbConnection != null)
+            DbConnection = dbConnection;
         CommandTimeoutSeconds = configurations.CommandTimeoutSeconds;
+        _columnTypes = configurations.ColumnTypes;
         TableName = configurations.TableName!;
         Logger = logger;
         _timeZoneId = timeZoneId;
@@ -69,36 +84,49 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         var rowsDetailedDataEnumerable = GetJsonEnumerableFromQuery(
                 InsertionTimeField != null
                     ? GetTableQueryArrangedByInsertionTimeFieldAsc()
-                    : GetTableQueryWithoutRegardToInsertionTimeField(), CommandTimeoutSeconds, ColumnsToFilter)
+                    : GetTableQueryWithoutRegardToInsertionTimeField(),
+                CommandTimeoutSeconds,
+                ColumnsToFilter
+            )
             .Select(row => new DetailedData<object>
             {
                 Body = row,
                 MetaData = null,
-                Timestamp = GetDateTimeFromDateTimeField(row)?
-                    .ConvertDateTimeToUtcByTimeZoneOffset(_insertionTimeTimeZoneOffsetSummerTime,
-                        timeZoneId: _timeZoneId)
+                Timestamp = GetDateTimeFromDateTimeField(row)
+                    ?.ConvertDateTimeToUtcByTimeZoneOffset(
+                        _insertionTimeTimeZoneOffsetSummerTime,
+                        timeZoneId: _timeZoneId
+                    ),
             });
         return rowsDetailedDataEnumerable.ToImmutableList();
     }
 
-
-    public virtual IEnumerable<DetailedData<object>> SendChunk(IEnumerable<Data<object>> chunkDataToSend)
+    public virtual IEnumerable<DetailedData<object>> SendChunk(
+        IEnumerable<Data<object>> chunkDataToSend
+    )
     {
         var dataToSend = chunkDataToSend.ToList();
-        InsertChunkToTable(GetDataTableFromRawDataChunk(dataToSend));
+        var dataTable = GetDataTableFromRawDataChunk(dataToSend);
+        if (_columnTypes is { Count: > 0 })
+            RowInsertIntoTable(dataTable);
+        else
+            InsertChunkToTable(dataTable);
         var chunkInsertionTime = DateTime.UtcNow;
         Logger.LogDebug("Finished sending chunk");
-        return dataToSend.Select(message => message.CloneDetailed(chunkInsertionTime)).ToImmutableList();
+        return dataToSend
+            .Select(message => message.CloneDetailed(chunkInsertionTime))
+            .ToImmutableList();
     }
 
     public virtual void Connect()
     {
         DbConnection.Open();
-        StartTimeDbTimeZone = GetCurrentUtcDateTime()
-                                  .ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(
-                                      _insertionTimeTimeZoneOffsetSummerTime,
-                                      timeZoneId: _timeZoneId)
-                              - TimeSpan.FromSeconds(_filterSecondsBeforeRunStartTime);
+        StartTimeDbTimeZone =
+            GetCurrentUtcDateTime()
+                .ConvertDateTimeFromUtcToTimeZoneByTimeZoneOffset(
+                    _insertionTimeTimeZoneOffsetSummerTime,
+                    timeZoneId: _timeZoneId
+                ) - TimeSpan.FromSeconds(_filterSecondsBeforeRunStartTime);
     }
 
     public virtual void Disconnect()
@@ -116,8 +144,11 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// <param name="columnsToIgnore">The columns to ignore in the sql query results, if no columns are given
     /// doesn't ignore any columns</param>
     /// <returns>The result of the query </returns>
-    protected IEnumerable<JsonObject> GetJsonEnumerableFromQuery(string queryCommand, int commandTimeoutSeconds = 30,
-        string[]? columnsToIgnore = null)
+    protected IEnumerable<JsonObject> GetJsonEnumerableFromQuery(
+        string queryCommand,
+        int commandTimeoutSeconds = 30,
+        string[]? columnsToIgnore = null
+    )
     {
         columnsToIgnore ??= [];
         using var command = CreateDbCommand();
@@ -133,7 +164,8 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                 for (var col = 0; col < reader.FieldCount; col++)
                 {
                     var columnName = reader.GetName(col);
-                    if (columnsToIgnore.Contains(columnName)) continue;
+                    if (columnsToIgnore.Contains(columnName))
+                        continue;
 
                     var value = GetValueFromReader(reader, col);
                     row[columnName] = value == DBNull.Value ? null : JsonValue.Create(value);
@@ -152,7 +184,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// </summary>
     protected virtual void RowInsertIntoTable(DataTable chunkDataToSend)
     {
-        using var sqlCommand = DbConnection.CreateCommand();
+        using var sqlCommand = CreateDbCommand();
         sqlCommand.CommandTimeout = CommandTimeoutSeconds;
 
         foreach (DataRow row in chunkDataToSend.Rows)
@@ -163,7 +195,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
             foreach (DataColumn col in chunkDataToSend.Columns)
             {
                 columnNames.Append($"{col.ColumnName}, ");
-                columnValues.Append($"{GetParsedSqlParameter(row[col])}, ");
+                columnValues.Append($"{GetParsedSqlParameter(row[col], col.ColumnName)}, ");
             }
 
             var columnNamesAsString = columnNames.ToString().TrimEnd(',', ' ');
@@ -175,7 +207,6 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
             sqlCommand.ExecuteNonQuery();
         }
     }
-
 
     /// <summary>
     /// Inserts a chunk of data to the desired SQL table
@@ -223,8 +254,11 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         catch (Exception e) when (e is InvalidOperationException or InvalidCastException)
         {
             // Taking care of reading a UDT value (user-defined type)
-            Logger.LogDebug("Encountered a problem reading value from column {ColumnIndex}," +
-                            " getting its value as string", col);
+            Logger.LogDebug(
+                "Encountered a problem reading value from column {ColumnIndex},"
+                    + " getting its value as string",
+                col
+            );
             value = reader.GetString(col);
         }
 
@@ -233,7 +267,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
     /// <summary>
     /// Waits until a period of time the length of the configured timeout has passed since the last message
-    /// received in the database 
+    /// received in the database
     /// </summary>
     private void WaitUntilReadTimeoutIsReached(TimeSpan timeout)
     {
@@ -244,16 +278,21 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
             milliSecondsSinceLastTableChange = GetNumberOfMilliSecondsPassedSinceLastTableChange();
             if (milliSecondsSinceLastTableChange == null)
             {
-                Logger.LogWarning("Encountered an issue when getting the number of milliseconds passed " +
-                                  "since the last table change in table {TableName}" +
-                                  ", setting amount of time passed since last table change to the timeout",
-                    TableName);
+                Logger.LogWarning(
+                    "Encountered an issue when getting the number of milliseconds passed "
+                        + "since the last table change in table {TableName}"
+                        + ", setting amount of time passed since last table change to the timeout",
+                    TableName
+                );
                 milliSecondsSinceLastTableChange = (long)timeout.TotalMilliseconds;
             }
         } while (milliSecondsSinceLastTableChange < (long)timeout.TotalMilliseconds);
 
-        Logger.LogDebug("Read timeout reached for table {TableName} after {MilliSecondsSinceLastTableChange} milliseconds since the latest change",
-            TableName, milliSecondsSinceLastTableChange);
+        Logger.LogDebug(
+            "Read timeout reached for table {TableName} after {MilliSecondsSinceLastTableChange} milliseconds since the latest change",
+            TableName,
+            milliSecondsSinceLastTableChange
+        );
     }
 
     /// <summary>
@@ -269,20 +308,33 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         try
         {
             var latestChangeTime = GetDateTimeFromDateTimeField(
-                GetJsonEnumerableFromQuery(latestTableRowQuery).FirstOrDefault())!.Value;
-            Logger.LogTrace("Executed Query {LatestTableRowQuery} to get the time of the latest change to the" +
-                            " table {TableName}, Query result is {LatestChangeTime}",
-                latestTableRowQuery, TableName, latestChangeTime);
+                GetJsonEnumerableFromQuery(latestTableRowQuery).FirstOrDefault()
+            )!.Value;
+            Logger.LogTrace(
+                "Executed Query {LatestTableRowQuery} to get the time of the latest change to the"
+                    + " table {TableName}, Query result is {LatestChangeTime}",
+                latestTableRowQuery,
+                TableName,
+                latestChangeTime
+            );
 
-            return (long)(GetCurrentUtcDateTime() -
-                          latestChangeTime.ConvertDateTimeToUtcByTimeZoneOffset
-                              (_insertionTimeTimeZoneOffsetSummerTime, timeZoneId: _timeZoneId)).TotalMilliseconds;
+            return (long)
+                (
+                    GetCurrentUtcDateTime()
+                    - latestChangeTime.ConvertDateTimeToUtcByTimeZoneOffset(
+                        _insertionTimeTimeZoneOffsetSummerTime,
+                        timeZoneId: _timeZoneId
+                    )
+                ).TotalMilliseconds;
         }
         catch (InvalidOperationException e)
         {
-            Logger.LogWarning("Encountered exception {ExceptionMessage}," +
-                              " when searching for the time of the latest change in the table {TableName}",
-                e.Message, TableName);
+            Logger.LogWarning(
+                "Encountered exception {ExceptionMessage},"
+                    + " when searching for the time of the latest change in the table {TableName}",
+                e.Message,
+                TableName
+            );
             return null;
         }
     }
@@ -301,10 +353,13 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
         if (row?[InsertionTimeField] == null)
             throw new InvalidOperationException(
-                $"Could not find the insertion time field - {InsertionTimeField} with a value");
+                $"Could not find the insertion time field - {InsertionTimeField} with a value"
+            );
 
-        return row[InsertionTimeField]?.GetValue<DateTime>() ?? throw new InvalidOperationException(
-            "Could not parse insertion time field to datetime");
+        return row[InsertionTimeField]?.GetValue<DateTime>()
+            ?? throw new InvalidOperationException(
+                "Could not parse insertion time field to datetime"
+            );
     }
 
     protected static DataTable GetDataTableFromRawDataChunk(IEnumerable<Data<object>> chunkData)
@@ -317,9 +372,10 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
             if (itemToSend.Body?.GetType() == typeof(JsonObject))
                 json = itemToSend.Body as JsonObject;
             else
-                json = itemToSend.Body == null
-                    ? null
-                    : JsonNode.Parse(JsonSerializer.Serialize(itemToSend.Body))?.AsObject();
+                json =
+                    itemToSend.Body == null
+                        ? null
+                        : JsonNode.Parse(JsonSerializer.Serialize(itemToSend.Body))?.AsObject();
 
             if (json == null)
                 throw new ArgumentException("Can't send null json to sql table");
@@ -330,12 +386,16 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
                 // Add column metadata to columns
                 if (!dataTable.Columns.Contains(property.Key))
-                    dataTable.Columns.Add(propertyValue != null
-                        ? new DataColumn(property.Key, propertyValue.GetType())
-                        : new DataColumn(property.Key, typeof(object)));
-
+                    dataTable.Columns.Add(
+                        propertyValue != null
+                            ? new DataColumn(property.Key, propertyValue.GetType())
+                            : new DataColumn(property.Key, typeof(object))
+                    );
                 // If column has default type and add it again with correct type
-                else if (dataTable.Columns[property.Key]?.DataType == typeof(object) && propertyValue != null)
+                else if (
+                    dataTable.Columns[property.Key]?.DataType == typeof(object)
+                    && propertyValue != null
+                )
                 {
                     dataTable.Columns.Remove(property.Key);
                     dataTable.Columns.Add(new DataColumn(property.Key, propertyValue.GetType()));
@@ -355,6 +415,30 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// </summary>
     /// <param name="value">Value to parse</param>
     /// <returns>Parsed value</returns>
+    private object? GetParsedSqlParameter(object? value, string columnName)
+    {
+        if (_columnTypes == null || !_columnTypes.TryGetValue(columnName, out var sqlType))
+            return GetParsedSqlParameter(value);
+
+        if (string.IsNullOrWhiteSpace(sqlType))
+            throw new ArgumentException(
+                $"The SQL type configured for column '{columnName}' cannot be empty."
+            );
+
+        if (value == null || value == DBNull.Value)
+            return "NULL";
+
+        // Let the database perform the explicitly requested cast. Do not try DateTime.TryParse
+        // first: numeric values such as 1.12 can also be interpreted as dates.
+        var text = value is IFormattable formattable
+            ? formattable.ToString(
+                value is DateTime or DateTimeOffset ? "O" : null,
+                CultureInfo.InvariantCulture
+            )
+            : value.ToString();
+        return $"CAST('{text?.Replace("'", "''")}' AS {sqlType})";
+    }
+
     private object? GetParsedSqlParameter(object? value)
     {
         const string udtRegexPattern = @"^\b\w+\b\((.*)\)";
@@ -363,7 +447,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         if (DateTime.TryParse(value.ToString(), out var time))
             return GetTimeFieldSqlFormat(time);
         var regex = new Regex(udtRegexPattern);
-        if (regex.IsMatch(value.ToString()!)) 
+        if (regex.IsMatch(value.ToString()!))
             return value;
         return $"'{value}'";
     }
