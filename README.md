@@ -89,25 +89,6 @@ Supported protocol families in `QaaS.Framework.Protocols`:
 | File / Storage | S3, SFTP, Socket |
 
 ## Quick Start
-### HTTP PATCH
-
-Set `Method: Patch` in the HTTP transactor configuration to send PATCH requests:
-
-```yaml
-Method: Patch
-BaseAddress: https://api.example.com
-Port: 443
-Route: /items/42
-Headers:
-  Content-Type: application/merge-patch+json
-```
-
-Provide the patch document as the transaction payload. PATCH uses the same content
-headers, request headers, response metadata, and retry settings as other HTTP methods.
-A message can also override the configured method with `MetaData.Http.Method = "PATCH"`.
-PATCH support is present on master starting with PR #57; use a package built from that
-commit or later.
-
 Install package(s):
 
 ```bash
