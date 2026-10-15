@@ -30,6 +30,8 @@ public class SqlColumnTypesTests
 
         protected override IDbCommand CreateDbCommand() => command;
 
+        protected override IDbTransaction BeginChunkTransaction() => Mock.Of<IDbTransaction>();
+
         protected override void InsertChunkToTable(DataTable chunkData) => UsedCopy = true;
     }
 

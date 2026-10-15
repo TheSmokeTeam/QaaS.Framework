@@ -12,10 +12,16 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 [TestFixture]
 public class SqlTypedChunkTests
 {
-    private sealed class Protocol(PostgreSqlSenderConfig config, IDbCommand command)
-        : PostgreSqlProtocol(config, Globals.Logger)
+    private sealed class Protocol(
+        PostgreSqlSenderConfig config,
+        IDbCommand command,
+        IDbTransaction? transaction = null
+    ) : PostgreSqlProtocol(config, Globals.Logger)
     {
         protected override IDbCommand CreateDbCommand() => command;
+
+        protected override IDbTransaction BeginChunkTransaction() =>
+            transaction ?? Mock.Of<IDbTransaction>();
     }
 
     [TestCase("O'Brien")]
@@ -114,5 +120,51 @@ public class SqlTypedChunkTests
             values,
             Is.EqualTo(new object[][] { ["1.12", "O'Brien"], [DBNull.Value, DBNull.Value] })
         );
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void TypedChunk_FailedLaterRow_RollsBackWholeChunk_AndPreservesOriginalError(
+        bool rollbackFails
+    )
+    {
+        var command = new Mock<IDbCommand>();
+        command.SetupAllProperties();
+        using var parameterOwner = new NpgsqlCommand();
+        command.SetupGet(c => c.Parameters).Returns(parameterOwner.Parameters);
+        command.Setup(c => c.CreateParameter()).Returns(() => new NpgsqlParameter());
+        var failure = new DataException("second row failed");
+        command.SetupSequence(c => c.ExecuteNonQuery()).Returns(1).Throws(failure);
+        var transaction = new Mock<IDbTransaction>();
+        if (rollbackFails)
+            transaction
+                .Setup(t => t.Rollback())
+                .Throws(new InvalidOperationException("connection lost"));
+        var protocol = new Protocol(
+            new PostgreSqlSenderConfig
+            {
+                TableName = "measurements",
+                ColumnTypes = new() { ["price"] = "numeric" },
+            },
+            command.Object,
+            transaction.Object
+        );
+        var rows = Enumerable
+            .Range(0, 3)
+            .Select(i => new Data<object> { Body = new JsonObject { ["price"] = i } });
+
+        Assert.That(
+            Assert.Throws<DataException>(() => protocol.SendChunk(rows).ToList()),
+            Is.SameAs(failure)
+        );
+        Assert.Multiple(() =>
+        {
+            Assert.That(command.Object.Transaction, Is.SameAs(transaction.Object));
+            command.Verify(c => c.ExecuteNonQuery(), Times.Exactly(2));
+            transaction.Verify(t => t.Commit(), Times.Never);
+            transaction.Verify(t => t.Rollback(), Times.Once);
+            transaction.Verify(t => t.Dispose(), Times.Once);
+            command.Verify(c => c.Dispose(), Times.Once);
+        });
     }
 }

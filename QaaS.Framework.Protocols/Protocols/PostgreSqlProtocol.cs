@@ -58,10 +58,11 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
     protected override IDbDataParameter CreateChunkParameter(
         IDbCommand command,
         string name,
-        string? value
+        object? value
     )
     {
         var parameter = (NpgsqlParameter)base.CreateChunkParameter(command, name, value);
+        parameter.Value = value == null || value == DBNull.Value ? DBNull.Value : value.ToString();
         // Send text with an unspecified PostgreSQL type, as COPY does. The target column
         // (or the explicit CAST) determines the type, including numeric, timestamp and UDT columns.
         parameter.NpgsqlDbType = NpgsqlDbType.Unknown;

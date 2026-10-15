@@ -222,51 +222,76 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// </summary>
     private void InsertTypedChunkToTable(DataTable chunkData)
     {
-        using var command = CreateDbCommand();
-        command.CommandTimeout = CommandTimeoutSeconds;
-        foreach (DataRow row in chunkData.Rows)
+        using var transaction = BeginChunkTransaction();
+        try
         {
-            command.Parameters.Clear();
-            var values = new List<string>();
-            foreach (DataColumn column in chunkData.Columns)
+            using var command = CreateDbCommand();
+            command.Transaction = transaction;
+            command.CommandTimeout = CommandTimeoutSeconds;
+            foreach (DataRow row in chunkData.Rows)
             {
-                var parameterName = $"p{column.Ordinal}";
-                var hasType = _columnTypes!.TryGetValue(column.ColumnName, out var sqlType);
-                if (hasType && string.IsNullOrWhiteSpace(sqlType))
-                    throw new ArgumentException(
-                        $"The SQL type configured for column '{column.ColumnName}' cannot be empty."
+                command.Parameters.Clear();
+                var values = new List<string>();
+                foreach (DataColumn column in chunkData.Columns)
+                {
+                    var parameterName = $"p{column.Ordinal}";
+                    var hasType = _columnTypes!.TryGetValue(column.ColumnName, out var sqlType);
+                    if (hasType && string.IsNullOrWhiteSpace(sqlType))
+                        throw new ArgumentException(
+                            $"The SQL type configured for column '{column.ColumnName}' cannot be empty."
+                        );
+
+                    var value = row[column];
+                    // Preserve native values for bulk-copy providers. Only explicitly typed
+                    // values opt into invariant text; PostgreSQL handles COPY text in its override.
+                    var parameterValue =
+                        value == DBNull.Value ? DBNull.Value
+                        : hasType ? GetInvariantSqlText(value)
+                        : value;
+                    command.Parameters.Add(
+                        CreateChunkParameter(command, parameterName, parameterValue)
                     );
+                    var placeholder = $"{SqlParameterPrefix}{parameterName}";
+                    values.Add(hasType ? $"CAST({placeholder} AS {sqlType})" : placeholder);
+                }
 
-                var value = row[column];
-                // Unconfigured values retain the text representation used by bulk COPY;
-                // only explicitly typed values opt into invariant formatting.
-                var text =
-                    value == DBNull.Value ? null
-                    : hasType ? GetInvariantSqlText(value)
-                    : value.ToString();
-                command.Parameters.Add(CreateChunkParameter(command, parameterName, text));
-                var placeholder = $"{SqlParameterPrefix}{parameterName}";
-                values.Add(hasType ? $"CAST({placeholder} AS {sqlType})" : placeholder);
+                command.CommandText =
+                    $"INSERT INTO {TableName} ({string.Join(", ", chunkData.Columns.Cast<DataColumn>().Select(c => c.ColumnName))}) VALUES ({string.Join(", ", values)})";
+                command.ExecuteNonQuery();
             }
-
-            command.CommandText =
-                $"INSERT INTO {TableName} ({string.Join(", ", chunkData.Columns.Cast<DataColumn>().Select(c => c.ColumnName))}) VALUES ({string.Join(", ", values)})";
-            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+        catch
+        {
+            try
+            {
+                transaction.Rollback();
+            }
+            catch (Exception rollbackException)
+            {
+                Logger.LogWarning(
+                    rollbackException,
+                    "Failed to roll back typed chunk insertion into {TableName}",
+                    TableName
+                );
+            }
+            throw;
         }
     }
+
+    protected virtual IDbTransaction BeginChunkTransaction() => DbConnection.BeginTransaction();
 
     protected virtual string SqlParameterPrefix => "@";
 
     protected virtual IDbDataParameter CreateChunkParameter(
         IDbCommand command,
         string name,
-        string? value
+        object? value
     )
     {
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
-        parameter.DbType = DbType.String;
-        parameter.Value = (object?)value ?? DBNull.Value;
+        parameter.Value = value ?? DBNull.Value;
         return parameter;
     }
 
