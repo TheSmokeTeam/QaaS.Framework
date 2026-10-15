@@ -47,6 +47,10 @@ reportgenerator -reports:coverage.xml -targetdir:coverage-report
   per-project `<PropertyGroup>` entries to avoid duplication.
 
 ## Process
+Keep README.md general: repository purpose, package overview, installation, build/test,
+and links. Put feature behavior and specific configuration examples in the appropriate
+qaas-docs reference or guide; preserve its released/unreleased labels and generated-file rules.
+
 Follow the QaaS harness pipeline: plan → contract → implement → adversarial evaluation
 (rubric: Correctness/Completeness/Craft/Robustness, each ≥7/10). Write tests first (TDD).
 Conventional commits: `feat:`, `fix:`, `chore(release):`, `fix(ci):`.

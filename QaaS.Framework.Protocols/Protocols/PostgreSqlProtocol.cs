@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using NpgsqlTypes;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 using QaaS.Framework.SDK.Session.DataObjects;
 
@@ -12,26 +13,72 @@ namespace QaaS.Framework.Protocols.Protocols;
 [ExcludeFromCodeCoverage]
 public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
 {
-    private sealed record UnknownResultTypeInspection(bool InspectionSucceeded, bool[]? UnknownResultTypeList);
+    private sealed record UnknownResultTypeInspection(
+        bool InspectionSucceeded,
+        bool[]? UnknownResultTypeList
+    );
+
     private sealed record UnknownResultTypeCacheEntry(bool[]? UnknownResultTypeList);
 
     private readonly bool _isInsertionTimeFieldTimeZoneTz;
-    private readonly ConcurrentDictionary<string, UnknownResultTypeCacheEntry> _unknownResultTypeCache =
-        new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<
+        string,
+        UnknownResultTypeCacheEntry
+    > _unknownResultTypeCache = new(StringComparer.Ordinal);
 
-    public PostgreSqlProtocol(PostgreSqlReaderConfig configurations, ILogger logger,
+    public PostgreSqlProtocol(
+        PostgreSqlReaderConfig configurations,
+        ILogger logger,
         NpgsqlConnection? dbConnection = null,
-        string? timeZoneId = null) : base(configurations, logger,
-        dbConnection ?? new NpgsqlConnection(configurations.ConnectionString), timeZoneId)
+        string? timeZoneId = null
+    )
+        : base(
+            configurations,
+            logger,
+            dbConnection ?? new NpgsqlConnection(configurations.ConnectionString),
+            timeZoneId
+        )
     {
         _isInsertionTimeFieldTimeZoneTz = configurations.IsInsertionTimeFieldTimeZoneTz;
     }
 
-    public PostgreSqlProtocol(PostgreSqlSenderConfig configurations, ILogger logger,
+    public PostgreSqlProtocol(
+        PostgreSqlSenderConfig configurations,
+        ILogger logger,
         NpgsqlConnection? dbConnection = null,
-        string? timeZoneId = null) : base(configurations,
-        logger, dbConnection ?? new NpgsqlConnection(configurations.ConnectionString), timeZoneId)
+        string? timeZoneId = null
+    )
+        : base(
+            configurations,
+            logger,
+            dbConnection ?? new NpgsqlConnection(configurations.ConnectionString),
+            timeZoneId
+        ) { }
+
+    protected override IDbDataParameter CreateSqlParameter(
+        IDbCommand command,
+        string name,
+        object? value
+    )
     {
+        var parameter = (NpgsqlParameter)base.CreateSqlParameter(command, name, value);
+        // Strings need an unspecified PostgreSQL type so the target column/CAST can convert
+        // them, as COPY did. Numeric, binary and temporal CLR values use native binding.
+        if (parameter.Value is string or DBNull)
+            parameter.NpgsqlDbType = NpgsqlDbType.Unknown;
+        else if (parameter.Value is byte[])
+            parameter.NpgsqlDbType = NpgsqlDbType.Bytea;
+        else if (parameter.Value is DateTime dateTime)
+            parameter.NpgsqlDbType =
+                dateTime.Kind == DateTimeKind.Utc
+                    ? NpgsqlDbType.TimestampTz
+                    : NpgsqlDbType.Timestamp;
+        else if (parameter.Value is DateTimeOffset offset)
+        {
+            parameter.Value = offset.ToUniversalTime();
+            parameter.NpgsqlDbType = NpgsqlDbType.TimestampTz;
+        }
+        return parameter;
     }
 
     protected override void InsertChunkToTable(DataTable chunkData)
@@ -40,8 +87,9 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
         // Get the column names they can be listed in the Copy query in the same order as they are ordered under the data table
         var columnNames = from DataColumn column in chunkData.Columns select column.ColumnName;
         using var writer = DbConnection.BeginTextImport(
-            $"COPY {TableName} ({string.Join(", ", columnNames)}) FROM STDIN" +
-            $" (FORMAT text, DELIMITER ';', NULL '{nullValueRepresentation}')");
+            $"COPY {TableName} ({string.Join(", ", columnNames)}) FROM STDIN"
+                + $" (FORMAT text, DELIMITER ';', NULL '{nullValueRepresentation}')"
+        );
         foreach (DataRow row in chunkData.Rows)
         {
             var rowBuilder = new StringBuilder();
@@ -55,9 +103,10 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
 
                 // Escape all native occurrences of delimiter ;
                 var columnValue = row[column];
-                var nullableColumnValue = columnValue == DBNull.Value
-                    ? nullValueRepresentation
-                    : columnValue.ToString()?.Replace(";", "\\;");
+                var nullableColumnValue =
+                    columnValue == DBNull.Value
+                        ? nullValueRepresentation
+                        : columnValue.ToString()?.Replace(";", "\\;");
                 rowBuilder.Append(nullableColumnValue);
                 firstColumn = false;
             }
@@ -66,14 +115,20 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
         }
 
         writer.Close();
-        Logger.LogDebug("Inserted {RowCount} rows into postgresql table {TableName}", chunkData.Rows.Count, TableName);
+        Logger.LogDebug(
+            "Inserted {RowCount} rows into postgresql table {TableName}",
+            chunkData.Rows.Count,
+            TableName
+        );
     }
 
     public override void Connect()
     {
         base.Connect();
-        using var cmd = new NpgsqlCommand($"SET statement_timeout = {CommandTimeoutSeconds * 1000}",
-            (NpgsqlConnection?)DbConnection);
+        using var cmd = new NpgsqlCommand(
+            $"SET statement_timeout = {CommandTimeoutSeconds * 1000}",
+            (NpgsqlConnection?)DbConnection
+        );
         cmd.ExecuteNonQuery();
     }
 
@@ -128,11 +183,13 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
             : $"where {WhereStatement}";
     }
 
-    private string BuildInsertionTimeFieldName() => _isInsertionTimeFieldTimeZoneTz
-        ? $"\"{InsertionTimeField}\" AT TIME ZONE 'UTC'"
-        : $"\"{InsertionTimeField}\"";
+    private string BuildInsertionTimeFieldName() =>
+        _isInsertionTimeFieldTimeZoneTz
+            ? $"\"{InsertionTimeField}\" AT TIME ZONE 'UTC'"
+            : $"\"{InsertionTimeField}\"";
 
-    protected virtual IDataReader ExecutePostgreSqlReader(NpgsqlCommand command) => command.ExecuteReader();
+    protected virtual IDataReader ExecutePostgreSqlReader(NpgsqlCommand command) =>
+        command.ExecuteReader();
 
     protected virtual IDataReader ExecuteSchemaReader(NpgsqlCommand command) =>
         command.ExecuteReader(CommandBehavior.SchemaOnly);
@@ -158,16 +215,23 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
                 hasUnknownResultTypes = true;
                 Logger.LogDebug(
                     "Requesting PostgreSQL column {ColumnName} with data type {DataTypeName} as text",
-                    schemaReader.GetName(col), dataTypeName);
+                    schemaReader.GetName(col),
+                    dataTypeName
+                );
             }
 
-            return new UnknownResultTypeInspection(true, hasUnknownResultTypes ? unknownResultTypes : null);
+            return new UnknownResultTypeInspection(
+                true,
+                hasUnknownResultTypes ? unknownResultTypes : null
+            );
         }
         catch (Exception exception)
         {
-            Logger.LogDebug(exception,
+            Logger.LogDebug(
+                exception,
                 "Failed to inspect PostgreSQL result types for query {QueryCommand}; using default result mapping",
-                command.CommandText);
+                command.CommandText
+            );
             return new UnknownResultTypeInspection(false, null);
         }
     }
@@ -177,8 +241,8 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
         if (string.IsNullOrWhiteSpace(dataTypeName))
             return false;
 
-        return dataTypeName.Contains('.', StringComparison.Ordinal) &&
-               !dataTypeName.StartsWith("pg_catalog.", StringComparison.OrdinalIgnoreCase);
+        return dataTypeName.Contains('.', StringComparison.Ordinal)
+            && !dataTypeName.StartsWith("pg_catalog.", StringComparison.OrdinalIgnoreCase);
     }
 
     public DetailedData<object> Send(Data<object> dataToSend)
