@@ -108,7 +108,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         var dataToSend = chunkDataToSend.ToList();
         var dataTable = GetDataTableFromRawDataChunk(dataToSend);
         if (_columnTypes is { Count: > 0 })
-            RowInsertIntoTable(dataTable);
+            InsertTypedChunkToTable(dataTable);
         else
             InsertChunkToTable(dataTable);
         var chunkInsertionTime = DateTime.UtcNow;
@@ -184,7 +184,10 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// </summary>
     protected virtual void RowInsertIntoTable(DataTable chunkDataToSend)
     {
-        using var sqlCommand = CreateDbCommand();
+        // Preserve the original command-factory behavior when types are not configured.
+        using var sqlCommand = _columnTypes is { Count: > 0 }
+            ? CreateDbCommand()
+            : DbConnection.CreateCommand();
         sqlCommand.CommandTimeout = CommandTimeoutSeconds;
 
         foreach (DataRow row in chunkDataToSend.Rows)
@@ -212,6 +215,60 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// Inserts a chunk of data to the desired SQL table
     /// </summary>
     protected abstract void InsertChunkToTable(DataTable chunkData);
+
+    /// <summary>
+    /// Inserts explicitly typed chunks with parameters for every value. Unlike legacy row sends,
+    /// bulk sends have never interpreted unconfigured values as dates or executable UDT expressions.
+    /// </summary>
+    private void InsertTypedChunkToTable(DataTable chunkData)
+    {
+        using var command = CreateDbCommand();
+        command.CommandTimeout = CommandTimeoutSeconds;
+        foreach (DataRow row in chunkData.Rows)
+        {
+            command.Parameters.Clear();
+            var values = new List<string>();
+            foreach (DataColumn column in chunkData.Columns)
+            {
+                var parameterName = $"p{column.Ordinal}";
+                var hasType = _columnTypes!.TryGetValue(column.ColumnName, out var sqlType);
+                if (hasType && string.IsNullOrWhiteSpace(sqlType))
+                    throw new ArgumentException(
+                        $"The SQL type configured for column '{column.ColumnName}' cannot be empty."
+                    );
+
+                var value = row[column];
+                // Unconfigured values retain the text representation used by bulk COPY;
+                // only explicitly typed values opt into invariant formatting.
+                var text =
+                    value == DBNull.Value ? null
+                    : hasType ? GetInvariantSqlText(value)
+                    : value.ToString();
+                command.Parameters.Add(CreateChunkParameter(command, parameterName, text));
+                var placeholder = $"{SqlParameterPrefix}{parameterName}";
+                values.Add(hasType ? $"CAST({placeholder} AS {sqlType})" : placeholder);
+            }
+
+            command.CommandText =
+                $"INSERT INTO {TableName} ({string.Join(", ", chunkData.Columns.Cast<DataColumn>().Select(c => c.ColumnName))}) VALUES ({string.Join(", ", values)})";
+            command.ExecuteNonQuery();
+        }
+    }
+
+    protected virtual string SqlParameterPrefix => "@";
+
+    protected virtual IDbDataParameter CreateChunkParameter(
+        IDbCommand command,
+        string name,
+        string? value
+    )
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = DbType.String;
+        parameter.Value = (object?)value ?? DBNull.Value;
+        return parameter;
+    }
 
     /// <summary>
     /// Creates the db command object used to execute the query on the db
@@ -430,14 +487,17 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
         // Let the database perform the explicitly requested cast. Do not try DateTime.TryParse
         // first: numeric values such as 1.12 can also be interpreted as dates.
-        var text = value is IFormattable formattable
+        var text = GetInvariantSqlText(value);
+        return $"CAST('{text?.Replace("'", "''")}' AS {sqlType})";
+    }
+
+    private static string? GetInvariantSqlText(object value) =>
+        value is IFormattable formattable
             ? formattable.ToString(
                 value is DateTime or DateTimeOffset ? "O" : null,
                 CultureInfo.InvariantCulture
             )
             : value.ToString();
-        return $"CAST('{text?.Replace("'", "''")}' AS {sqlType})";
-    }
 
     private object? GetParsedSqlParameter(object? value)
     {

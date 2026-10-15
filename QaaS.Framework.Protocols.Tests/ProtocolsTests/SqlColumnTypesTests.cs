@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using Moq;
+using Npgsql;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 using QaaS.Framework.Protocols.Protocols;
 using QaaS.Framework.SDK.Session.DataObjects;
@@ -12,6 +13,16 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 [TestFixture]
 public class SqlColumnTypesTests
 {
+    private sealed class RowProtocol(SqlReaderConfig config, IDbConnection connection)
+        : MockSqlProtocol(config, Globals.Logger, connection)
+    {
+        public void SendRow(Data<object> data) =>
+            RowInsertIntoTable(GetDataTableFromRawDataChunk([data]));
+
+        protected override string GetTimeFieldSqlFormat(DateTime time) =>
+            $"FORMAT('{time:yyyy-MM-dd HH:mm:ss}')";
+    }
+
     private sealed class TestPostgreSqlProtocol(PostgreSqlSenderConfig config, IDbCommand command)
         : PostgreSqlProtocol(config, Globals.Logger)
     {
@@ -28,12 +39,11 @@ public class SqlColumnTypesTests
         command.SetupAllProperties();
         var connection = new Mock<IDbConnection>();
         connection.Setup(c => c.CreateCommand()).Returns(command.Object);
-        var protocol = new InspectableSqlProtocol(
+        var protocol = new RowProtocol(
             new PostgreSqlReaderConfig { TableName = "measurements", ColumnTypes = types },
-            Globals.Logger,
             connection.Object
         );
-        protocol.SendChunk([new Data<object> { Body = new { value } }]).ToList();
+        protocol.SendRow(new Data<object> { Body = new { value } });
         return command.Object.CommandText;
     }
 
@@ -127,6 +137,9 @@ public class SqlColumnTypesTests
     {
         var command = new Mock<IDbCommand>();
         command.SetupAllProperties();
+        using var parameterOwner = new NpgsqlCommand();
+        command.SetupGet(c => c.Parameters).Returns(parameterOwner.Parameters);
+        command.Setup(c => c.CreateParameter()).Returns(() => new NpgsqlParameter());
         var config = new PostgreSqlSenderConfig
         {
             TableName = "measurements",
@@ -149,10 +162,18 @@ public class SqlColumnTypesTests
         {
             Assert.That(
                 command.Object.CommandText,
-                Does.Contain("CAST('1.12' AS double precision)")
+                Does.Contain(
+                    chunk ? "CAST(@p0 AS double precision)" : "CAST('1.12' AS double precision)"
+                )
             );
-            Assert.That(command.Object.CommandText, Does.Contain("CAST('1.12' AS text)"));
-            Assert.That(command.Object.CommandText, Does.Contain("TO_TIMESTAMP("));
+            Assert.That(
+                command.Object.CommandText,
+                Does.Contain(chunk ? "CAST(@p1 AS text)" : "CAST('1.12' AS text)")
+            );
+            if (chunk)
+                Assert.That(parameterOwner.Parameters[2].Value, Is.EqualTo("2026-10-15 12:34:56"));
+            else
+                Assert.That(command.Object.CommandText, Does.Contain("TO_TIMESTAMP("));
             Assert.That(protocol.UsedCopy, Is.False);
             command.Verify(c => c.ExecuteNonQuery(), Times.Exactly(chunk ? 2 : 1));
         });
