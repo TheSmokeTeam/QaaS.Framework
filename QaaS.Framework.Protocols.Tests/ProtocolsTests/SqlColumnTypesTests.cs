@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using Moq;
@@ -35,10 +36,19 @@ public class SqlColumnTypesTests
         protected override void InsertChunkToTable(DataTable chunkData) => UsedCopy = true;
     }
 
-    private static string Insert(object? value, Dictionary<string, string>? types)
+    private static string Insert(object? value, Dictionary<string, string>? types) =>
+        InsertWithParameter(value, types).Sql;
+
+    private static (string Sql, object? Value) InsertWithParameter(
+        object? value,
+        Dictionary<string, string>? types
+    )
     {
         var command = new Mock<IDbCommand>();
         command.SetupAllProperties();
+        using var parameterOwner = new NpgsqlCommand();
+        command.SetupGet(c => c.Parameters).Returns(parameterOwner.Parameters);
+        command.Setup(c => c.CreateParameter()).Returns(() => new NpgsqlParameter());
         var connection = new Mock<IDbConnection>();
         connection.Setup(c => c.CreateCommand()).Returns(command.Object);
         var protocol = new RowProtocol(
@@ -46,7 +56,10 @@ public class SqlColumnTypesTests
             connection.Object
         );
         protocol.SendRow(new Data<object> { Body = new { value } });
-        return command.Object.CommandText;
+        return (
+            command.Object.CommandText,
+            parameterOwner.Parameters.Count == 0 ? null : parameterOwner.Parameters[0].Value
+        );
     }
 
     [TestCase("double precision", "1.12")]
@@ -58,28 +71,28 @@ public class SqlColumnTypesTests
     [TestCase("uuid", "b5ca8237-a14f-4f65-965d-9bd9634566b8")]
     public void ExplicitType_BypassesInference(string type, string value)
     {
+        var result = InsertWithParameter(value, new() { ["value"] = type });
         Assert.That(
-            Insert(value, new() { ["value"] = type }),
-            Is.EqualTo($"INSERT INTO measurements (value) VALUES (CAST('{value}' AS {type}))")
+            result.Sql,
+            Is.EqualTo($"INSERT INTO measurements (value) VALUES (CAST(@p0 AS {type}))")
         );
+        Assert.That(result.Value, Is.EqualTo(value));
     }
 
     [Test]
     public void NumericJsonValue_UsesExplicitType()
     {
-        Assert.That(
-            Insert(1.12, new() { ["value"] = "double precision" }),
-            Does.Contain("CAST('1.12' AS double precision)")
-        );
+        var result = InsertWithParameter(1.12, new() { ["value"] = "double precision" });
+        Assert.That(result.Sql, Does.Contain("CAST(@p0 AS double precision)"));
+        Assert.That(result.Value, Is.EqualTo("1.12"));
     }
 
     [Test]
-    public void ExplicitText_EscapesQuotes_AndDoesNotExecuteUdtExpressions()
+    public void ExplicitText_BindsQuotesAndUdtExpressionsAsData()
     {
-        Assert.That(
-            Insert("Point('x')", new() { ["value"] = "text" }),
-            Does.Contain("CAST('Point(''x'')' AS text)")
-        );
+        var result = InsertWithParameter("Point('x')", new() { ["value"] = "text" });
+        Assert.That(result.Sql, Does.Contain("CAST(@p0 AS text)"));
+        Assert.That(result.Value, Is.EqualTo("Point('x')"));
     }
 
     [Test]
@@ -116,10 +129,9 @@ public class SqlColumnTypesTests
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
-            Assert.That(
-                Insert(1.12, new() { ["value"] = "double precision" }),
-                Does.Contain("CAST('1.12' AS double precision)")
-            );
+            var result = InsertWithParameter(1.12, new() { ["value"] = "double precision" });
+            Assert.That(result.Sql, Does.Contain("CAST(@p0 AS double precision)"));
+            Assert.That(result.Value, Is.EqualTo("1.12"));
         }
         finally
         {
@@ -131,6 +143,16 @@ public class SqlColumnTypesTests
     public void EmptyExplicitType_FailsClearly()
     {
         Assert.Throws<ArgumentException>(() => Insert(1.12, new() { ["value"] = " " }));
+    }
+
+    [TestCase("1234567890123456789012345678901234567890.123456789")]
+    [TestCase("1e-100")]
+    public void ExplicitJsonNumber_PreservesPrecisionAndExponent(string literal)
+    {
+        var value = JsonSerializer.Deserialize<JsonElement>(literal);
+        var result = InsertWithParameter(value, new() { ["value"] = "numeric" });
+        Assert.That(result.Sql, Does.Contain("CAST(@p0 AS numeric)"));
+        Assert.That(result.Value, Is.EqualTo(literal));
     }
 
     [TestCase(false)]
@@ -162,16 +184,8 @@ public class SqlColumnTypesTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(
-                command.Object.CommandText,
-                Does.Contain(
-                    chunk ? "CAST(@p0 AS double precision)" : "CAST('1.12' AS double precision)"
-                )
-            );
-            Assert.That(
-                command.Object.CommandText,
-                Does.Contain(chunk ? "CAST(@p1 AS text)" : "CAST('1.12' AS text)")
-            );
+            Assert.That(command.Object.CommandText, Does.Contain("CAST(@p0 AS double precision)"));
+            Assert.That(command.Object.CommandText, Does.Contain("CAST(@p1 AS text)"));
             if (chunk)
                 Assert.That(parameterOwner.Parameters[2].Value, Is.EqualTo("2026-10-15 12:34:56"));
             else

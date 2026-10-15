@@ -63,13 +63,11 @@ public class SqlTypedChunkTests
                     "INSERT INTO measurements (price, label) VALUES (CAST(@p0 AS double precision), @p1)"
                 )
             );
-            Assert.That(parameterOwner.Parameters[0].Value, Is.EqualTo("1.12"));
+            Assert.That(parameterOwner.Parameters[0].Value, Is.TypeOf<double>().And.EqualTo(1.12));
             Assert.That(parameterOwner.Parameters[1].Value, Is.EqualTo(label));
             Assert.That(
-                parameterOwner
-                    .Parameters.Cast<NpgsqlParameter>()
-                    .All(p => p.NpgsqlDbType == NpgsqlDbType.Unknown),
-                Is.True
+                parameterOwner.Parameters[1].NpgsqlDbType,
+                Is.EqualTo(NpgsqlDbType.Unknown)
             );
         });
     }
@@ -118,7 +116,7 @@ public class SqlTypedChunkTests
 
         Assert.That(
             values,
-            Is.EqualTo(new object[][] { ["1.12", "O'Brien"], [DBNull.Value, DBNull.Value] })
+            Is.EqualTo(new object[][] { [1.12, "O'Brien"], [DBNull.Value, DBNull.Value] })
         );
     }
 
@@ -165,6 +163,63 @@ public class SqlTypedChunkTests
             transaction.Verify(t => t.Rollback(), Times.Once);
             transaction.Verify(t => t.Dispose(), Times.Once);
             command.Verify(c => c.Dispose(), Times.Once);
+        });
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void PostgreSql_ExplicitNativeTypes_KeepBinaryAndTemporalValues(bool chunk)
+    {
+        var command = new Mock<IDbCommand>();
+        command.SetupAllProperties();
+        using var parameterOwner = new NpgsqlCommand();
+        command.SetupGet(c => c.Parameters).Returns(parameterOwner.Parameters);
+        command.Setup(c => c.CreateParameter()).Returns(() => new NpgsqlParameter());
+        var protocol = new Protocol(
+            new PostgreSqlSenderConfig
+            {
+                TableName = "measurements",
+                ColumnTypes = new()
+                {
+                    ["observed_at"] = "timestamp with time zone",
+                    ["payload"] = "bytea",
+                    ["offset_at"] = "timestamp with time zone",
+                },
+            },
+            command.Object
+        );
+        var observedAt = new DateTime(2026, 10, 15, 12, 34, 56, DateTimeKind.Utc);
+        var offsetAt = new DateTimeOffset(2026, 10, 15, 12, 34, 56, TimeSpan.FromHours(3));
+        byte[] payload = [0, 1, 127, 255];
+        var data = new Data<object>
+        {
+            Body = new JsonObject
+            {
+                ["observed_at"] = JsonValue.Create(observedAt),
+                ["payload"] = JsonValue.Create(payload),
+                ["offset_at"] = JsonValue.Create(offsetAt),
+            },
+        };
+
+        if (chunk)
+            protocol.SendChunk([data]).ToList();
+        else
+            protocol.Send(data);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                parameterOwner.Parameters[0].Value,
+                Is.TypeOf<DateTime>().And.EqualTo(observedAt)
+            );
+            Assert.That(parameterOwner.Parameters[1].Value, Is.SameAs(payload));
+            Assert.That(parameterOwner.Parameters[1].NpgsqlDbType, Is.EqualTo(NpgsqlDbType.Bytea));
+            Assert.That(parameterOwner.Parameters[2].Value, Is.EqualTo(offsetAt.ToUniversalTime()));
+            Assert.That(
+                ((DateTimeOffset)parameterOwner.Parameters[2].Value!).Offset,
+                Is.EqualTo(TimeSpan.Zero)
+            );
+            Assert.That(command.Object.CommandText, Does.Contain("CAST(@p1 AS bytea)"));
         });
     }
 }

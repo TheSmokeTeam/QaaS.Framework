@@ -35,11 +35,19 @@ public class SqlNativeChunkTests
         protected override IDbTransaction BeginChunkTransaction() => transaction;
     }
 
-    [TestCase("mssql", "en-US")]
-    [TestCase("mssql", "de-DE")]
-    [TestCase("oracle", "en-US")]
-    [TestCase("oracle", "de-DE")]
-    public void UntypedChunkColumns_KeepNativeDateTimeAndBytes(string provider, string culture)
+    [TestCase("mssql", "en-US", false)]
+    [TestCase("mssql", "de-DE", false)]
+    [TestCase("oracle", "en-US", false)]
+    [TestCase("oracle", "de-DE", false)]
+    [TestCase("mssql", "en-US", true)]
+    [TestCase("mssql", "de-DE", true)]
+    [TestCase("oracle", "en-US", true)]
+    [TestCase("oracle", "de-DE", true)]
+    public void ChunkColumns_KeepNativeDateTimeAndBytes(
+        string provider,
+        string culture,
+        bool mapped
+    )
     {
         var previous = CultureInfo.CurrentCulture;
         try
@@ -64,7 +72,14 @@ public class SqlNativeChunkTests
                         new MsSqlSenderConfig
                         {
                             TableName = "measurements",
-                            ColumnTypes = new() { ["price"] = "decimal(10, 2)" },
+                            ColumnTypes = mapped
+                                ? new()
+                                {
+                                    ["price"] = "decimal(10, 2)",
+                                    ["observed_at"] = "datetime2",
+                                    ["payload"] = "varbinary(max)",
+                                }
+                                : new() { ["price"] = "decimal(10, 2)" },
                         },
                         command.Object,
                         transaction.Object
@@ -73,7 +88,14 @@ public class SqlNativeChunkTests
                         new OracleSenderConfig
                         {
                             TableName = "measurements",
-                            ColumnTypes = new() { ["price"] = "number(10, 2)" },
+                            ColumnTypes = mapped
+                                ? new()
+                                {
+                                    ["price"] = "number(10, 2)",
+                                    ["observed_at"] = "timestamp",
+                                    ["payload"] = "raw(2000)",
+                                }
+                                : new() { ["price"] = "number(10, 2)" },
                         },
                         command.Object,
                         transaction.Object
@@ -97,12 +119,12 @@ public class SqlNativeChunkTests
 
             Assert.Multiple(() =>
             {
-                Assert.That(parameters[0].Value, Is.EqualTo("1.12"));
+                Assert.That(parameters[0].Value, Is.TypeOf<double>().And.EqualTo(1.12));
                 Assert.That(parameters[1].Value, Is.TypeOf<DateTime>().And.EqualTo(observedAt));
                 Assert.That(parameters[2].Value, Is.SameAs(payload));
                 Assert.That(
                     command.Object.CommandText,
-                    Does.Contain(provider == "oracle" ? ":p1, :p2" : "@p1, @p2")
+                    Does.Contain(provider == "oracle" ? ":p1" : "@p1")
                 );
                 Assert.That(command.Object.Transaction, Is.SameAs(transaction.Object));
                 transaction.Verify(t => t.Commit(), Times.Once);

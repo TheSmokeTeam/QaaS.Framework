@@ -55,17 +55,29 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
             timeZoneId
         ) { }
 
-    protected override IDbDataParameter CreateChunkParameter(
+    protected override IDbDataParameter CreateSqlParameter(
         IDbCommand command,
         string name,
         object? value
     )
     {
-        var parameter = (NpgsqlParameter)base.CreateChunkParameter(command, name, value);
-        parameter.Value = value == null || value == DBNull.Value ? DBNull.Value : value.ToString();
-        // Send text with an unspecified PostgreSQL type, as COPY does. The target column
-        // (or the explicit CAST) determines the type, including numeric, timestamp and UDT columns.
-        parameter.NpgsqlDbType = NpgsqlDbType.Unknown;
+        var parameter = (NpgsqlParameter)base.CreateSqlParameter(command, name, value);
+        // Strings need an unspecified PostgreSQL type so the target column/CAST can convert
+        // them, as COPY did. Numeric, binary and temporal CLR values use native binding.
+        if (parameter.Value is string or DBNull)
+            parameter.NpgsqlDbType = NpgsqlDbType.Unknown;
+        else if (parameter.Value is byte[])
+            parameter.NpgsqlDbType = NpgsqlDbType.Bytea;
+        else if (parameter.Value is DateTime dateTime)
+            parameter.NpgsqlDbType =
+                dateTime.Kind == DateTimeKind.Utc
+                    ? NpgsqlDbType.TimestampTz
+                    : NpgsqlDbType.Timestamp;
+        else if (parameter.Value is DateTimeOffset offset)
+        {
+            parameter.Value = offset.ToUniversalTime();
+            parameter.NpgsqlDbType = NpgsqlDbType.TimestampTz;
+        }
         return parameter;
     }
 

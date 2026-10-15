@@ -1,6 +1,5 @@
 ﻿using System.Collections.Immutable;
 using System.Data;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -192,13 +191,17 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
         foreach (DataRow row in chunkDataToSend.Rows)
         {
+            if (_columnTypes is { Count: > 0 })
+                sqlCommand.Parameters.Clear();
             // Build columns names and values as strings for INSERT INTO query VALUES
             var columnNames = new StringBuilder();
             var columnValues = new StringBuilder();
             foreach (DataColumn col in chunkDataToSend.Columns)
             {
                 columnNames.Append($"{col.ColumnName}, ");
-                columnValues.Append($"{GetParsedSqlParameter(row[col], col.ColumnName)}, ");
+                columnValues.Append(
+                    $"{GetParsedSqlParameter(row[col], col.ColumnName, sqlCommand)}, "
+                );
             }
 
             var columnNamesAsString = columnNames.ToString().TrimEnd(',', ' ');
@@ -242,15 +245,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                         );
 
                     var value = row[column];
-                    // Preserve native values for bulk-copy providers. Only explicitly typed
-                    // values opt into invariant text; PostgreSQL handles COPY text in its override.
-                    var parameterValue =
-                        value == DBNull.Value ? DBNull.Value
-                        : hasType ? GetInvariantSqlText(value)
-                        : value;
-                    command.Parameters.Add(
-                        CreateChunkParameter(command, parameterName, parameterValue)
-                    );
+                    command.Parameters.Add(CreateSqlParameter(command, parameterName, value));
                     var placeholder = $"{SqlParameterPrefix}{parameterName}";
                     values.Add(hasType ? $"CAST({placeholder} AS {sqlType})" : placeholder);
                 }
@@ -283,7 +278,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
 
     protected virtual string SqlParameterPrefix => "@";
 
-    protected virtual IDbDataParameter CreateChunkParameter(
+    protected virtual IDbDataParameter CreateSqlParameter(
         IDbCommand command,
         string name,
         object? value
@@ -291,7 +286,20 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     {
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
-        parameter.Value = value ?? DBNull.Value;
+        // Parsed JSON scalar values need their CLR representation for database providers.
+        // Native values (notably DateTime and byte[]) retain their original representation.
+        parameter.Value = value is JsonElement element
+            ? element.ValueKind switch
+            {
+                JsonValueKind.String => (object?)element.GetString() ?? DBNull.Value,
+                // Preserve arbitrary JSON precision and exponent ranges for the SQL cast.
+                JsonValueKind.Number => element.GetRawText(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                JsonValueKind.Null => DBNull.Value,
+                _ => element.GetRawText(),
+            }
+            : value ?? DBNull.Value;
         return parameter;
     }
 
@@ -497,7 +505,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// </summary>
     /// <param name="value">Value to parse</param>
     /// <returns>Parsed value</returns>
-    private object? GetParsedSqlParameter(object? value, string columnName)
+    private object? GetParsedSqlParameter(object? value, string columnName, IDbCommand command)
     {
         if (_columnTypes == null || !_columnTypes.TryGetValue(columnName, out var sqlType))
             return GetParsedSqlParameter(value);
@@ -510,19 +518,12 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         if (value == null || value == DBNull.Value)
             return "NULL";
 
-        // Let the database perform the explicitly requested cast. Do not try DateTime.TryParse
-        // first: numeric values such as 1.12 can also be interpreted as dates.
-        var text = GetInvariantSqlText(value);
-        return $"CAST('{text?.Replace("'", "''")}' AS {sqlType})";
+        // Explicit types bypass date/UDT inference. Bind native data instead of producing
+        // string literals so binary and temporal values keep their provider representation.
+        var parameterName = $"p{command.Parameters.Count}";
+        command.Parameters.Add(CreateSqlParameter(command, parameterName, value));
+        return $"CAST({SqlParameterPrefix}{parameterName} AS {sqlType})";
     }
-
-    private static string? GetInvariantSqlText(object value) =>
-        value is IFormattable formattable
-            ? formattable.ToString(
-                value is DateTime or DateTimeOffset ? "O" : null,
-                CultureInfo.InvariantCulture
-            )
-            : value.ToString();
 
     private object? GetParsedSqlParameter(object? value)
     {
