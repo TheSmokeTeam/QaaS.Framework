@@ -126,6 +126,7 @@ public class ProtocolConfigurationObjectsTests
 
         Assert.Multiple(() =>
         {
+            Assert.That(reader.MaxConcurrentDownloads, Is.EqualTo(1));
             Assert.That(reader.ReadFromRunStartTime, Is.False);
             Assert.That(reader.ReadStorageHeaders, Is.False);
             Assert.That(reader.SkipEmptyObjects, Is.False);
@@ -192,7 +193,7 @@ public class ProtocolConfigurationObjectsTests
                 Durable = true,
                 Exclusive = true,
                 AutoDelete = true,
-                Arguments = new Dictionary<string, object?> { ["x-message-ttl"] = 5000 }
+                Arguments = new Dictionary<string, object?> { ["x-message-ttl"] = 5000 },
             };
             Assert.That(Validate(customReader).IsValid, Is.True);
             Assert.That(customReader.Durable, Is.True);
