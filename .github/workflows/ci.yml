@@ -30,6 +30,9 @@ env:
 
 jobs:
   build-test-deploy:
+    permissions:
+      contents: write
+      id-token: write
     name: Build, Test & Deploy
     runs-on: windows-latest
     steps:
@@ -304,6 +307,13 @@ jobs:
             Copy-Item $packageFile.FullName $versionDirectory -Force
           }
 
+      - name: Authenticate to NuGet
+        if: steps.stable_tag.outputs.is_stable_tag == 'true' || github.event_name == 'workflow_dispatch'
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        id: nuget_login
+        with:
+          user: Smoke
+
       - name: Push packages
         if: steps.stable_tag.outputs.is_stable_tag == 'true'
         shell: pwsh
@@ -313,7 +323,7 @@ jobs:
           }
 
           foreach ($package in $packages) {
-            dotnet nuget push $package.FullName -k ${{ secrets.NUGET_AUTH_TOKEN }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push $package.FullName -k ${{ steps.nuget_login.outputs.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
           }
 
       - name: Write restored packages metadata
