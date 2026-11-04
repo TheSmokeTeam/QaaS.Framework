@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Data;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -336,22 +337,27 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     {
         var parameter = command.CreateParameter();
         parameter.ParameterName = name;
-        // Parsed JSON scalar values need their CLR representation for database providers.
-        // Native values (notably DateTime and byte[]) retain their original representation.
-        parameter.Value = value is JsonElement element
-            ? element.ValueKind switch
+        parameter.Value = NormalizeSqlValue(value) ?? DBNull.Value;
+        return parameter;
+    }
+
+    private static object? NormalizeSqlValue(object? value) =>
+        value switch
+        {
+            JsonValue scalar => NormalizeSqlValue(scalar.GetValue<object?>()),
+            JsonNode node => node.ToJsonString(),
+            JsonElement element => element.ValueKind switch
             {
-                JsonValueKind.String => (object?)element.GetString() ?? DBNull.Value,
-                // Preserve arbitrary JSON precision and exponent ranges for the SQL cast.
+                JsonValueKind.String => element.GetString(),
+                // Keep exact numeric text for provider conversion, including SQL precisions beyond decimal.
                 JsonValueKind.Number => element.GetRawText(),
                 JsonValueKind.True => true,
                 JsonValueKind.False => false,
-                JsonValueKind.Null => DBNull.Value,
+                JsonValueKind.Null or JsonValueKind.Undefined => null,
                 _ => element.GetRawText(),
-            }
-            : value ?? DBNull.Value;
-        return parameter;
-    }
+            },
+            _ => value,
+        };
 
     /// <summary>
     /// Creates the db command object used to execute the query on the db
@@ -505,6 +511,9 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     protected static DataTable GetDataTableFromRawDataChunk(IEnumerable<Data<object>> chunkData)
     {
         var dataTable = new DataTable();
+        // JSON numbers are invariant, but native dates must retain the caller's format.
+        var jsonNumberCulture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        jsonNumberCulture.DateTimeFormat = CultureInfo.CurrentCulture.DateTimeFormat;
         foreach (var itemToSend in chunkData)
         {
             // Check if given data item is `JsonObject` already, if not try to convert it to `JsonObject`
@@ -522,7 +531,13 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
             var row = dataTable.NewRow();
             foreach (var property in json.AsEnumerable())
             {
-                var propertyValue = property.Value?.GetValue<object?>();
+                if (
+                    property.Value is JsonValue scalar
+                    && scalar.TryGetValue<JsonElement>(out var element)
+                    && element.ValueKind == JsonValueKind.Number
+                )
+                    dataTable.Locale = jsonNumberCulture;
+                var propertyValue = NormalizeSqlValue(property.Value);
 
                 // Add column metadata to columns
                 if (!dataTable.Columns.Contains(property.Key))
@@ -541,7 +556,13 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                     dataTable.Columns.Add(new DataColumn(property.Key, propertyValue.GetType()));
                 }
 
-                row[property.Key] = propertyValue ?? DBNull.Value;
+                // String columns call ToString() without honoring DataTable.Locale.
+                row[property.Key] =
+                    dataTable.Columns[property.Key]!.DataType == typeof(string)
+                    && propertyValue is IConvertible convertible
+                    && convertible.GetTypeCode() is >= TypeCode.SByte and <= TypeCode.Decimal
+                        ? convertible.ToString(dataTable.Locale)
+                        : propertyValue ?? DBNull.Value;
             }
 
             dataTable.Rows.Add(row);

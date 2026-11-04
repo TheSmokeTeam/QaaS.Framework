@@ -1,5 +1,6 @@
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sql;
@@ -52,7 +53,17 @@ public class MsSqlProtocol : BaseSqlProtocol<SqlConnection>
             bulkCopy.ColumnMappings.Add(col.ColumnName, col.ColumnName);
         }
 
-        bulkCopy.WriteToServer(chunkData);
+        var previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            // SqlBulkCopy parses numeric text using the current culture; JSON numbers are invariant.
+            CultureInfo.CurrentCulture = chunkData.Locale;
+            bulkCopy.WriteToServer(chunkData);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
     }
 
     /// <inheritdoc />
