@@ -7,6 +7,12 @@ on:
   pull_request:
     branches: ["**"]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing X.Y.Z tag on master to publish; leave empty to validate without publishing'
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,6 +36,9 @@ env:
 
 jobs:
   build-test-deploy:
+    permissions:
+      contents: write
+      id-token: write
     name: Build, Test & Deploy
     runs-on: windows-latest
     steps:
@@ -46,8 +55,20 @@ jobs:
       - name: Detect tag
         id: stable_tag
         shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          if [[ -n "${RELEASE_TAG}" ]]; then
+            if [[ ! "${RELEASE_TAG}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "release_tag must be an existing X.Y.Z tag on master." >&2
+              exit 1
+            fi
+            release_commit=$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}")
+            git merge-base --is-ancestor "$release_commit" origin/master
+            git checkout --detach "$release_commit"
+            echo "is_stable_tag=true" >> "$GITHUB_OUTPUT"
+            echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             echo "is_stable_tag=true" >> "$GITHUB_OUTPUT"
             echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           else
@@ -304,6 +325,13 @@ jobs:
             Copy-Item $packageFile.FullName $versionDirectory -Force
           }
 
+      - name: Authenticate to NuGet
+        if: steps.stable_tag.outputs.is_stable_tag == 'true' || github.event_name == 'workflow_dispatch'
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        id: nuget_login
+        with:
+          user: Smoke
+
       - name: Push packages
         if: steps.stable_tag.outputs.is_stable_tag == 'true'
         shell: pwsh
@@ -313,7 +341,7 @@ jobs:
           }
 
           foreach ($package in $packages) {
-            dotnet nuget push $package.FullName -k ${{ secrets.NUGET_AUTH_TOKEN }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push $package.FullName -k ${{ steps.nuget_login.outputs.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
           }
 
       - name: Write restored packages metadata
