@@ -147,19 +147,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         if (_columnTypes is { Count: > 0 })
             InsertTypedChunkToTable(dataTable);
         else
-        {
-            var previousCulture = CultureInfo.CurrentCulture;
-            try
-            {
-                // Bulk providers also parse JSON numeric text using the current culture.
-                CultureInfo.CurrentCulture = dataTable.Locale;
-                InsertChunkToTable(dataTable);
-            }
-            finally
-            {
-                CultureInfo.CurrentCulture = previousCulture;
-            }
-        }
+            InsertChunkToTable(dataTable);
         var chunkInsertionTime = DateTime.UtcNow;
         Logger.LogDebug("Finished sending chunk");
         return dataToSend
@@ -523,6 +511,9 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     protected static DataTable GetDataTableFromRawDataChunk(IEnumerable<Data<object>> chunkData)
     {
         var dataTable = new DataTable();
+        // JSON numbers are invariant, but native dates must retain the caller's format.
+        var jsonNumberCulture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        jsonNumberCulture.DateTimeFormat = CultureInfo.CurrentCulture.DateTimeFormat;
         foreach (var itemToSend in chunkData)
         {
             // Check if given data item is `JsonObject` already, if not try to convert it to `JsonObject`
@@ -545,7 +536,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                     && scalar.TryGetValue<JsonElement>(out var element)
                     && element.ValueKind == JsonValueKind.Number
                 )
-                    dataTable.Locale = CultureInfo.InvariantCulture;
+                    dataTable.Locale = jsonNumberCulture;
                 var propertyValue = NormalizeSqlValue(property.Value);
 
                 // Add column metadata to columns
@@ -568,8 +559,9 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                 // String columns call ToString() without honoring DataTable.Locale.
                 row[property.Key] =
                     dataTable.Columns[property.Key]!.DataType == typeof(string)
-                    && propertyValue is IFormattable formattable
-                        ? formattable.ToString(null, dataTable.Locale)
+                    && propertyValue is IConvertible convertible
+                    && convertible.GetTypeCode() is >= TypeCode.SByte and <= TypeCode.Decimal
+                        ? convertible.ToString(dataTable.Locale)
                         : propertyValue ?? DBNull.Value;
             }
 

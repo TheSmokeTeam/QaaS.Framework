@@ -12,7 +12,7 @@ public class MsSqlJsonIntegrationTests
 {
     [TestCase(false)]
     [TestCase(true)]
-    [SetCulture("de-DE")]
+    [SetCulture("en-GB")]
     public void ParsedScalars_RoundTripVarcharAndDecimal(bool highPrecision)
     {
         var connectionString = Environment.GetEnvironmentVariable("QAAS_MSSQL_CONNECTION_STRING");
@@ -22,7 +22,8 @@ public class MsSqlJsonIntegrationTests
         connection.Open();
         var table = "qaas_json_" + Guid.NewGuid().ToString("N");
         using var command = connection.CreateCommand();
-        command.CommandText = $"CREATE TABLE {table} (label varchar(100), amount decimal(38,18))";
+        command.CommandText =
+            $"CREATE TABLE {table} (label varchar(100), amount decimal(38,18), observed_at date)";
         command.ExecuteNonQuery();
         var protocol = new MsSqlProtocol(
             new MsSqlSenderConfig
@@ -42,14 +43,16 @@ public class MsSqlJsonIntegrationTests
                     {
                         Body = JsonNode.Parse(
                             highPrecision
-                                ? """{"label":"O'Brien","amount":12345678901234567890.123456789012345678}"""
-                                : """{"label":"O'Brien","amount":1.25}"""
+                                ? """{"label":"O'Brien","amount":12345678901234567890.123456789012345678,"observed_at":"2026-11-04"}"""
+                                : """{"label":"O'Brien","amount":1.25,"observed_at":"04/11/2026"}"""
                         ),
                     },
                 ])
                 .ToArray();
             command.CommandText = $"SELECT label FROM {table}";
             Assert.That(command.ExecuteScalar(), Is.EqualTo("O'Brien"));
+            command.CommandText = $"SELECT observed_at FROM {table}";
+            Assert.That(command.ExecuteScalar(), Is.EqualTo(new DateTime(2026, 11, 4)));
             command.CommandText = $"SELECT CAST(amount AS varchar(50)) FROM {table}";
             Assert.That(
                 command.ExecuteScalar(),
@@ -141,6 +144,7 @@ public class MsSqlJsonIntegrationTests
                 .ToArray();
             foreach (var chunk in rows.Chunk(chunkSize))
                 Assert.That(protocol.SendChunk(chunk).Count(), Is.EqualTo(chunk.Length));
+            Assert.That(CultureInfo.CurrentCulture.Name, Is.EqualTo(culture));
 
             command.CommandText =
                 $"SELECT id, label, amount, active, note, nested FROM {table} ORDER BY id";

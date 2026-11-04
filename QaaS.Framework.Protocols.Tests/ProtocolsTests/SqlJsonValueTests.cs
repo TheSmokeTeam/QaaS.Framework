@@ -27,7 +27,7 @@ public class SqlJsonValueTests
 
     [TestCase(false)]
     [TestCase(true)]
-    public void BulkSend_UsesInvariantCulture_AndRestoresCallerCulture(bool fail)
+    public void SharedBulkSend_DoesNotChangeCallerCulture(bool fail)
     {
         var previous = CultureInfo.CurrentCulture;
         try
@@ -42,7 +42,7 @@ public class SqlJsonValueTests
                 protocol.SendChunk([data]);
             Assert.Multiple(() =>
             {
-                Assert.That(protocol.BulkCulture, Is.EqualTo(CultureInfo.InvariantCulture));
+                Assert.That(protocol.BulkCulture, Is.SameAs(callerCulture));
                 Assert.That(CultureInfo.CurrentCulture, Is.SameAs(callerCulture));
             });
         }
@@ -50,6 +50,82 @@ public class SqlJsonValueTests
         {
             CultureInfo.CurrentCulture = previous;
         }
+    }
+
+    private sealed class CapturingPostgreSql()
+        : PostgreSqlProtocol(new PostgreSqlSenderConfig(), Globals.Logger)
+    {
+        public string? DateText { get; private set; }
+
+        protected override void InsertChunkToTable(DataTable chunkData) =>
+            DateText = chunkData.Rows[0]["date"].ToString();
+    }
+
+    [Test]
+    [SetCulture("en-GB")]
+    public void PostgreSql_MixedJsonNumberAndNativeDate_KeepsDateFormatting()
+    {
+        var protocol = new CapturingPostgreSql();
+        var date = new DateTime(2026, 11, 4);
+        protocol.SendChunk([
+            new Data<object>
+            {
+                Body = new JsonObject
+                {
+                    ["number"] = JsonNode.Parse("1.25"),
+                    ["date"] = JsonValue.Create(date),
+                },
+            },
+        ]);
+        Assert.That(protocol.DateText, Is.EqualTo("04/11/2026 00:00:00"));
+    }
+
+    [Test]
+    [SetCulture("de-DE")]
+    public void MsSql_FailedBulkWrite_RestoresCallerCulture()
+    {
+        var callerCulture = CultureInfo.CurrentCulture;
+        var protocol = new MsSqlProtocol(
+            new MsSqlSenderConfig { TableName = "unconnected" },
+            Globals.Logger
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            protocol.SendChunk([new Data<object> { Body = JsonNode.Parse("""{"amount":1.25}""") }])
+        );
+        Assert.That(CultureInfo.CurrentCulture, Is.SameAs(callerCulture));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    [SetCulture("en-GB")]
+    public void MixedDateTextAndNativeDate_KeepsCallerDateFormatting(bool nativeFirst)
+    {
+        var protocol = new CapturingMsSql();
+        Data<object>[] rows =
+        [
+            new Data<object>
+            {
+                Body = new JsonObject
+                {
+                    ["number"] = JsonNode.Parse("1.25"),
+                    ["date"] = "04/11/2026 00:00:00",
+                },
+            },
+            new Data<object>
+            {
+                Body = new JsonObject
+                {
+                    ["number"] = JsonNode.Parse("1.25"),
+                    ["date"] = JsonValue.Create(new DateTime(2026, 11, 4)),
+                },
+            },
+        ];
+        protocol.SendChunk(nativeFirst ? rows.Reverse() : rows);
+        var expected = nativeFirst ? (object)new DateTime(2026, 11, 4) : "04/11/2026 00:00:00";
+        Assert.That(
+            protocol.Table.Rows.Cast<DataRow>().Select(row => row["date"]),
+            Is.All.EqualTo(expected)
+        );
     }
 
     [Test]
