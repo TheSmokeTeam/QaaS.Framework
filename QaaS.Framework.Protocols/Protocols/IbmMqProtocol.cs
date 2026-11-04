@@ -9,7 +9,7 @@ namespace QaaS.Framework.Protocols.Protocols;
 /// <summary>
 /// Is a serialized reader that reads from ibm mq using the IBM.WMQ package.
 /// </summary>
-public class IbmMqProtocol : IReader
+public class IbmMqProtocol : IReader, IDisposable
 {
     private MQQueueManager? _manager;
     private MQQueue? _queue;
@@ -19,14 +19,32 @@ public class IbmMqProtocol : IReader
 
     public IbmMqProtocol(IbmMqReaderConfig configuration)
     {
-        _properties = new Hashtable()
+        _properties = CreateConnectionProperties(configuration);
+        _managerName = configuration.Manager;
+        _queueName = configuration.QueueName;
+    }
+
+    internal static Hashtable CreateConnectionProperties(IbmMqReaderConfig configuration)
+    {
+        var properties = new Hashtable()
         {
             { MQC.HOST_NAME_PROPERTY, configuration.HostName },
             { MQC.CHANNEL_PROPERTY, configuration.Channel },
-            { MQC.PORT_PROPERTY, configuration.Port }
+            { MQC.PORT_PROPERTY, configuration.Port },
         };
-        _managerName = configuration.Manager;
-        _queueName = configuration.QueueName;
+        if (configuration.Username != null)
+            properties[MQC.USER_ID_PROPERTY] = configuration.Username;
+        if (configuration.Password != null)
+            properties[MQC.PASSWORD_PROPERTY] = configuration.Password;
+        if (configuration.Username != null || configuration.Password != null)
+            properties[MQC.USE_MQCSP_AUTHENTICATION_PROPERTY] = true;
+        if (configuration.SslCipherSpec != null)
+            properties[MQC.SSL_CIPHER_SPEC_PROPERTY] = configuration.SslCipherSpec;
+        if (configuration.SslKeyRepository != null)
+            properties[MQC.SSL_CERT_STORE_PROPERTY] = configuration.SslKeyRepository;
+        if (configuration.SslPeerName != null)
+            properties[MQC.SSL_PEER_NAME_PROPERTY] = configuration.SslPeerName;
+        return properties;
     }
 
     public SerializationType? GetSerializationType() => null;
@@ -58,7 +76,7 @@ public class IbmMqProtocol : IReader
         var readOptions = new MQGetMessageOptions
         {
             Options = MQC.MQGMO_WAIT,
-            WaitInterval = (int)timeout.TotalMilliseconds
+            WaitInterval = (int)timeout.TotalMilliseconds,
         };
         _queue!.Get(message, readOptions);
         return message;
@@ -67,13 +85,30 @@ public class IbmMqProtocol : IReader
     public void Connect()
     {
         _manager = new MQQueueManager(_managerName, _properties);
-        _queue = _manager.AccessQueue(_queueName, MQC.MQOO_INPUT_AS_Q_DEF | MQC.MQOO_FAIL_IF_QUIESCING);
+        _queue = _manager.AccessQueue(
+            _queueName,
+            MQC.MQOO_INPUT_AS_Q_DEF | MQC.MQOO_FAIL_IF_QUIESCING
+        );
     }
 
     public void Disconnect()
     {
-        _manager?.Disconnect();
-        _queue?.Close();
+        try
+        {
+            _queue?.Close();
+        }
+        finally
+        {
+            _queue = null;
+            try
+            {
+                _manager?.Disconnect();
+            }
+            finally
+            {
+                _manager = null;
+            }
+        }
     }
 
     /// <summary>
@@ -81,7 +116,6 @@ public class IbmMqProtocol : IReader
     /// </summary>
     public void Dispose()
     {
-        _manager?.Disconnect();
-        _queue?.Close();
+        Disconnect();
     }
 }

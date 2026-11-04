@@ -38,7 +38,7 @@ reportgenerator -reports:coverage.xml -targetdir:coverage-report
   for Runner, Mocker, all Common.* libraries, and every consumer project — coordinate releases.
 - **CI collects and reports line coverage** (windows-latest, dotnet-coverage + reportgenerator). 75% is used for badge colouring only — there is no threshold step that fails the build.
 - **Assembly scanning order is load-order-sensitive**: Providers resolves hooks by `FullName`/`AssemblyQualifiedName` first, then falls back to `Type.Name`. Assembly-name priority (`QaaS.*` → `Common.*` → user libs) is used as a tie-breaker when multiple assemblies expose a hook with the same simple type name; an info log is emitted when a tie is resolved.
-- **`ICloneable<T>` deep-clone pattern** (PR #31) is required for builder config objects —
+- **`ICloneable<T>` deep-clone pattern** is required for builder config objects —
   new config classes must implement deep clone.
 - **`${...}` placeholder interpolation** lives in QaaS.Framework.Configurations — do not
   replicate ad-hoc string expansion elsewhere.
@@ -49,7 +49,9 @@ reportgenerator -reports:coverage.xml -targetdir:coverage-report
 ## Process
 Keep README.md general: repository purpose, package overview, installation, build/test,
 and links. Put feature behavior and specific configuration examples in the appropriate
-qaas-docs reference or guide; preserve its released/unreleased labels and generated-file rules.
+qaas-docs reference or guide, following its generated-file rules. Keep user-facing docs focused
+on current behavior, configuration, examples and operational limits. Discuss development history,
+delivery status and validation evidence in chat.
 
 Follow the QaaS harness pipeline: plan → contract → implement → adversarial evaluation
 (rubric: Correctness/Completeness/Craft/Robustness, each ≥7/10). Write tests first (TDD).

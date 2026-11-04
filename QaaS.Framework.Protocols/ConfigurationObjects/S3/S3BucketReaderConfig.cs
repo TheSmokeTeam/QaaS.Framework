@@ -1,10 +1,32 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using QaaS.Framework.Configurations.CommonConfigurationObjects;
 
 namespace QaaS.Framework.Protocols.ConfigurationObjects.S3;
 
 public record S3BucketReaderConfig : S3BucketConfig, IReaderConfig
 {
+    /// <summary>Controls whether bodies are downloaded during result enumeration.</summary>
+    [
+        Description(
+            "When true, download ordered bounded windows as the result is enumerated. Errors may occur after earlier items have been returned and another enumeration downloads again. When false, ReadChunk downloads and materializes repeatable results before returning. Runner retains results according to its data settings."
+        ),
+        DefaultValue(false)
+    ]
+    public bool StreamResults { get; set; }
+
+    /// <summary>
+    /// Maximum number of objects downloaded in each ordered consumer window.
+    /// </summary>
+    [
+        Description(
+            "Maximum concurrent S3 body downloads. Defaults to sequential reads. Larger values buffer up to this many objects before yielding them in timestamp order; this limits object count, not total bytes or retained session data."
+        ),
+        DefaultValue(1),
+        Range(1, int.MaxValue)
+    ]
+    public int MaxConcurrentDownloads { get; set; } = 1;
+
     [Description("Prefix of the objects to read from s3 bucket"), DefaultValue("")]
     public string Prefix { get; set; } = "";
 

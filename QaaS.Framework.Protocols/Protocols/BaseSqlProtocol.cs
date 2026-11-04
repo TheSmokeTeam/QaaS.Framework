@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Data;
 using System.Text;
 using System.Text.Json;
@@ -19,6 +19,30 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     private readonly string? _timeZoneId;
     private readonly double _filterSecondsBeforeRunStartTime;
     private readonly Dictionary<string, string>? _columnTypes;
+    private readonly bool _parameterizeRows;
+    private readonly bool _streamResults;
+    private readonly string[]? _columnsToRead;
+
+    /// <summary>Server-side projection; omitted configuration selects all columns.</summary>
+    protected string ReadProjection
+    {
+        get
+        {
+            if (_columnsToRead == null)
+                return "*";
+            var columns = _columnsToRead.AsEnumerable();
+            if (InsertionTimeField != null)
+                columns = columns.Append(InsertionTimeField);
+            return string.Join(
+                ", ",
+                columns.Distinct(StringComparer.Ordinal).Select(QuoteReadColumn)
+            );
+        }
+    }
+
+    protected virtual string QuoteReadColumn(string column) =>
+        "\"" + column.Replace("\"", "\"\"") + "\"";
+
     private protected readonly string TableName;
     protected readonly ILogger Logger;
     protected readonly int CommandTimeoutSeconds;
@@ -45,6 +69,16 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         _insertionTimeTimeZoneOffsetSummerTime =
             configurations.InsertionTimeTimeZoneOffsetSummerTime;
         ColumnsToFilter = configurations.ColumnsToIgnore;
+        _streamResults = configurations.StreamResults;
+        _columnsToRead = configurations.ColumnsToRead?.ToArray();
+        if (
+            _columnsToRead != null
+            && (_columnsToRead.Length == 0 || _columnsToRead.Any(string.IsNullOrWhiteSpace))
+        )
+            throw new ArgumentException(
+                "ColumnsToRead must contain nonempty column names.",
+                nameof(configurations)
+            );
         _filterSecondsBeforeRunStartTime = configurations.FilterSecondsBeforeRunStartTime;
         WhereStatement = configurations.WhereStatement;
         FilterFromStartTime = configurations.ReadFromRunStartTime;
@@ -70,6 +104,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
             DbConnection = dbConnection;
         CommandTimeoutSeconds = configurations.CommandTimeoutSeconds;
         _columnTypes = configurations.ColumnTypes;
+        _parameterizeRows = configurations.ParameterizeRows;
         TableName = configurations.TableName!;
         Logger = logger;
         _timeZoneId = timeZoneId;
@@ -97,7 +132,9 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                         timeZoneId: _timeZoneId
                     ),
             });
-        return rowsDetailedDataEnumerable.ToImmutableList();
+        return _streamResults
+            ? rowsDetailedDataEnumerable
+            : rowsDetailedDataEnumerable.ToImmutableList();
     }
 
     public virtual IEnumerable<DetailedData<object>> SendChunk(
@@ -155,27 +192,32 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         command.CommandTimeout = commandTimeoutSeconds;
         if (DbConnection.State == ConnectionState.Closed)
             DbConnection.Open();
-        using (var reader = ExecuteReader(command)) // Query trigger
+        try
         {
-            while (reader.Read()) // Results rows reader
+            using (var reader = ExecuteReader(command)) // Query trigger
             {
-                var row = new JsonObject();
-                for (var col = 0; col < reader.FieldCount; col++)
+                while (reader.Read()) // Results rows reader
                 {
-                    var columnName = reader.GetName(col);
-                    if (columnsToIgnore.Contains(columnName))
-                        continue;
+                    var row = new JsonObject();
+                    for (var col = 0; col < reader.FieldCount; col++)
+                    {
+                        var columnName = reader.GetName(col);
+                        if (columnsToIgnore.Contains(columnName))
+                            continue;
 
-                    var value = GetValueFromReader(reader, col);
-                    row[columnName] = value == DBNull.Value ? null : JsonValue.Create(value);
+                        var value = GetValueFromReader(reader, col);
+                        row[columnName] = value == DBNull.Value ? null : JsonValue.Create(value);
+                    }
+
+                    yield return row;
                 }
-
-                yield return row;
             }
         }
-
-        if (DbConnection.State != ConnectionState.Closed)
-            DbConnection.Close();
+        finally
+        {
+            if (DbConnection.State != ConnectionState.Closed)
+                DbConnection.Close();
+        }
     }
 
     /// <summary>
@@ -183,15 +225,16 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// </summary>
     protected virtual void RowInsertIntoTable(DataTable chunkDataToSend)
     {
-        // Preserve the original command-factory behavior when types are not configured.
-        using var sqlCommand = _columnTypes is { Count: > 0 }
-            ? CreateDbCommand()
-            : DbConnection.CreateCommand();
+        // Untyped, nonparameterized row sends use the connection command factory.
+        using var sqlCommand =
+            _parameterizeRows || _columnTypes is { Count: > 0 }
+                ? CreateDbCommand()
+                : DbConnection.CreateCommand();
         sqlCommand.CommandTimeout = CommandTimeoutSeconds;
 
         foreach (DataRow row in chunkDataToSend.Rows)
         {
-            if (_columnTypes is { Count: > 0 })
+            if (_parameterizeRows || _columnTypes is { Count: > 0 })
                 sqlCommand.Parameters.Clear();
             // Build columns names and values as strings for INSERT INTO query VALUES
             var columnNames = new StringBuilder();
@@ -220,8 +263,8 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     protected abstract void InsertChunkToTable(DataTable chunkData);
 
     /// <summary>
-    /// Inserts explicitly typed chunks with parameters for every value. Unlike legacy row sends,
-    /// bulk sends have never interpreted unconfigured values as dates or executable UDT expressions.
+    /// Inserts explicitly typed chunks with parameters for every value.
+    /// Unmapped values are bound as data without date or UDT expression inference.
     /// </summary>
     private void InsertTypedChunkToTable(DataTable chunkData)
     {
@@ -245,9 +288,9 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
                         );
 
                     var value = row[column];
-                    command.Parameters.Add(CreateSqlParameter(command, parameterName, value));
-                    var placeholder = $"{SqlParameterPrefix}{parameterName}";
-                    values.Add(hasType ? $"CAST({placeholder} AS {sqlType})" : placeholder);
+                    var parameter = CreateSqlParameter(command, parameterName, value);
+                    command.Parameters.Add(parameter);
+                    values.Add(GetSqlParameterExpression(parameter, hasType ? sqlType : null));
                 }
 
                 command.CommandText =
@@ -272,6 +315,13 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
             }
             throw;
         }
+    }
+
+    /// <summary>Provider-specific typed binding can replace a generic SQL CAST (for example Oracle LOBs).</summary>
+    protected virtual string GetSqlParameterExpression(IDbDataParameter parameter, string? sqlType)
+    {
+        var placeholder = $"{SqlParameterPrefix}{parameter.ParameterName}";
+        return sqlType == null ? placeholder : $"CAST({placeholder} AS {sqlType})";
     }
 
     protected virtual IDbTransaction BeginChunkTransaction() => DbConnection.BeginTransaction();
@@ -507,10 +557,12 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// <returns>Parsed value</returns>
     private object? GetParsedSqlParameter(object? value, string columnName, IDbCommand command)
     {
-        if (_columnTypes == null || !_columnTypes.TryGetValue(columnName, out var sqlType))
+        string? sqlType = null;
+        var hasType = _columnTypes?.TryGetValue(columnName, out sqlType) == true;
+        if (!hasType && !_parameterizeRows)
             return GetParsedSqlParameter(value);
 
-        if (string.IsNullOrWhiteSpace(sqlType))
+        if (hasType && string.IsNullOrWhiteSpace(sqlType))
             throw new ArgumentException(
                 $"The SQL type configured for column '{columnName}' cannot be empty."
             );
@@ -521,8 +573,9 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
         // Explicit types bypass date/UDT inference. Bind native data instead of producing
         // string literals so binary and temporal values keep their provider representation.
         var parameterName = $"p{command.Parameters.Count}";
-        command.Parameters.Add(CreateSqlParameter(command, parameterName, value));
-        return $"CAST({SqlParameterPrefix}{parameterName} AS {sqlType})";
+        var parameter = CreateSqlParameter(command, parameterName, value);
+        command.Parameters.Add(parameter);
+        return GetSqlParameterExpression(parameter, sqlType);
     }
 
     private object? GetParsedSqlParameter(object? value)

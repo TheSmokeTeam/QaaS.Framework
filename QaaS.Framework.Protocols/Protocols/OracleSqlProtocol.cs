@@ -38,6 +38,42 @@ public class OracleSqlProtocol : BaseSqlProtocol<OracleConnection>, ISender
             timeZoneId
         ) { }
 
+    protected override IDbDataParameter CreateSqlParameter(
+        IDbCommand command,
+        string name,
+        object? value
+    )
+    {
+        var parameter = base.CreateSqlParameter(command, name, value);
+        if (
+            parameter is OracleParameter oracle
+            && parameter.Value is string text
+            && System.Text.Encoding.UTF8.GetByteCount(text) > 4000
+        )
+            oracle.OracleDbType = OracleDbType.Clob;
+        return parameter;
+    }
+
+    protected override string GetSqlParameterExpression(IDbDataParameter parameter, string? sqlType)
+    {
+        var lob = sqlType?.Trim().ToUpperInvariant() switch
+        {
+            "CLOB" => OracleDbType.Clob,
+            "NCLOB" => OracleDbType.NClob,
+            "BLOB" => OracleDbType.Blob,
+            _ => (OracleDbType?)null,
+        };
+        if (lob.HasValue && parameter is OracleParameter oracle)
+        {
+            oracle.OracleDbType = lob.Value;
+            // JSON represents byte arrays as base64 strings. Native byte[] values remain unchanged.
+            if (lob == OracleDbType.Blob && oracle.Value is string encoded)
+                oracle.Value = Convert.FromBase64String(encoded);
+            return $"{SqlParameterPrefix}{parameter.ParameterName}";
+        }
+        return base.GetSqlParameterExpression(parameter, sqlType);
+    }
+
     protected override void InsertChunkToTable(DataTable chunkData)
     {
         using var bulkCopy = new OracleBulkCopy(DbConnection);
@@ -63,11 +99,11 @@ public class OracleSqlProtocol : BaseSqlProtocol<OracleConnection>, ISender
 
     /// <inheritdoc />
     protected override string GetTableQueryArrangedByInsertionTimeFieldAsc() =>
-        $"select * from {TableName} {BuildWhereStatement()} order by {InsertionTimeField} asc";
+        $"select {ReadProjection} from {TableName} {BuildWhereStatement()} order by {InsertionTimeField} asc";
 
     /// <inheritdoc />
     protected override string GetTableQueryWithoutRegardToInsertionTimeField() =>
-        $"select * from {TableName} {BuildWhereStatement()}";
+        $"select {ReadProjection} from {TableName} {BuildWhereStatement()}";
 
     /// <inheritdoc />
     protected override string GetLatestTableRowQuery() =>

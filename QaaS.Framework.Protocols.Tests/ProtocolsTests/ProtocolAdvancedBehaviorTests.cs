@@ -57,8 +57,9 @@ public class ProtocolAdvancedBehaviorTests
             string,
             string,
             bool,
-            IEnumerable<KeyValuePair<S3Object, byte[]?>>
-        >? GetAllObjects { get; init; }
+            Task<IEnumerable<S3Object>>
+        >? ListObjectsWithOptions { get; init; }
+        public Func<S3Object, string, KeyValuePair<S3Object, byte[]?>>? GetObject { get; init; }
         public bool Disposed { get; private set; }
 
         public Task<IEnumerable<DeleteObjectsResponse>> EmptyS3Bucket(
@@ -73,7 +74,8 @@ public class ProtocolAdvancedBehaviorTests
             string delimiter = "",
             bool skipEmptyObjects = true
         ) =>
-            ListObjects?.Invoke(bucketName, prefix, delimiter)
+            ListObjectsWithOptions?.Invoke(bucketName, prefix, delimiter, skipEmptyObjects)
+            ?? ListObjects?.Invoke(bucketName, prefix, delimiter)
             ?? Task.FromResult<IEnumerable<S3Object>>([]);
 
         public IEnumerable<KeyValuePair<S3Object, byte[]?>> GetAllObjectsInS3BucketUnOrdered(
@@ -81,12 +83,15 @@ public class ProtocolAdvancedBehaviorTests
             string prefix = "",
             string delimiter = "",
             bool skipEmptyObjects = true
-        ) => GetAllObjects?.Invoke(bucketName, prefix, delimiter, skipEmptyObjects) ?? [];
+        ) =>
+            throw new NotSupportedException("Consumer reads must use individual object downloads.");
 
         public KeyValuePair<S3Object, byte[]?> GetObjectFromObjectMetadata(
             S3Object s3ObjectMetadata,
             string bucketName
-        ) => throw new NotImplementedException();
+        ) =>
+            GetObject?.Invoke(s3ObjectMetadata, bucketName)
+            ?? throw new InvalidOperationException("Object download was not configured.");
 
         public IEnumerable<PutObjectResponse> PutObjectsInS3BucketSync(
             string bucketName,
@@ -529,11 +534,8 @@ public class ProtocolAdvancedBehaviorTests
         {
             Client = amazonClientMock.Object,
             ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
-            GetAllObjects = (_, _, _, _) =>
-                objects.Select(obj => new KeyValuePair<S3Object, byte[]?>(
-                    obj,
-                    Encoding.UTF8.GetBytes(obj.Key!)
-                )),
+            GetObject = (item, _) =>
+                new KeyValuePair<S3Object, byte[]?>(item, Encoding.UTF8.GetBytes(item.Key!)),
         };
 
         var readerProtocol = new S3Protocol(
@@ -626,11 +628,8 @@ public class ProtocolAdvancedBehaviorTests
         {
             Client = amazonClientMock.Object,
             ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
-            GetAllObjects = (_, _, _, _) =>
-                objects.Select(obj => new KeyValuePair<S3Object, byte[]?>(
-                    obj,
-                    Encoding.UTF8.GetBytes(obj.Key!)
-                )),
+            GetObject = (item, _) =>
+                new KeyValuePair<S3Object, byte[]?>(item, Encoding.UTF8.GetBytes(item.Key!)),
         };
 
         var readerProtocol = new S3Protocol(
@@ -852,11 +851,11 @@ public class ProtocolAdvancedBehaviorTests
         var fakeClient = new FakeS3Client
         {
             Client = new Mock<IAmazonS3>().Object,
-            GetAllObjects = (_, _, _, _) =>
-                s3Objects.Zip(
-                    scenarios,
-                    (s3Object, scenario) =>
-                        new KeyValuePair<S3Object, byte[]?>(s3Object, scenario.Payload)
+            ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(s3Objects),
+            GetObject = (item, _) =>
+                new KeyValuePair<S3Object, byte[]?>(
+                    item,
+                    scenarios.Single(scenario => scenario.Key == item.Key).Payload
                 ),
         };
 
@@ -904,10 +903,12 @@ public class ProtocolAdvancedBehaviorTests
         var fakeClient = new FakeS3Client
         {
             Client = new Mock<IAmazonS3>().Object,
-            GetAllObjects = (_, _, _, skipEmptyObjects) =>
+            ListObjectsWithOptions = (_, _, _, skipEmptyObjects) =>
             {
-                Assert.That(skipEmptyObjects, Is.False);
-                return [new KeyValuePair<S3Object, byte[]?>(emptyObject, null)];
+                // The inactivity probe uses the default true; the final snapshot must include empties.
+                return Task.FromResult<IEnumerable<S3Object>>(
+                    skipEmptyObjects ? [] : [emptyObject]
+                );
             },
         };
 
@@ -965,11 +966,8 @@ public class ProtocolAdvancedBehaviorTests
         {
             Client = new Mock<IAmazonS3>().Object,
             ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
-            GetAllObjects = (_, _, _, _) =>
-                objects.Select(s3Object => new KeyValuePair<S3Object, byte[]?>(
-                    s3Object,
-                    Encoding.UTF8.GetBytes(s3Object.Key!)
-                )),
+            GetObject = (item, _) =>
+                new KeyValuePair<S3Object, byte[]?>(item, Encoding.UTF8.GetBytes(item.Key!)),
         };
 
         var withBodyProtocol = new S3Protocol(
@@ -1043,11 +1041,8 @@ public class ProtocolAdvancedBehaviorTests
         {
             Client = amazonClientMock.Object,
             ListObjects = (_, _, _) => Task.FromResult<IEnumerable<S3Object>>(objects),
-            GetAllObjects = (_, _, _, _) =>
-                objects.Select(s3Object => new KeyValuePair<S3Object, byte[]?>(
-                    s3Object,
-                    Encoding.UTF8.GetBytes(s3Object.Key!)
-                )),
+            GetObject = (item, _) =>
+                new KeyValuePair<S3Object, byte[]?>(item, Encoding.UTF8.GetBytes(item.Key!)),
         };
 
         var readerProtocol = new ControlledTimeS3Protocol(
@@ -1907,9 +1902,8 @@ public class ProtocolAdvancedBehaviorTests
     [Test]
     public void SocketProtocol_GetMessage_TruncatesToReceivedByteCount()
     {
-        // Regression: GetMessage returned the full buffer regardless of how many bytes were received,
-        // zero-padding the payload. A connected loopback socket pair exercises the Receive(...) truncation
-        // path through the real (non-overridden) GetMessage.
+        // GetMessage returns only the bytes received. A connected loopback socket pair
+        // exercises the real Receive(...) path with a payload smaller than the buffer.
         using var listener = new Socket(
             AddressFamily.InterNetwork,
             SocketType.Stream,
@@ -1938,7 +1932,7 @@ public class ProtocolAdvancedBehaviorTests
             },
             Globals.Logger
         );
-        // Inject the already-connected client socket so the test does not depend on Connect() in the sandbox.
+        // Use the connected client socket for the receive operation.
         SetPrivateField(protocol, "_socket", clientSocket);
 
         var payload = Encoding.UTF8.GetBytes("hello");

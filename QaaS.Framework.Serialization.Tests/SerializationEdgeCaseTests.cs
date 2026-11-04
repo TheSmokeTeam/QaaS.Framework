@@ -13,7 +13,7 @@ namespace QaaS.Framework.Serialization.Tests;
 public class SerializationEdgeCaseTests
 {
     [Serializable]
-    private sealed class LegacyBinaryPayload
+    private sealed class SerializableBinaryPayload
     {
         public string Name { get; init; } = string.Empty;
         public int Count { get; init; }
@@ -45,7 +45,7 @@ public class SerializationEdgeCaseTests
     [Test]
     public void BinaryDeserializer_WithoutSpecificType_RoundTripsSerializableContractType()
     {
-        var payload = new LegacyBinaryPayload
+        var payload = new SerializableBinaryPayload
         {
             Name = "alpha",
             Count = 2
@@ -54,9 +54,9 @@ public class SerializationEdgeCaseTests
 
         var result = new BinaryDeserializer().Deserialize(bytes);
 
-        Assert.That(result, Is.TypeOf<LegacyBinaryPayload>());
-        Assert.That(((LegacyBinaryPayload)result!).Name, Is.EqualTo("alpha"));
-        Assert.That(((LegacyBinaryPayload)result).Count, Is.EqualTo(2));
+        Assert.That(result, Is.TypeOf<SerializableBinaryPayload>());
+        Assert.That(((SerializableBinaryPayload)result!).Name, Is.EqualTo("alpha"));
+        Assert.That(((SerializableBinaryPayload)result).Count, Is.EqualTo(2));
     }
 
     [Test]

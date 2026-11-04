@@ -6,9 +6,8 @@ using QaaS.Framework.SDK.Extensions;
 using QaaS.Framework.SDK.Session.DataObjects;
 using QaaS.Framework.SDK.Session.MetaDataObjects;
 using QaaS.Framework.Serialization;
-using KafkaProducerConfig = Confluent.Kafka.ProducerConfig;
 using KafkaConsumerConfig = Confluent.Kafka.ConsumerConfig;
-
+using KafkaProducerConfig = Confluent.Kafka.ProducerConfig;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
@@ -26,11 +25,64 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
     private readonly byte[]? _defaultKafkaKey;
     private readonly int? _partition;
 
+    private readonly KafkaCommitMode _commitMode;
+    private readonly int _commitBatchSize;
+    private readonly Dictionary<TopicPartition, Offset> _pendingOffsets = new();
+    private int _pendingReceipts;
+    private readonly int? _flushTimeoutMs;
+    private readonly bool _reportDeliveryErrors;
+    private KafkaException? _deliveryError;
 
     public KafkaTopicProtocol(KafkaTopicReaderConfig configuration, ILogger logger)
+        : this(configuration, logger, null) { }
+
+    internal KafkaTopicProtocol(
+        KafkaTopicReaderConfig configuration,
+        ILogger logger,
+        IConsumer<byte[]?, byte[]?>? consumer
+    )
     {
+        if (!Enum.IsDefined(configuration.CommitMode))
+            throw new ArgumentOutOfRangeException(nameof(configuration.CommitMode));
+        if (configuration.CommitMode == KafkaCommitMode.Batched)
+            ArgumentOutOfRangeException.ThrowIfLessThan(configuration.CommitBatchSize, 1);
+        _commitMode = configuration.CommitMode;
+        _commitBatchSize = configuration.CommitBatchSize;
         _logger = logger;
-        _consumer = new ConsumerBuilder<byte[]?, byte[]?>(new KafkaConsumerConfig
+        _topicName = configuration.TopicName!;
+        if (consumer != null)
+        {
+            _consumer = consumer;
+            return;
+        }
+        var builder = new ConsumerBuilder<byte[]?, byte[]?>(CreateConsumerConfig(configuration));
+        if (_commitMode == KafkaCommitMode.Batched)
+        {
+            builder.SetPartitionsRevokedHandler(
+                (client, partitions) =>
+                {
+                    var revoked = partitions.Select(x => x.TopicPartition).ToArray();
+                    try
+                    {
+                        CommitPending(client, revoked);
+                    }
+                    finally
+                    {
+                        ForgetPartitions(revoked);
+                    }
+                }
+            );
+            builder.SetPartitionsLostHandler(
+                (_, partitions) => ForgetPartitions(partitions.Select(x => x.TopicPartition))
+            );
+        }
+        _consumer = builder.Build();
+    }
+
+    internal static KafkaConsumerConfig CreateConsumerConfig(
+        KafkaTopicReaderConfig configuration
+    ) =>
+        new()
         {
             SaslMechanism = configuration.SaslMechanism,
             SecurityProtocol = configuration.SecurityProtocol,
@@ -40,22 +92,30 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
             GroupId = configuration.GroupId,
             SessionTimeoutMs = configuration.SessionTimeOutMs,
             AutoOffsetReset = configuration.AutoOffsetReset,
-            EnableAutoCommit = configuration.EnableAutoCommit,
+            EnableAutoCommit =
+                configuration.CommitMode == KafkaCommitMode.PerMessage
+                && configuration.EnableAutoCommit,
+            EnableAutoOffsetStore =
+                configuration.CommitMode == KafkaCommitMode.Batched ? false : null,
             HeartbeatIntervalMs = configuration.HeartbeatIntervalMs,
             PartitionAssignmentStrategy = configuration.PartitionAssignmentStrategy,
             MaxPollIntervalMs = configuration.MaxPollIntervalMs,
             FetchMinBytes = configuration.FetchMinBytes,
             FetchWaitMaxMs = configuration.FetchWaitMaxMs,
-            MessageMaxBytes = configuration.MessageMaxBytes
-        }).Build();
-        _topicName = configuration.TopicName!;
-    }
+            MessageMaxBytes = configuration.MessageMaxBytes,
+        };
 
-    public KafkaTopicProtocol(KafkaTopicSenderConfig configuration, ILogger logger)
-    {
-        _logger = logger;
-        _producer = new ProducerBuilder<byte[]?, byte[]?>(new KafkaProducerConfig
+    internal static KafkaProducerConfig CreateProducerConfig(
+        KafkaTopicSenderConfig configuration
+    ) =>
+        new()
         {
+            LingerMs = configuration.LingerMs,
+            BatchSize = configuration.BatchSize,
+            Acks = configuration.Acks,
+            EnableIdempotence = configuration.EnableIdempotence,
+            MessageTimeoutMs = configuration.MessageTimeoutMs,
+            MaxInFlight = configuration.MaxInFlight,
             SaslMechanism = configuration.SaslMechanism,
             SecurityProtocol = configuration.SecurityProtocol,
             SaslUsername = configuration.Username,
@@ -66,16 +126,33 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
             QueueBufferingBackpressureThreshold = configuration.QueueBufferingBackpressureThreshold,
             CompressionType = configuration.CompressionType,
             CompressionLevel = configuration.CompressionLevel,
-            MessageMaxBytes = configuration.MessageMaxBytes
-        }).Build();
+            MessageMaxBytes = configuration.MessageMaxBytes,
+        };
+
+    public KafkaTopicProtocol(KafkaTopicSenderConfig configuration, ILogger logger)
+        : this(configuration, logger, null) { }
+
+    internal KafkaTopicProtocol(
+        KafkaTopicSenderConfig configuration,
+        ILogger logger,
+        IProducer<byte[]?, byte[]?>? producer
+    )
+    {
+        _logger = logger;
+        _producer =
+            producer
+            ?? new ProducerBuilder<byte[]?, byte[]?>(CreateProducerConfig(configuration)).Build();
+        _flushTimeoutMs = configuration.FlushTimeoutMs;
+        _reportDeliveryErrors = configuration.ReportDeliveryErrors;
         _headers = configuration.Headers;
         _topicName = configuration.TopicName!;
         _messageSendMaxRetries = configuration.MessageSendMaxRetries;
         _messageSendRetriesIntervalMs = configuration.MessageSendRetriesIntervalMs;
         _partition = configuration.Partition;
-        _defaultKafkaKey = configuration.DefaultKafkaKey == null
-            ? null
-            : Encoding.UTF8.GetBytes(configuration.DefaultKafkaKey);
+        _defaultKafkaKey =
+            configuration.DefaultKafkaKey == null
+                ? null
+                : Encoding.UTF8.GetBytes(configuration.DefaultKafkaKey);
     }
 
     public SerializationType? GetSerializationType() => null;
@@ -96,9 +173,13 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
     public DetailedData<object>? Read(TimeSpan timeoutMs)
     {
         var consumedResult = _consumer!.Consume(timeoutMs);
-        if (consumedResult == null) return null;
-        _consumer!.Commit(consumedResult);
-        return new DetailedData<object>
+        if (consumedResult == null)
+        {
+            if (_commitMode == KafkaCommitMode.Batched)
+                CommitPending(_consumer);
+            return null;
+        }
+        var data = new DetailedData<object>
         {
             Body = consumedResult.Message.Value,
             MetaData = new MetaData
@@ -106,42 +187,100 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
                 Kafka = new Kafka
                 {
                     MessageKey = consumedResult.Message.Key,
-                    Headers = consumedResult.Message.Headers?
-                        .GroupBy(header => header.Key)
+                    Headers = consumedResult
+                        .Message.Headers?.GroupBy(header => header.Key)
                         .ToDictionary(
                             group => group.Key,
-                            object? (group) => Encoding.UTF8.GetString(group.Last().GetValueBytes()))
-                }
+                            object? (group) => Encoding.UTF8.GetString(group.Last().GetValueBytes())
+                        ),
+                },
             },
-            Timestamp = consumedResult.Message.Timestamp.UtcDateTime
+            Timestamp = consumedResult.Message.Timestamp.UtcDateTime,
         };
+        if (_commitMode == KafkaCommitMode.PerMessage)
+            _consumer.Commit(consumedResult);
+        else
+        {
+            _pendingOffsets[consumedResult.TopicPartition] = consumedResult.Offset + 1;
+            if (++_pendingReceipts >= _commitBatchSize)
+                CommitPending(_consumer);
+        }
+        return data;
+    }
+
+    internal void CommitPending(
+        IConsumer<byte[]?, byte[]?> client,
+        IEnumerable<TopicPartition>? partitions = null
+    )
+    {
+        var selected = partitions?.ToHashSet();
+        var offsets = _pendingOffsets
+            .Where(item => selected == null || selected.Contains(item.Key))
+            .Select(item => new TopicPartitionOffset(item.Key, item.Value))
+            .ToArray();
+        if (offsets.Length == 0)
+            return;
+        client.Commit(offsets); // Keep pending offsets if the commit fails.
+        foreach (var offset in offsets)
+            _pendingOffsets.Remove(offset.TopicPartition);
+        if (_pendingOffsets.Count == 0)
+            _pendingReceipts = 0;
+    }
+
+    internal void ForgetPartitions(IEnumerable<TopicPartition> partitions)
+    {
+        foreach (var partition in partitions)
+            _pendingOffsets.Remove(partition);
+        if (_pendingOffsets.Count == 0)
+            _pendingReceipts = 0;
+    }
+
+    private void ThrowDeliveryError()
+    {
+        var error = Volatile.Read(ref _deliveryError);
+        if (error != null)
+            throw error;
+    }
+
+    private void OnDelivery(DeliveryReport<byte[]?, byte[]?> report)
+    {
+        if (report.Error.IsError)
+            Interlocked.CompareExchange(ref _deliveryError, new KafkaException(report.Error), null);
     }
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        for (var retry = 1;
-             retry <= _messageSendMaxRetries;
-             retry++, Thread.Sleep(TimeSpan.FromMilliseconds(_messageSendRetriesIntervalMs!.Value)))
+        ThrowDeliveryError();
+        for (
+            var retry = 1;
+            retry <= _messageSendMaxRetries;
+            retry++, Thread.Sleep(TimeSpan.FromMilliseconds(_messageSendRetriesIntervalMs!.Value))
+        )
         {
             try
             {
                 _producer!.Produce(
-                    new TopicPartition(GetTopicName(dataToSend),
-                        new Partition(_partition!.Value)),
+                    new TopicPartition(GetTopicName(dataToSend), new Partition(_partition!.Value)),
                     new Message<byte[]?, byte[]?>
                     {
                         Key = dataToSend.MetaData?.Kafka?.MessageKey ?? _defaultKafkaKey,
                         Value = dataToSend.CastObjectData<byte[]>().Body, // Assumes data is byte[]
-                        Headers = GetHeaders(dataToSend)
-                    }
+                        Headers = GetHeaders(dataToSend),
+                    },
+                    _reportDeliveryErrors ? OnDelivery : null
                 );
                 break;
             }
             catch (KafkaException produceException) when (retry <= _messageSendMaxRetries - 1)
             {
-                _logger.LogWarning("Exception occurred while sending message to KafkaTopic {DestinationName}" +
-                                   " - {ProduceException}. Retry {Retry}/{ConfiguredMaxRetries} failed",
-                    GetTopicName(dataToSend), produceException, retry, _messageSendMaxRetries);
+                _logger.LogWarning(
+                    "Exception occurred while sending message to KafkaTopic {DestinationName}"
+                        + " - {ProduceException}. Retry {Retry}/{ConfiguredMaxRetries} failed",
+                    GetTopicName(dataToSend),
+                    produceException,
+                    retry,
+                    _messageSendMaxRetries
+                );
             }
         }
 
@@ -155,8 +294,33 @@ public class KafkaTopicProtocol : IReader, ISender, IDisposable
 
     public void Disconnect()
     {
-        _producer?.Flush();
-        _consumer?.Unsubscribe();
+        if (_producer != null)
+        {
+            if (_flushTimeoutMs.HasValue)
+            {
+                var remaining = _producer.Flush(TimeSpan.FromMilliseconds(_flushTimeoutMs.Value));
+                if (remaining != 0)
+                    throw new TimeoutException(
+                        $"Kafka flush deadline expired with {remaining} outstanding records."
+                    );
+            }
+            else
+                _producer.Flush();
+            ThrowDeliveryError();
+        }
+        if (_consumer != null && _commitMode == KafkaCommitMode.Batched)
+        {
+            try
+            {
+                CommitPending(_consumer);
+            }
+            finally
+            {
+                _consumer.Close();
+            }
+        }
+        else
+            _consumer?.Unsubscribe();
     }
 
     public void Dispose()

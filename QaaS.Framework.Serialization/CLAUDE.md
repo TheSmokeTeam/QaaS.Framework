@@ -27,10 +27,10 @@ that converts in-memory `Data<object>` payloads to wire bytes.
   decide what "none" means.
 - Round-trip property (serialize → deserialize → equal) holds for every
   format and has a corresponding test.
-- `ISerializer.Serialize<T>(T) → byte[]`,
-  `IDeserializer.Deserialize<T>(byte[]) → T?`.
-- Binary deserialisation is hardened (PR #29 commit `1365af4`); do not
-  re-introduce permissive type binders.
+- `ISerializer.Serialize(object?) → byte[]?`,
+  `IDeserializer.Deserialize(byte[]?, Type?) → object?`.
+- Binary deserialisation returns `null` for null input and otherwise
+  returns the payload runtime type; the requested type hint is not used.
 
 ## Forbidden
 

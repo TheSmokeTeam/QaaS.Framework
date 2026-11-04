@@ -5,6 +5,14 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 
 public record BaseRabbitMqConfig
 {
+    [
+        Description(
+            "Check the named exchange before each send and the queue before each polling read. Set false to validate during Connect only. Subscription reads validate the queue during Connect. Queue/exchange deletion is reported by the operation that detects it."
+        ),
+        DefaultValue(true)
+    ]
+    public bool ValidateTopologyOnEveryOperation { get; set; } = true;
+
     [Required, Description("Rabbitmq hostname")]
     public string? Host { get; set; }
 
@@ -19,29 +27,54 @@ public record BaseRabbitMqConfig
 
     [Description("Rabbitmq virual host to access during this connection"), DefaultValue("/")]
     public string VirtualHost { get; set; } = "/";
-    
-    [Range(0, int.MaxValue), Description(
-         "Amount of time protocol operations (e.g. queue.declare) are allowed to take before timing out in seconds"),
-     DefaultValue(5)]
+
+    [
+        Range(0, int.MaxValue),
+        Description(
+            "Amount of time protocol operations (e.g. queue.declare) are allowed to take before timing out in seconds"
+        ),
+        DefaultValue(5)
+    ]
     public int ContinuationTimeoutSeconds { get; set; } = 5;
-    
-    [Range(0, int.MaxValue), Description("Timeout setting for connection attempts in seconds"), DefaultValue(5)]
+
+    [
+        Range(0, int.MaxValue),
+        Description("Timeout setting for connection attempts in seconds"),
+        DefaultValue(5)
+    ]
     public int RequestedConnectionTimeoutSeconds { get; set; } = 5;
-    
-    [Range(0, int.MaxValue), Description(
-         "Amount of time protocol handshake operations are allowed to take before timing out in seconds"),
-     DefaultValue(10)]
+
+    [
+        Range(0, int.MaxValue),
+        Description(
+            "Amount of time protocol handshake operations are allowed to take before timing out in seconds"
+        ),
+        DefaultValue(10)
+    ]
     public int HandshakeContinuationTimeoutSeconds { get; set; } = 10;
 
     [Description("Whether the queue is durable (survives broker restart)"), DefaultValue(false)]
     public bool Durable { get; set; } = false;
 
-    [Description("Whether the queue is exclusive (used by only one connection and deleted when connection closes)"), DefaultValue(false)]
+    [
+        Description(
+            "Whether the queue is exclusive (used by only one connection and deleted when connection closes)"
+        ),
+        DefaultValue(false)
+    ]
     public bool Exclusive { get; set; } = false;
 
-    [Description("Whether the queue is auto-deleted when all consumers unsubscribe"), DefaultValue(false)]
+    [
+        Description("Whether the queue is auto-deleted when all consumers unsubscribe"),
+        DefaultValue(false)
+    ]
     public bool AutoDelete { get; set; } = false;
 
-    [Description("Custom queue declaration arguments / x-arguments (e.g. x-message-ttl, x-dead-letter-exchange, x-max-length, etc.)"), DefaultValue(null)]
+    [
+        Description(
+            "Custom queue declaration arguments / x-arguments (e.g. x-message-ttl, x-dead-letter-exchange, x-max-length, etc.)"
+        ),
+        DefaultValue(null)
+    ]
     public Dictionary<string, object?>? Arguments { get; set; } = null;
 }

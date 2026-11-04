@@ -48,67 +48,145 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
 
     public IEnumerable<DetailedData<object>> ReadChunk(TimeSpan timeout)
     {
-        if (_readerConfig!.ReadFromRunStartTime)
-            _readStartTimeUtc = GetCurrentDateTimeUtc();
+        // Capture this read's settings before returning a deferred sequence. Later configuration
+        // changes or another ReadChunk call must not change its selected objects or download limit.
+        var readerConfig = _readerConfig! with
+        { };
+        if (readerConfig.MaxConcurrentDownloads < 1)
+            throw new ArgumentOutOfRangeException(
+                nameof(S3BucketReaderConfig.MaxConcurrentDownloads),
+                readerConfig.MaxConcurrentDownloads,
+                "S3 download concurrency must be positive."
+            );
 
+        var client = _s3Client!;
+        var includeBody = _dataFilter.Body;
+        DateTime? readStartTimeUtc = readerConfig.ReadFromRunStartTime
+            ? GetCurrentDateTimeUtc()
+            : null;
+        _readStartTimeUtc = readStartTimeUtc;
         _logger.LogInformation(
-            "Starting S3 read from bucket {BucketName}. Prefix: {Prefix}. Delimiter: {Delimiter}. IncludeBody: {IncludeBody}. SkipEmptyObjects: {SkipEmptyObjects}. ReadFromRunStartTime: {ReadFromRunStartTime}.",
-            _readerConfig!.StorageBucket,
-            _readerConfig.Prefix,
-            _readerConfig.Delimiter,
-            _dataFilter.Body,
-            _readerConfig.SkipEmptyObjects,
-            _readerConfig.ReadFromRunStartTime
+            "Starting S3 read from bucket {BucketName}. Prefix: {Prefix}. Delimiter: {Delimiter}. IncludeBody: {IncludeBody}. SkipEmptyObjects: {SkipEmptyObjects}. ReadFromRunStartTime: {ReadFromRunStartTime}. MaxConcurrentDownloads: {MaxConcurrentDownloads}.",
+            readerConfig.StorageBucket,
+            readerConfig.Prefix,
+            readerConfig.Delimiter,
+            includeBody,
+            readerConfig.SkipEmptyObjects,
+            readerConfig.ReadFromRunStartTime,
+            readerConfig.MaxConcurrentDownloads
         );
         WaitUntilConsumptionTimeoutIsReached(timeout);
-        IEnumerable<DetailedData<object>> s3ConsumedData;
 
-        // If body is filtered dont query it in the first place
-        if (!_dataFilter.Body)
+        // Listing and ordering retain only metadata. Rejected objects never have their bodies read.
+        var objects = client
+            .ListAllObjectsInS3Bucket(
+                readerConfig.StorageBucket!,
+                readerConfig.Prefix,
+                readerConfig.Delimiter,
+                readerConfig.SkipEmptyObjects
+            )
+            .GetAwaiter()
+            .GetResult()
+            .Where(HasS3ObjectLastModified)
+            .Where(item =>
+                !readStartTimeUtc.HasValue
+                || GetS3ObjectTimestampUtc(item) >= readStartTimeUtc.Value
+            )
+            .OrderBy(GetS3ObjectTimestampUtc)
+            .Select(item => new S3Object
+            {
+                Key = item.Key,
+                Size = item.Size,
+                LastModified = item.LastModified,
+            })
+            .ToArray();
+
+        var results = ReadObjectsIncrementally(objects, readerConfig, client, includeBody);
+        // With streaming disabled, ReadChunk materializes a repeatable snapshot before returning.
+        // With streaming enabled, body downloads and failures occur during enumeration.
+        return readerConfig.StreamResults ? results : results.ToArray();
+    }
+
+    private IEnumerable<DetailedData<object>> ReadObjectsIncrementally(
+        S3Object[] objects,
+        S3BucketReaderConfig readerConfig,
+        IS3Client client,
+        bool includeBody
+    )
+    {
+        if (!includeBody)
         {
-            // When the caller filters out the body, avoid downloading object contents at all and
-            // return only ordering/timestamp metadata.
-            s3ConsumedData = _s3Client!
-                .ListAllObjectsInS3Bucket(
-                    _readerConfig!.StorageBucket!,
-                    _readerConfig.Prefix,
-                    _readerConfig.Delimiter
-                )
-                .GetAwaiter()
-                .GetResult()
-                .Where(HasS3ObjectLastModified)
-                .Where(IsS3ObjectRelevant)
-                .OrderBy(GetS3ObjectTimestampUtc)
-                .Select(s3Object => new DetailedData<object>
+            foreach (var item in objects)
+                yield return new DetailedData<object>
                 {
                     Body = null,
-                    Timestamp = GetS3ObjectTimestampUtc(s3Object),
-                    MetaData = new MetaData { Storage = BuildStorageMetadata(s3Object) },
-                });
-        }
-        else
-        {
-            // Preserve the raw bytes from S3 so downstream serializers/deserializers operate on the
-            // exact payload that was stored in the bucket.
-            s3ConsumedData = _s3Client!
-                .GetAllObjectsInS3BucketUnOrdered(
-                    _readerConfig.StorageBucket!,
-                    _readerConfig.Prefix,
-                    _readerConfig.Delimiter,
-                    _readerConfig.SkipEmptyObjects
-                )
-                .Where(pair => HasS3ObjectLastModified(pair.Key))
-                .Where(pair => IsS3ObjectRelevant(pair.Key))
-                .OrderBy(pair => GetS3ObjectTimestampUtc(pair.Key))
-                .Select(pair => new DetailedData<object>
-                {
-                    Body = pair.Value,
-                    Timestamp = GetS3ObjectTimestampUtc(pair.Key),
-                    MetaData = new MetaData { Storage = BuildStorageMetadata(pair.Key) },
-                });
+                    Timestamp = GetS3ObjectTimestampUtc(item),
+                    MetaData = new MetaData
+                    {
+                        Storage = BuildStorageMetadata(item, readerConfig, client),
+                    },
+                };
+            yield break;
         }
 
-        return s3ConsumedData;
+        for (var offset = 0; offset < objects.Length;)
+        {
+            var count = Math.Min(readerConfig.MaxConcurrentDownloads, objects.Length - offset);
+            var results = new DetailedData<object>?[count];
+            try
+            {
+                void ReadObject(int index)
+                {
+                    var item = objects[offset + index];
+                    byte[]? body = null;
+                    if (!(item.Size <= 0))
+                    {
+                        body = client
+                            .GetObjectFromObjectMetadata(item, readerConfig.StorageBucket!)
+                            .Value;
+                        // Skip nonempty objects whose body could not be read.
+                        if (body == null)
+                            return;
+                    }
+
+                    results[index] = new DetailedData<object>
+                    {
+                        Body = body,
+                        Timestamp = GetS3ObjectTimestampUtc(item),
+                        MetaData = new MetaData
+                        {
+                            Storage = BuildStorageMetadata(item, readerConfig, client),
+                        },
+                    };
+                }
+
+                if (count == 1)
+                    ReadObject(0);
+                else
+                    Parallel.For(
+                        0,
+                        count,
+                        new ParallelOptions { MaxDegreeOfParallelism = count },
+                        ReadObject
+                    );
+
+                // The finite window is complete before yielding. No worker survives a yield or
+                // early iterator disposal, and slow first objects cannot grow a reorder queue.
+                for (var index = 0; index < count; index++)
+                {
+                    var result = results[index];
+                    results[index] = null;
+                    if (result != null)
+                        yield return result;
+                }
+            }
+            finally
+            {
+                Array.Clear(results);
+            }
+
+            offset += count;
+        }
     }
 
     public DetailedData<object> Send(Data<object> dataToSend)
@@ -182,30 +260,36 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
         return false;
     }
 
-    private Storage BuildStorageMetadata(S3Object s3Object) =>
+    private Storage BuildStorageMetadata(
+        S3Object s3Object,
+        S3BucketReaderConfig readerConfig,
+        IS3Client client
+    ) =>
         new()
         {
             Key = s3Object.Key,
-            Headers = _readerConfig!.ReadStorageHeaders ? GetStorageHeaders(s3Object) : null,
+            Headers = readerConfig.ReadStorageHeaders
+                ? GetStorageHeaders(s3Object, readerConfig, client)
+                : null,
         };
 
-    private IDictionary<string, string>? GetStorageHeaders(S3Object s3Object)
+    private IDictionary<string, string>? GetStorageHeaders(
+        S3Object s3Object,
+        S3BucketReaderConfig readerConfig,
+        IS3Client client
+    )
     {
         if (string.IsNullOrWhiteSpace(s3Object.Key))
             return null;
 
         var response = S3Extentions.RunS3OperationWithRetryMechanism(
             () =>
-                _s3Client!
-                    .Client.GetObjectMetadataAsync(
-                        _readerConfig!.StorageBucket!,
-                        s3Object.Key,
-                        null
-                    )
+                client
+                    .Client.GetObjectMetadataAsync(readerConfig.StorageBucket!, s3Object.Key, null)
                     .GetAwaiter()
                     .GetResult(),
             $"retrieving metadata for s3 object {s3Object.Key}",
-            maxRetryCount: _readerConfig!.MaximumRetryCount,
+            maxRetryCount: readerConfig.MaximumRetryCount,
             logger: _logger
         );
         if (response?.Metadata == null)

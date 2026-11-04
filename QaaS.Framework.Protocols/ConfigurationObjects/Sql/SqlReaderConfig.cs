@@ -6,36 +6,79 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
 public record SqlReaderConfig : SqlConfig, IReaderConfig
 {
-    [RequiredIfAny(nameof(ReadFromRunStartTime), true),
-     Description(
-         "The insertion time field name, in cases where the table can be updated this will be the update time field")]
+    [
+        Description(
+            "When true, rows are acquired during result enumeration. Dispose the enumerator before Disconnect. Errors can occur after earlier rows and repeat enumeration reruns the query. When false, ReadChunk materializes results before returning. Runner retains results according to its data settings."
+        ),
+        DefaultValue(false)
+    ]
+    public bool StreamResults { get; set; }
+
+    [
+        Description(
+            "Optional column names to select on the server. Names are quoted as identifiers, not SQL expressions. The insertion-time column is included automatically for timestamps. Null selects all columns; ColumnsToIgnore remains a client-side filter."
+        ),
+        MinLength(1)
+    ]
+    public string[]? ColumnsToRead { get; set; }
+
+    [
+        RequiredIfAny(nameof(ReadFromRunStartTime), true),
+        Description(
+            "The insertion time field name, in cases where the table can be updated this will be the update time field"
+        )
+    ]
     public string? InsertionTimeField { get; set; }
 
-    [Description("Set to true to acknowledge that the table has no insertion time column" +
-                 " and suppress the related startup warning."), DefaultValue(false)]
+    [
+        Description(
+            "Set to true to acknowledge that the table has no insertion time column"
+                + " and suppress the related startup warning."
+        ),
+        DefaultValue(false)
+    ]
     public bool AllowNoInsertionTimeField { get; set; } = false;
 
-    [Range(-12, 14), Description(
-         "The time zone hour difference in comparison to UTC at summer time (daylight saving time) of the insertion time field")
-     , DefaultValue(0)]
+    [
+        Range(-12, 14),
+        Description(
+            "The time zone hour difference in comparison to UTC at summer time (daylight saving time) of the insertion time field"
+        ),
+        DefaultValue(0)
+    ]
     public int InsertionTimeTimeZoneOffsetSummerTime { get; set; } = 0;
 
     [Description(
-        "The where statement (without the where keyword) to add to the sql query to filter db query results, " +
-        "if no statement is given doesn't use where in the query")]
+        "The where statement (without the where keyword) to add to the sql query to filter db query results, "
+            + "if no statement is given doesn't use where in the query"
+    )]
     public string? WhereStatement { get; set; } = null;
 
-    [Description("Whether to only read messages that arrived to the database after the start of the read action" +
-                 " (true) or read all messages regardless of arrival time (false)"), DefaultValue(false)]
+    [
+        Description(
+            "Whether to only read messages that arrived to the database after the start of the read action"
+                + " (true) or read all messages regardless of arrival time (false)"
+        ),
+        DefaultValue(false)
+    ]
     public bool ReadFromRunStartTime { get; set; } = false;
 
-    [Range(0, uint.MaxValue),
-     Description($"If the {nameof(ReadFromRunStartTime)} is enabled, this property specifies how " +
-                 $"far before the start of the read action to start reading messages in seconds"), DefaultValue(0)]
+    [
+        Range(0, uint.MaxValue),
+        Description(
+            $"If the {nameof(ReadFromRunStartTime)} is enabled, this property specifies how "
+                + $"far before the start of the read action to start reading messages in seconds"
+        ),
+        DefaultValue(0)
+    ]
     public uint FilterSecondsBeforeRunStartTime { get; set; } = 0;
 
-    [UniqueItemsInEnumerable,
-     Description("The columns to ignore in the sql query results, if no columns are given doesn't ignore any columns"),
-     DefaultValue(new string[] { })]
+    [
+        UniqueItemsInEnumerable,
+        Description(
+            "The columns to ignore in the sql query results, if no columns are given doesn't ignore any columns"
+        ),
+        DefaultValue(new string[] { })
+    ]
     public string[] ColumnsToIgnore { get; set; } = [];
 };

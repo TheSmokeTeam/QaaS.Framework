@@ -7,6 +7,14 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 public record RabbitMqSenderConfig : BaseRabbitMqConfig, ISenderConfig
 {
     [
+        Description(
+            "Wait for a broker publisher confirmation and report returned/unroutable messages. When false, Send completes without waiting for a broker confirmation. Shared-channel sends are serialized; this is a durability option, not a throughput guarantee."
+        ),
+        DefaultValue(false)
+    ]
+    public bool PublisherConfirms { get; set; }
+
+    [
         DefaultValue(null),
         MinLength(1),
         RequiredIfAny(nameof(QueueName), null, ""),
