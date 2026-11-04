@@ -58,8 +58,7 @@ public class ProtocolAdvancedBehaviorTests
             string,
             bool,
             Task<IEnumerable<S3Object>>
-        >? ListObjectsWithOptions
-        { get; init; }
+        >? ListObjectsWithOptions { get; init; }
         public Func<S3Object, string, KeyValuePair<S3Object, byte[]?>>? GetObject { get; init; }
         public bool Disposed { get; private set; }
 
@@ -1903,9 +1902,8 @@ public class ProtocolAdvancedBehaviorTests
     [Test]
     public void SocketProtocol_GetMessage_TruncatesToReceivedByteCount()
     {
-        // Regression: GetMessage returned the full buffer regardless of how many bytes were received,
-        // zero-padding the payload. A connected loopback socket pair exercises the Receive(...) truncation
-        // path through the real (non-overridden) GetMessage.
+        // GetMessage returns only the bytes received. A connected loopback socket pair
+        // exercises the real Receive(...) path with a payload smaller than the buffer.
         using var listener = new Socket(
             AddressFamily.InterNetwork,
             SocketType.Stream,
@@ -1934,7 +1932,7 @@ public class ProtocolAdvancedBehaviorTests
             },
             Globals.Logger
         );
-        // Inject the already-connected client socket so the test does not depend on Connect() in the sandbox.
+        // Use the connected client socket for the receive operation.
         SetPrivateField(protocol, "_socket", clientSocket);
 
         var payload = Encoding.UTF8.GetBytes("hello");

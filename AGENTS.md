@@ -49,7 +49,9 @@ reportgenerator -reports:coverage.xml -targetdir:coverage-report
 ## Process
 Keep README.md general: repository purpose, package overview, installation, build/test,
 and links. Put feature behavior and specific configuration examples in the appropriate
-qaas-docs reference or guide; preserve its released/unreleased labels and generated-file rules.
+qaas-docs reference or guide, following its generated-file rules. Keep user-facing docs focused
+on current behavior, configuration, examples and operational limits. Discuss development history,
+delivery status and validation evidence in chat.
 
 Follow the QaaS harness pipeline: plan → contract → implement → adversarial evaluation
 (rubric: Correctness/Completeness/Craft/Robustness, each ≥7/10). Write tests first (TDD).
