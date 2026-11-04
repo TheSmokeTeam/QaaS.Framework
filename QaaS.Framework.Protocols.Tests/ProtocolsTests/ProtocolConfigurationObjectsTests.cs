@@ -120,7 +120,7 @@ public class ProtocolConfigurationObjectsTests
     }
 
     [Test]
-    public void S3BucketReaderConfig_DefaultsKeepLegacyReadBehavior()
+    public void S3BucketReaderConfig_DefaultsToEagerRead()
     {
         var reader = new S3BucketReaderConfig();
 

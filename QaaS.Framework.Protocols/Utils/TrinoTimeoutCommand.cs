@@ -4,10 +4,9 @@ using Trino.Data.ADO.Server;
 namespace QaaS.Framework.Protocols.Utils;
 
 /// <summary>
-/// Adapter for the pinned NH.Trino.Client 2025.11.15.6, whose IsTimeout compares
-/// Stopwatch.ElapsedTicks with TimeSpan.Ticks. Keep QaaS timeout units in seconds;
-/// encode the provider's threshold in the units it actually compares.
-/// Revisit this adapter when upgrading that dependency.
+/// Exposes timeout values in seconds and encodes deadlines in Stopwatch ticks for
+/// NH.Trino.Client 2025.11.15.6, whose IsTimeout compares Stopwatch.ElapsedTicks
+/// against the configured TimeSpan.Ticks threshold.
 /// </summary>
 internal sealed class TrinoTimeoutCommand : TrinoCommand
 {

@@ -23,7 +23,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     private readonly bool _streamResults;
     private readonly string[]? _columnsToRead;
 
-    /// <summary>Server-side projection; omitted configuration keeps the legacy SELECT *.</summary>
+    /// <summary>Server-side projection; omitted configuration selects all columns.</summary>
     protected string ReadProjection
     {
         get
@@ -225,7 +225,7 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     /// </summary>
     protected virtual void RowInsertIntoTable(DataTable chunkDataToSend)
     {
-        // Preserve the original command-factory behavior when types are not configured.
+        // Untyped, nonparameterized row sends use the connection command factory.
         using var sqlCommand =
             _parameterizeRows || _columnTypes is { Count: > 0 }
                 ? CreateDbCommand()
@@ -263,8 +263,8 @@ public abstract class BaseSqlProtocol<TDbConnection> : IChunkReader, IChunkSende
     protected abstract void InsertChunkToTable(DataTable chunkData);
 
     /// <summary>
-    /// Inserts explicitly typed chunks with parameters for every value. Unlike legacy row sends,
-    /// bulk sends have never interpreted unconfigured values as dates or executable UDT expressions.
+    /// Inserts explicitly typed chunks with parameters for every value.
+    /// Unmapped values are bound as data without date or UDT expression inference.
     /// </summary>
     private void InsertTypedChunkToTable(DataTable chunkData)
     {

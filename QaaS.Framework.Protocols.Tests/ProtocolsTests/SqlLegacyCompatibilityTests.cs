@@ -10,7 +10,7 @@ using QaaS.Framework.SDK.Session.DataObjects;
 namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 
 [TestFixture]
-public class SqlLegacyCompatibilityTests
+public class SqlDefaultFormattingTests
 {
     private sealed class Protocol(SqlReaderConfig config, IDbConnection connection)
         : MockSqlProtocol(config, Globals.Logger, connection)
@@ -21,18 +21,18 @@ public class SqlLegacyCompatibilityTests
 
         protected override void InsertChunkToTable(DataTable rows) => BulkData = rows;
 
-        // Before ColumnTypes, row insertion called DbConnection directly, even when this
-        // reader-oriented factory was overridden. Preserve that extension-point contract too.
+        // Row insertion without column mappings uses the connection command factory,
+        // independently of this reader-oriented command factory.
         protected override IDbCommand CreateDbCommand() =>
             throw new AssertionException(
-                "Legacy row sends must use the connection's command factory."
+                "Row sends without column mappings must use the connection's command factory."
             );
 
         protected override string GetTimeFieldSqlFormat(DateTime value) =>
             $"FORMAT('{value:yyyy-MM-dd HH:mm:ss}')";
     }
 
-    private static readonly object?[] LegacyValues =
+    private static readonly object?[] DefaultValues =
     [
         null,
         DBNull.Value,
@@ -63,18 +63,18 @@ public class SqlLegacyCompatibilityTests
         Guid.Parse("b5ca8237-a14f-4f65-965d-9bd9634566b8"),
     ];
 
-    public static IEnumerable<TestCaseData> LegacyCases()
+    public static IEnumerable<TestCaseData> DefaultCases()
     {
         foreach (var culture in new[] { "en-US", "de-DE", "he-IL", "" })
-        foreach (var emptyMapping in new[] { false, true })
-            for (var index = 0; index < LegacyValues.Length; index++)
-                yield return new TestCaseData(culture, emptyMapping, index).SetName(
-                    $"LegacyRow_{(culture.Length == 0 ? "Invariant" : culture)}_{(emptyMapping ? "Empty" : "Omitted")}_{index}"
-                );
+            foreach (var emptyMapping in new[] { false, true })
+                for (var index = 0; index < DefaultValues.Length; index++)
+                    yield return new TestCaseData(culture, emptyMapping, index).SetName(
+                        $"DefaultRow_{(culture.Length == 0 ? "Invariant" : culture)}_{(emptyMapping ? "Empty" : "Omitted")}_{index}"
+                    );
     }
 
-    [TestCaseSource(nameof(LegacyCases))]
-    public void WithoutColumnTypes_RowSqlMatchesPreChangeBehavior(
+    [TestCaseSource(nameof(DefaultCases))]
+    public void WithoutColumnTypes_RowSqlUsesDefaultLiteralFormatting(
         string culture,
         bool emptyMapping,
         int index
@@ -97,7 +97,7 @@ public class SqlLegacyCompatibilityTests
                 },
                 connection.Object
             );
-            var value = LegacyValues[index];
+            var value = DefaultValues[index];
             using var rows = new DataTable();
             rows.Columns.Add("value", typeof(object));
             rows.Rows.Add(value ?? DBNull.Value);
@@ -109,7 +109,7 @@ public class SqlLegacyCompatibilityTests
                 Assert.That(
                     command.Object.CommandText,
                     Is.EqualTo(
-                        $"INSERT INTO measurements (value) VALUES ({PreColumnTypesLiteral(value)})"
+                        $"INSERT INTO measurements (value) VALUES ({ExpectedDefaultLiteral(value)})"
                     )
                 );
                 Assert.That(command.Object.CommandTimeout, Is.EqualTo(17));
@@ -125,9 +125,9 @@ public class SqlLegacyCompatibilityTests
         }
     }
 
-    // Frozen characterization oracle from 6263fcf, before this PR. Keep historical ordering,
-    // quoting (including its limitations), culture sensitivity and UDT passthrough unchanged.
-    private static object PreColumnTypesLiteral(object? value)
+    // Default formatting handles nulls first, then parses dates using the current
+    // culture, passes through UDT expressions, and quotes other values without escaping.
+    private static object ExpectedDefaultLiteral(object? value)
     {
         if (value == null || value == DBNull.Value)
             return "NULL";
@@ -191,7 +191,7 @@ public class SqlLegacyCompatibilityTests
 
     [TestCase(false)]
     [TestCase(true)]
-    public void WithoutColumnTypes_NullJsonStillFailsBeforeAnyDatabaseCall(bool emptyMapping)
+    public void WithoutColumnTypes_NullJsonFailsBeforeAnyDatabaseCall(bool emptyMapping)
     {
         var connection = new Mock<IDbConnection>(MockBehavior.Strict);
         var protocol = new Protocol(
@@ -207,7 +207,7 @@ public class SqlLegacyCompatibilityTests
 
     [TestCase(false)]
     [TestCase(true)]
-    public void WithoutColumnTypes_EmptyChunkStillCallsBulkWriter(bool emptyMapping)
+    public void WithoutColumnTypes_EmptyChunkCallsBulkWriter(bool emptyMapping)
     {
         var connection = new Mock<IDbConnection>(MockBehavior.Strict);
         var protocol = new Protocol(

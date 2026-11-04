@@ -102,8 +102,8 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
             .ToArray();
 
         var results = ReadObjectsIncrementally(objects, readerConfig, client, includeBody);
-        // Existing callers receive a repeatable snapshot and observe failures in ReadChunk.
-        // Deferred download/error timing is an explicit opt-in.
+        // With streaming disabled, ReadChunk materializes a repeatable snapshot before returning.
+        // With streaming enabled, body downloads and failures occur during enumeration.
         return readerConfig.StreamResults ? results : results.ToArray();
     }
 
@@ -129,7 +129,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
             yield break;
         }
 
-        for (var offset = 0; offset < objects.Length; )
+        for (var offset = 0; offset < objects.Length;)
         {
             var count = Math.Min(readerConfig.MaxConcurrentDownloads, objects.Length - offset);
             var results = new DetailedData<object>?[count];
@@ -144,7 +144,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
                         body = client
                             .GetObjectFromObjectMetadata(item, readerConfig.StorageBucket!)
                             .Value;
-                        // Preserve the shared bulk helper's handling of unreadable nonempty objects.
+                        // Skip nonempty objects whose body could not be read.
                         if (body == null)
                             return;
                     }

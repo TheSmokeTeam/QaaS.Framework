@@ -6,7 +6,7 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.IbmMq;
 public record IbmMqReaderConfig : IReaderConfig
 {
     [Description(
-        "Optional MQCSP user name. Omitted preserves channel-side identity behavior. Supply secrets through configuration overrides rather than committing them."
+        "Optional MQCSP user name. When omitted, the channel determines the connection identity. Supply secrets through configuration overrides rather than committing them."
     )]
     public string? Username { get; set; }
 
@@ -16,7 +16,7 @@ public record IbmMqReaderConfig : IReaderConfig
     public string? Password { get; set; }
 
     [Description(
-        "Optional IBM MQ TLS CipherSpec. Omitted preserves the existing transport setup; choose a value supported by the MQ client, operating system and channel."
+        "Optional IBM MQ TLS CipherSpec. When omitted, no CipherSpec is configured; choose a value supported by the MQ client, operating system and channel."
     )]
     public string? SslCipherSpec { get; set; }
 

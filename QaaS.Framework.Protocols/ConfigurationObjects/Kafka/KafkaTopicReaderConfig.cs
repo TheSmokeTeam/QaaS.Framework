@@ -15,7 +15,7 @@ public record KafkaTopicReaderConfig : BaseKafkaTopicProtocolConfig, IReaderConf
 {
     [
         Description(
-            "Offset persistence mode. PerMessage preserves legacy commits, including when EnableAutoCommit=false. Batched disables native auto commit/store and commits received offsets at the batch limit, idle read, disconnect or revocation. It does not acknowledge downstream processing; uncommitted receipts can replay after a crash."
+            "Offset persistence mode. PerMessage synchronously commits each received record, including when EnableAutoCommit=false. Batched disables native auto commit/store and commits received offsets at the batch limit, idle read, disconnect or revocation. It does not acknowledge downstream processing; uncommitted receipts can replay after a crash."
         ),
         DefaultValue(KafkaCommitMode.PerMessage)
     ]

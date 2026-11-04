@@ -53,7 +53,8 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
             logger,
             dbConnection ?? new NpgsqlConnection(configurations.ConnectionString),
             timeZoneId
-        ) { }
+        )
+    { }
 
     protected override IDbDataParameter CreateSqlParameter(
         IDbCommand command,
@@ -62,8 +63,8 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
     )
     {
         var parameter = (NpgsqlParameter)base.CreateSqlParameter(command, name, value);
-        // Strings need an unspecified PostgreSQL type so the target column/CAST can convert
-        // them, as COPY did. Numeric, binary and temporal CLR values use native binding.
+        // String parameters use an unspecified PostgreSQL type for target-column/CAST conversion.
+        // Numeric, binary and temporal CLR values use native binding.
         if (parameter.Value is string or DBNull)
             parameter.NpgsqlDbType = NpgsqlDbType.Unknown;
         else if (parameter.Value is byte[])

@@ -4,8 +4,8 @@
 
 Test project for `QaaS.Framework.Serialization`. One round-trip
 (serialize → deserialize → equal) per `SerializationType`, plus
-null-safety on the factories and regression tests for the binary
-deserialisation hardening from PR #29.
+null-safety on the factories and binary deserialisation tests for
+payload runtime types.
 
 ## Layout
 
@@ -13,7 +13,7 @@ deserialisation hardening from PR #29.
   `Binary`, `Json`, `MessagePack`, `Xml`, `XmlElement`, `Yaml`,
   `ProtobufMessage`.
 - `SerializationEdgeCaseTests.cs` — null factory inputs, empty byte
-  arrays, type-mismatch, binary hardening regressions.
+  arrays, type hints, and binary payload runtime types.
 - `GlobalUsings.cs` — `global using NUnit.Framework;`.
 
 ## Conventions
@@ -31,7 +31,7 @@ deserialisation hardening from PR #29.
 
 - Asserting on serialised byte sequences directly (brittle and
   cross-platform fragile) — drive through the round trip.
-- Re-introducing permissive `BinaryFormatter`-style patterns in test
+- Using permissive `BinaryFormatter`-style patterns in test
   fixtures.
 - Suppressing a failing round trip with custom equality just to make
   the test pass — fix the serialiser.

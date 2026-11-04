@@ -63,7 +63,7 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
             catch (Exception redisException)
             {
                 logger.LogError("Failed to send to redis \n {RedisException}", redisException);
-                // The for-loop header owns the retry counter; do not increment here (would halve retries).
+                // The for-loop header increments the retry counter after this delay.
                 Thread.Sleep(configuration.RetryIntervalMs);
                 continue;
             }

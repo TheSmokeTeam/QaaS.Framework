@@ -138,16 +138,7 @@ This is the platform's foundation: every wire/contract change is a
 breaking change. Coordinate with Runner, Mocker, Common.*, and downstream
 user code via a single tag rollout.
 
-## 8. Roadmap signals
-
-- PR #32 — docs CLAUDE / project_specs.
-- PR #31 — `ICloneable<T>` deep-clone for builders.
-- PR #30 — builder API alpha + configuration update normalisation
-  (merged).
-- PR #29 — runtime fixes around probes/RabbitMQ/binary deserialisation
-  (merged).
-
-## 9. References
+## 8. References
 
 - Live docs: <https://docs.qaas.online/framework/>
 - Docs source: `qaas-docs/docs/framework/`.

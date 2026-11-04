@@ -7,7 +7,7 @@ public record TrinoReaderConfig : SqlReaderConfig
 {
     [
         Description(
-            "Optional Trino client result buffer budget in bytes. Omitted preserves the provider's 50 MiB default. This is independent of Runner result retention."
+            "Optional Trino client result buffer budget in bytes. When omitted, the provider uses a 50 MiB buffer. This is independent of Runner result retention."
         ),
         Range(typeof(long), "1", "9223372036854775807")
     ]

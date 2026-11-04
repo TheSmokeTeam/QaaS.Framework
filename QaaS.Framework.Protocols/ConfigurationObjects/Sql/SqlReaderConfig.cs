@@ -8,7 +8,7 @@ public record SqlReaderConfig : SqlConfig, IReaderConfig
 {
     [
         Description(
-            "Opt into deferred row enumeration. Dispose the enumerator before Disconnect. Errors can occur after earlier rows and repeat enumeration reruns the query. False preserves materialized results. Runner may still retain results."
+            "When true, rows are acquired during result enumeration. Dispose the enumerator before Disconnect. Errors can occur after earlier rows and repeat enumeration reruns the query. When false, ReadChunk materializes results before returning. Runner retains results according to its data settings."
         ),
         DefaultValue(false)
     ]
@@ -16,7 +16,7 @@ public record SqlReaderConfig : SqlConfig, IReaderConfig
 
     [
         Description(
-            "Optional column names to select on the server. Names are quoted as identifiers, not SQL expressions. The insertion-time column is included automatically for timestamps. Null preserves SELECT *; ColumnsToIgnore remains a client-side filter."
+            "Optional column names to select on the server. Names are quoted as identifiers, not SQL expressions. The insertion-time column is included automatically for timestamps. Null selects all columns; ColumnsToIgnore remains a client-side filter."
         ),
         MinLength(1)
     ]

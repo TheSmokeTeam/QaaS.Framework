@@ -103,7 +103,7 @@ public class S3IncrementalReadCoverageTests
     }
 
     [Test]
-    public void LegacyDefault_DownloadsBeforeReturning_AndRepeatedEnumerationUsesTheSnapshot()
+    public void EagerDefault_DownloadsBeforeReturning_AndRepeatedEnumerationUsesTheSnapshot()
     {
         using var f = new Fixture(Objects(3));
         f.Config.StreamResults = new S3BucketReaderConfig().StreamResults;
@@ -116,7 +116,7 @@ public class S3IncrementalReadCoverageTests
     }
 
     [Test]
-    public void LegacyDefault_ReportsBodyFailureDuringReadChunk()
+    public void EagerDefault_ReportsBodyFailureDuringReadChunk()
     {
         using var f = new Fixture(Objects(3));
         f.Config.StreamResults = false;

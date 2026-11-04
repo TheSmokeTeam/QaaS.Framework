@@ -8,7 +8,7 @@ public record RedisSenderConfig : BaseRedisConfig, ISenderConfig
 {
     [
         Description(
-            "Use the legacy MULTI/EXEC transaction. False uses a pipelined nontransactional batch; partial writes are possible and QaaS does not automatically retry that batch. Every command result is observed in both modes."
+            "Send each chunk with a MULTI/EXEC transaction. False uses a pipelined nontransactional batch; partial writes are possible and QaaS does not automatically retry that batch. Every command result is observed in both modes."
         ),
         DefaultValue(true)
     ]
@@ -36,7 +36,7 @@ public record RedisSenderConfig : BaseRedisConfig, ISenderConfig
 
     [
         Description(
-            "Legacy compatibility property; not used to partition sends. Configure Publisher.Chunk.ChunkSize (and optional MaxBytes) in Runner."
+            "This property does not partition sends. Configure Publisher.Chunk.ChunkSize (and optional MaxBytes) in Runner."
         ),
         DefaultValue(null)
     ]

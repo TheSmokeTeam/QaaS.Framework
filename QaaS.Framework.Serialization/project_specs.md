@@ -16,12 +16,12 @@ them to throw.
 
 ## Conventions
 
-- Public interfaces: `ISerializer.Serialize<T>(T) → byte[]`,
-  `IDeserializer.Deserialize<T>(byte[]) → T?`.
+- Public interfaces: `ISerializer.Serialize(object?) → byte[]?`,
+  `IDeserializer.Deserialize(byte[]?, Type?) → object?`.
 - Round-trip: every implementation has a "serialize then deserialize
   yields equal" test in the tests project.
-- Binary deserialisation is hardened (commit `1365af4` of PR #29) —
-  never re-introduce loose patterns.
+- Binary deserialisation returns `null` for null input and otherwise
+  returns the payload runtime type; the requested type hint is not used.
 
 ## Forbidden in this project
 
@@ -31,4 +31,4 @@ them to throw.
 ## Tests
 
 `QaaS.Framework.Serialization.Tests` — per-format round trips, null
-inputs, binary hardening regressions.
+inputs, and binary payload runtime types.

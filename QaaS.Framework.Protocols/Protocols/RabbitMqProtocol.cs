@@ -122,30 +122,27 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         while (!cancellation.IsCancellationRequested)
         {
             BasicGetResult? message;
-            try
+            if (_deliveries != null)
             {
-                if (_deliveries != null)
+                try
                 {
                     message = _deliveries
                         .Reader.ReadAsync(cancellation.Token)
                         .AsTask()
                         .GetAwaiter()
                         .GetResult();
-                    _channel
-                        .BasicAckAsync(message.DeliveryTag, false, cancellation.Token)
-                        .GetAwaiter()
-                        .GetResult();
                 }
-                else
-                    message = _channel
-                        .BasicGetAsync(_queueName ?? _defaultQueueName, true, cancellation.Token)
-                        .GetAwaiter()
-                        .GetResult();
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+                {
+                    return null;
+                }
+                _channel.BasicAckAsync(message.DeliveryTag, false).GetAwaiter().GetResult();
             }
-            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-            {
-                return null;
-            }
+            else
+                message = _channel
+                    .BasicGetAsync(_queueName ?? _defaultQueueName, true)
+                    .GetAwaiter()
+                    .GetResult();
             if (message == null)
                 continue;
             _logger.LogDebug("Read message in bytes from Queue {QueueName}", _queueName);
@@ -531,6 +528,14 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
             deliveries.Writer.TryComplete(new IOException("RabbitMQ subscription channel closed."));
             return Task.CompletedTask;
         };
+        consumer.UnregisteredAsync += (_, _) =>
+        {
+            if (!cancellation.IsCancellationRequested)
+                deliveries.Writer.TryComplete(
+                    new IOException("RabbitMQ subscription was cancelled by the broker.")
+                );
+            return Task.CompletedTask;
+        };
         _consumerTag = _channel.BasicConsumeAsync(queue, false, consumer).GetAwaiter().GetResult();
     }
 
@@ -588,16 +593,26 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
     {
         _subscriptionCancellation?.Cancel();
         _deliveries?.Writer.TryComplete();
-        if (_consumerTag != null)
+        try
         {
-            _channel.BasicCancelAsync(_consumerTag).GetAwaiter().GetResult();
-            _consumerTag = null;
+            if (_consumerTag != null)
+            {
+                _channel.BasicCancelAsync(_consumerTag).GetAwaiter().GetResult();
+                _consumerTag = null;
+            }
+            if (_rabbitMqReaderConfig != null && _queueName == null)
+                _channel.QueueDeleteAsync(_defaultQueueName).GetAwaiter().GetResult();
         }
-        if (_rabbitMqReaderConfig != null && _queueName == null)
+        finally
         {
-            _channel.QueueDeleteAsync(_defaultQueueName).GetAwaiter().GetResult();
+            try
+            {
+                _channel.CloseAsync().GetAwaiter().GetResult();
+            }
+            finally
+            {
+                _connection.CloseAsync().GetAwaiter().GetResult();
+            }
         }
-        _channel.CloseAsync().GetAwaiter().GetResult();
-        _connection.CloseAsync().GetAwaiter().GetResult();
     }
 }

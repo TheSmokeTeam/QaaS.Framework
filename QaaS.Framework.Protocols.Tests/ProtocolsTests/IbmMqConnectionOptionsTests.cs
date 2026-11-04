@@ -8,7 +8,7 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 public class IbmMqConnectionOptionsTests
 {
     [Test]
-    public void OmittedOptions_KeepLegacyConnectionProperties()
+    public void OmittedOptions_UseDefaultConnectionProperties()
     {
         var properties = IbmMqProtocol.CreateConnectionProperties(new IbmMqReaderConfig());
         Assert.That(properties.Count, Is.EqualTo(3));

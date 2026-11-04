@@ -6,10 +6,10 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.S3;
 
 public record S3BucketReaderConfig : S3BucketConfig, IReaderConfig
 {
-    /// <summary>Opt into deferred body downloads instead of the legacy materialized result.</summary>
+    /// <summary>Controls whether bodies are downloaded during result enumeration.</summary>
     [
         Description(
-            "When true, download ordered bounded windows as the result is enumerated. Errors may occur after earlier items have been returned and another enumeration downloads again. False preserves eager, repeatable results. Runner may still retain all results."
+            "When true, download ordered bounded windows as the result is enumerated. Errors may occur after earlier items have been returned and another enumeration downloads again. When false, ReadChunk downloads and materializes repeatable results before returning. Runner retains results according to its data settings."
         ),
         DefaultValue(false)
     ]

@@ -82,7 +82,11 @@ public class SocketProtocol : IReader, ISender, IDisposable
             }
             var message = GetMessage();
             if (message.Length <= 0)
-                return null; // TCP EOF: polling again would spin on a permanently readable socket.
+            {
+                if (_socket?.SocketType == SocketType.Stream)
+                    return null;
+                continue;
+            }
             _logger.LogDebug("Received {NumberOfReceivedBytes} bytes from socket", message.Length);
             return new DetailedData<object>
             {
@@ -102,9 +106,7 @@ public class SocketProtocol : IReader, ISender, IDisposable
     protected virtual Span<byte> GetMessage()
     {
         var message = new Span<byte>(new byte[_bufferSize!.Value]);
-        // Socket.Receive returns the number of bytes actually read; the remainder of the buffer is
-        // uninitialized zero padding and must not be treated as payload, otherwise messages are corrupted
-        // with trailing zeros and an empty (graceful-close) read is never detected.
+        // Return only the bytes received. A zero-byte stream read indicates graceful closure.
         var bytesReceived = _socket!.Receive(message);
         return message[..bytesReceived];
     }

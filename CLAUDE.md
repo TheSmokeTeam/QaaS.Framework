@@ -225,15 +225,6 @@ solution-specific builders (Runner, Mocker).
 - `Executions/ExecutionLogging.cs` — Serilog wiring.
 - `.github/workflows/ci.yml` — CI pipeline.
 
-## Recent / in-flight work
-
-- PR #32 — CLAUDE.md drop (this commit).
-- PR #31 — `ICloneable<T>` deep-clone for builders (open).
-- PR #30 — builder API alpha + configuration update normalisation
-  (merged).
-- PR #29 — runtime fixes (probes context, RabbitMQ defaults, binary
-  deserialisation hardening) (merged).
-
 ## When to update docs
 
 Any change to a hook signature, configuration shape, or protocol

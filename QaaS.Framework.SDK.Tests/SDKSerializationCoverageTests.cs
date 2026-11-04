@@ -271,7 +271,7 @@ public class SDKSerializationCoverageTests
     }
 
     [Test]
-    public void ContextBuilder_Build_WithoutResolveCaseLast_CoversLegacyBuildPath()
+    public void ContextBuilder_Build_WithoutResolveCaseLast_AppliesArgumentOverwrite()
     {
         var baseYaml = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.yaml");
         File.WriteAllText(baseYaml, "root:\n  value: base\n");
@@ -286,7 +286,7 @@ public class SDKSerializationCoverageTests
                 .WithOverwriteArgument(null)
                 .SetCase(null)
                 .WithOverwriteArgument("root:value=argument")
-                .SetExecutionId("legacy");
+                .SetExecutionId("build-execution");
 
 #pragma warning disable CS0618
             var context = builder.Build();
@@ -294,7 +294,7 @@ public class SDKSerializationCoverageTests
 
             Assert.Multiple(() =>
             {
-                Assert.That(context.ExecutionId, Is.EqualTo("legacy"));
+                Assert.That(context.ExecutionId, Is.EqualTo("build-execution"));
                 Assert.That(context.RootConfiguration["root:value"], Is.EqualTo("argument"));
             });
         }

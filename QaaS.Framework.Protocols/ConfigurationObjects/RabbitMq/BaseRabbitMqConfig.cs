@@ -7,7 +7,7 @@ public record BaseRabbitMqConfig
 {
     [
         Description(
-            "Preserve the legacy passive topology check before each Send/Read. Set false to validate during Connect only, avoiding a round trip per operation. Queue/exchange deletion is then reported by the actual operation."
+            "Check the named exchange before each send and the queue before each polling read. Set false to validate during Connect only. Subscription reads validate the queue during Connect. Queue/exchange deletion is reported by the operation that detects it."
         ),
         DefaultValue(true)
     ]

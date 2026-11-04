@@ -8,7 +8,7 @@ public record RabbitMqSenderConfig : BaseRabbitMqConfig, ISenderConfig
 {
     [
         Description(
-            "Wait for a broker publisher confirmation and report returned/unroutable messages. False preserves legacy enqueue completion. Shared-channel sends are serialized; this is a durability option, not a throughput guarantee."
+            "Wait for a broker publisher confirmation and report returned/unroutable messages. When false, Send completes without waiting for a broker confirmation. Shared-channel sends are serialized; this is a durability option, not a throughput guarantee."
         ),
         DefaultValue(false)
     ]

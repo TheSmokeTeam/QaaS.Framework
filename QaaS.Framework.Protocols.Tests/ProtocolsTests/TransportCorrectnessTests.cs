@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net.Sockets;
 using System.Text.Json.Nodes;
 using Elasticsearch.Net;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -9,6 +10,7 @@ using Nest;
 using QaaS.Framework.Protocols.ConfigurationObjects;
 using QaaS.Framework.Protocols.ConfigurationObjects.MongoDb;
 using QaaS.Framework.Protocols.ConfigurationObjects.Sftp;
+using QaaS.Framework.Protocols.ConfigurationObjects.Socket;
 using QaaS.Framework.Protocols.Protocols;
 using QaaS.Framework.Protocols.Utils;
 using QaaS.Framework.SDK.Session;
@@ -20,6 +22,30 @@ namespace QaaS.Framework.Protocols.Tests.ProtocolsTests;
 [TestFixture]
 public class TransportCorrectnessTests
 {
+    [TestCase(SocketType.Stream, ProtocolType.Tcp, false)]
+    [TestCase(SocketType.Dgram, ProtocolType.Udp, true)]
+    public void Socket_ZeroByteReadEndsOnlyStreams(
+        SocketType type,
+        ProtocolType protocolType,
+        bool hasMessage
+    )
+    {
+        using var protocol = new ScriptedSocketReader(type, protocolType);
+        var result = protocol.Read(TimeSpan.FromSeconds(1));
+        Assert.That(result?.Body, Is.EqualTo(hasMessage ? new byte[] { 7 } : null));
+    }
+
+    private sealed class ScriptedSocketReader(SocketType type, ProtocolType protocolType)
+        : SocketProtocol(
+            new SocketReaderConfig { SocketType = type, ProtocolType = protocolType },
+            NullLogger.Instance
+        )
+    {
+        private int _reads;
+
+        protected override Span<byte> GetMessage() => ++_reads == 1 ? [] : new byte[] { 7 };
+    }
+
     [Test]
     public void Socket_PartialStreamSendsAdvanceUntilComplete()
     {

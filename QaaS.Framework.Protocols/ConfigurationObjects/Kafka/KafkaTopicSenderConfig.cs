@@ -24,7 +24,7 @@ public record KafkaTopicSenderConfig : BaseKafkaTopicProtocolConfig, ISenderConf
     public int? BatchSize { get; set; }
 
     [Description(
-        "Optional broker acknowledgement policy. Omitted preserves the Kafka client default."
+        "Optional broker acknowledgement policy. When omitted, the Kafka client default applies."
     )]
     public Acks? Acks { get; set; }
 
@@ -51,7 +51,7 @@ public record KafkaTopicSenderConfig : BaseKafkaTopicProtocolConfig, ISenderConf
 
     [
         Description(
-            "Optional flush deadline in milliseconds. Disconnect fails if records remain undelivered. Omitted preserves the unbounded legacy flush."
+            "Optional flush deadline in milliseconds. Disconnect fails if records remain undelivered. When omitted, Disconnect waits for the producer flush without a deadline."
         ),
         Range(1, int.MaxValue)
     ]
@@ -59,7 +59,7 @@ public record KafkaTopicSenderConfig : BaseKafkaTopicProtocolConfig, ISenderConf
 
     [
         Description(
-            "Report asynchronous delivery failures on a subsequent Send or Disconnect. Send still means enqueue, not broker acknowledgement."
+            "Report asynchronous delivery failures on a subsequent Send or Disconnect. Send completes when the record is enqueued; broker delivery is asynchronous."
         ),
         DefaultValue(false)
     ]

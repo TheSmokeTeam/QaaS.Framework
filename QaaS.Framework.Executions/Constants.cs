@@ -3,7 +3,7 @@ using ILogger = Microsoft.Extensions.Logging.ILogger;
 namespace QaaS.Framework.Executions;
 
 /// <summary>
-/// Backward-compatible surface for consumers that still reference the legacy execution constants API.
+/// Exposes the default loggers used by framework execution infrastructure.
 /// </summary>
 [Obsolete("Use ExecutionLogging instead.")]
 public static class Constants
@@ -17,5 +17,4 @@ public static class Constants
     /// Gets the default Microsoft logger shared by framework execution infrastructure.
     /// </summary>
     public static ILogger DefaultLogger => ExecutionLogging.DefaultLogger;
-
 }

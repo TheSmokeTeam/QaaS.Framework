@@ -8,7 +8,7 @@ public record RabbitMqReaderConfig : BaseRabbitMqConfig, IReaderConfig
 {
     [
         Description(
-            "Use a bounded push subscription instead of BasicGet polling. Messages are acknowledged when Read receives them, not after downstream processing. Unread buffered deliveries are requeued on disconnect. False preserves polling."
+            "Use a bounded push subscription instead of BasicGet polling. Messages are acknowledged when Read receives them, not after downstream processing. Unread buffered deliveries are requeued on disconnect. False uses polling."
         ),
         DefaultValue(false)
     ]

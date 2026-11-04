@@ -17,6 +17,17 @@ public class TrinoTimeoutTests
     }
 
     [Test]
+    public void Dispose_CancelsOutstandingWork_AndCanBeRepeated()
+    {
+        using var connection = new TrinoConnection();
+        var command = new TrinoTimeoutCommand(connection);
+        var token = command.CancellationToken.Token;
+        command.Dispose();
+        Assert.That(token.IsCancellationRequested, Is.True);
+        Assert.DoesNotThrow(() => command.Dispose());
+    }
+
+    [Test]
     public void PublicCommandTimeout_RemainsSeconds_AndCancellationRemainsAvailable()
     {
         using var connection = new TrinoConnection();

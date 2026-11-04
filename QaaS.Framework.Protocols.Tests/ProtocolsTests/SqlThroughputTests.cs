@@ -65,7 +65,7 @@ public class SqlThroughputTests
 
         protected override string GetLatestTableRowQuery() => throw new NotSupportedException();
 
-        protected override string GetTimeFieldSqlFormat(DateTime time) => "legacy-date";
+        protected override string GetTimeFieldSqlFormat(DateTime time) => "formatted-date";
     }
 
     [TestCase(false)]

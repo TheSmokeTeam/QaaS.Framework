@@ -1,8 +1,8 @@
 namespace QaaS.Framework.Policies.Extentions.Stopwatch;
 
 /// <summary>
-/// Optional fractional-millisecond clock. Existing <see cref="ITimer"/> implementations
-/// remain supported; rate policies use this capability when available.
+/// Fractional-millisecond clock capability used by rate policies when available.
+/// Timers implementing only <see cref="ITimer"/> supply whole elapsed milliseconds.
 /// </summary>
 public interface IHighResolutionTimer : ITimer
 {

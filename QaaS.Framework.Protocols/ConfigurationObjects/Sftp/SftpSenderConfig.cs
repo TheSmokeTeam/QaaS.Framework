@@ -8,7 +8,7 @@ public record SftpSenderConfig : BaseSftpConfig, IObjectNamingGeneratorConfig, I
 {
     [
         Description(
-            "Optional SSH.NET upload buffer size in bytes. Omitted preserves the client default. Tune against file size, server limits and memory."
+            "Optional SSH.NET upload buffer size in bytes. When omitted, the client default applies. Tune against file size, server limits and memory."
         ),
         Range(1, int.MaxValue)
     ]
