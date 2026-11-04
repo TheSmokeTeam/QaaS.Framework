@@ -487,9 +487,9 @@ public class BaseSqlTests
         {
             Assert.That(elapsedMilliseconds, Is.EqualTo(10000));
             Assert.That(protocol.Queries, Does.Contain("LATEST_QUERY"));
-            Assert.That(dataTable.Columns["id"]!.DataType, Is.EqualTo(typeof(JsonElement)));
+            Assert.That(dataTable.Columns["id"]!.DataType, Is.EqualTo(typeof(string)));
             Assert.That(dataTable.Rows[0]["id"], Is.EqualTo(DBNull.Value));
-            Assert.That(((JsonElement)dataTable.Rows[1]["id"]).GetInt32(), Is.EqualTo(7));
+            Assert.That(dataTable.Rows[1]["id"], Is.EqualTo("7"));
         });
     }
 
