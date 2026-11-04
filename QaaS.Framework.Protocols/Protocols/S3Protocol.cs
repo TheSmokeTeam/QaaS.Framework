@@ -101,7 +101,10 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
             })
             .ToArray();
 
-        return ReadObjectsIncrementally(objects, readerConfig, client, includeBody);
+        var results = ReadObjectsIncrementally(objects, readerConfig, client, includeBody);
+        // Existing callers receive a repeatable snapshot and observe failures in ReadChunk.
+        // Deferred download/error timing is an explicit opt-in.
+        return readerConfig.StreamResults ? results : results.ToArray();
     }
 
     private IEnumerable<DetailedData<object>> ReadObjectsIncrementally(
@@ -126,7 +129,7 @@ public class S3Protocol : IChunkReader, ISender, IDisposable
             yield break;
         }
 
-        for (var offset = 0; offset < objects.Length;)
+        for (var offset = 0; offset < objects.Length; )
         {
             var count = Math.Min(readerConfig.MaxConcurrentDownloads, objects.Length - offset);
             var results = new DetailedData<object>?[count];

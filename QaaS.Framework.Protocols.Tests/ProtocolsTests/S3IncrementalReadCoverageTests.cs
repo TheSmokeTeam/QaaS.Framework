@@ -41,7 +41,8 @@ public class S3IncrementalReadCoverageTests
 
     private sealed class Fixture : IDisposable
     {
-        public S3BucketReaderConfig Config { get; } = new() { StorageBucket = "bucket" };
+        public S3BucketReaderConfig Config { get; } =
+            new() { StorageBucket = "bucket", StreamResults = true };
         public DataFilter Filter { get; } = new();
         public Mock<IAmazonS3> Amazon { get; } = new(MockBehavior.Strict);
         public Mock<IS3Client> Client { get; } = new();
@@ -99,6 +100,28 @@ public class S3IncrementalReadCoverageTests
         }
 
         public void Dispose() => Protocol.Dispose();
+    }
+
+    [Test]
+    public void LegacyDefault_DownloadsBeforeReturning_AndRepeatedEnumerationUsesTheSnapshot()
+    {
+        using var f = new Fixture(Objects(3));
+        f.Config.StreamResults = new S3BucketReaderConfig().StreamResults;
+        var result = f.Protocol.ReadChunk(TimeSpan.Zero);
+        Assert.That(f.Keys.Count, Is.EqualTo(3));
+        var first = result.ToArray();
+        var second = result.ToArray();
+        Assert.That(f.Keys.Count, Is.EqualTo(3));
+        Assert.That(second, Is.EqualTo(first));
+    }
+
+    [Test]
+    public void LegacyDefault_ReportsBodyFailureDuringReadChunk()
+    {
+        using var f = new Fixture(Objects(3));
+        f.Config.StreamResults = false;
+        f.Load = _ => throw new IOException("body failure");
+        Assert.Throws<IOException>(() => f.Protocol.ReadChunk(TimeSpan.Zero));
     }
 
     [TestCase(1)]

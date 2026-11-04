@@ -156,14 +156,14 @@ public class PostgreSqlProtocol : BaseSqlProtocol<NpgsqlConnection>, ISender
 
     /// <inheritdoc />
     protected override string GetTableQueryArrangedByInsertionTimeFieldAsc() =>
-        $"select * from {TableName} {BuildWhereStatement()} order by \"{InsertionTimeField}\" asc";
+        $"select {ReadProjection} from {TableName} {BuildWhereStatement()} order by \"{InsertionTimeField}\" asc";
 
     /// <inheritdoc />
     protected override string GetTableQueryWithoutRegardToInsertionTimeField() =>
-        $"select * from {TableName} {BuildWhereStatement()}";
+        $"select {ReadProjection} from {TableName} {BuildWhereStatement()}";
 
     private string GetOneRowFromTableQueryWithoutRegardToInsertionTimeField() =>
-        $"select * from {TableName} {BuildWhereStatement()} LIMIT 1";
+        $"select {ReadProjection} from {TableName} {BuildWhereStatement()} LIMIT 1";
 
     /// <inheritdoc />
     protected override string GetLatestTableRowQuery() =>

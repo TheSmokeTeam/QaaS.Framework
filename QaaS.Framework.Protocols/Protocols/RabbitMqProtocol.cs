@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using QaaS.Framework.Protocols.ConfigurationObjects.RabbitMq;
 using QaaS.Framework.SDK.Extensions;
@@ -5,6 +6,7 @@ using QaaS.Framework.SDK.Session.DataObjects;
 using QaaS.Framework.SDK.Session.MetaDataObjects;
 using QaaS.Framework.Serialization;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 namespace QaaS.Framework.Protocols.Protocols;
 
@@ -12,6 +14,12 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 {
     private const string DefaultName = "QaaS";
     private readonly ILogger _logger;
+    private readonly object _sendLock = new();
+    private readonly bool _validateEveryOperation;
+    private readonly bool _publisherConfirms;
+    private Channel<BasicGetResult>? _deliveries;
+    private CancellationTokenSource? _subscriptionCancellation;
+    private string? _consumerTag;
     private IConnection _connection = null!;
     private IChannel _channel = null!;
 
@@ -43,6 +51,7 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         ExchangeName =
             configurations.QueueName != null ? string.Empty : configurations.ExchangeName!;
 
+        _publisherConfirms = configurations.PublisherConfirms;
         _defaultMetaData = new RabbitMq
         {
             RoutingKey = RoutingKey,
@@ -64,9 +73,24 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
         };
     }
 
+    internal RabbitMqProtocol(
+        RabbitMqReaderConfig configurations,
+        ILogger logger,
+        IConnectionFactory factory
+    )
+        : this(configurations, logger) => ConnectionFactory = factory;
+
+    internal RabbitMqProtocol(
+        RabbitMqSenderConfig configurations,
+        ILogger logger,
+        IConnectionFactory factory
+    )
+        : this(configurations, logger) => ConnectionFactory = factory;
+
     public RabbitMqProtocol(BaseRabbitMqConfig configurations, ILogger logger)
     {
         _logger = logger;
+        _validateEveryOperation = configurations.ValidateTopologyOnEveryOperation;
         ConnectionFactory = new ConnectionFactory
         {
             HostName = configurations.Host!,
@@ -88,15 +112,40 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object>? Read(TimeSpan timeout)
     {
-        _channel.QueueDeclarePassiveAsync(_queueName ?? _defaultQueueName).GetAwaiter().GetResult(); // Before reading check if queue exists
-
-        var timoutToken = new CancellationTokenSource(timeout).Token;
-        while (!timoutToken.IsCancellationRequested)
-        {
-            var message = _channel
-                .BasicGetAsync(_queueName ?? _defaultQueueName, true)
+        if (_deliveries == null && _validateEveryOperation)
+            _channel
+                .QueueDeclarePassiveAsync(_queueName ?? _defaultQueueName)
                 .GetAwaiter()
                 .GetResult();
+
+        using var cancellation = new CancellationTokenSource(timeout);
+        while (!cancellation.IsCancellationRequested)
+        {
+            BasicGetResult? message;
+            try
+            {
+                if (_deliveries != null)
+                {
+                    message = _deliveries
+                        .Reader.ReadAsync(cancellation.Token)
+                        .AsTask()
+                        .GetAwaiter()
+                        .GetResult();
+                    _channel
+                        .BasicAckAsync(message.DeliveryTag, false, cancellation.Token)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                else
+                    message = _channel
+                        .BasicGetAsync(_queueName ?? _defaultQueueName, true, cancellation.Token)
+                        .GetAwaiter()
+                        .GetResult();
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                return null;
+            }
             if (message == null)
                 continue;
             _logger.LogDebug("Read message in bytes from Queue {QueueName}", _queueName);
@@ -164,11 +213,19 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
+        // RabbitMQ channels do not support concurrent publishing. Bound access even when
+        // a Runner action is configured with multiple workers.
+        lock (_sendLock)
+            return SendOnChannel(dataToSend);
+    }
+
+    private DetailedData<object> SendOnChannel(Data<object> dataToSend)
+    {
         var metadata = NormalizeRabbitMqMetadata(dataToSend.MetaData?.RabbitMq);
         var routingKey = metadata.RoutingKey ?? RoutingKey;
         var body = dataToSend.CastObjectData<byte[]>().Body;
 
-        if (!string.IsNullOrEmpty(ExchangeName))
+        if (_validateEveryOperation && !string.IsNullOrEmpty(ExchangeName))
         {
             _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter().GetResult(); // Before sending check if exchange exists
         }
@@ -389,16 +446,26 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public void Dispose()
     {
-        _channel.Dispose();
-        _connection.Dispose();
+        _subscriptionCancellation?.Cancel();
+        _deliveries?.Writer.TryComplete();
+        _channel?.Dispose();
+        _connection?.Dispose();
+        _subscriptionCancellation?.Dispose();
     }
 
     public void Connect()
     {
         _connection = ConnectionFactory.CreateConnectionAsync().GetAwaiter().GetResult();
-        _channel = _connection.CreateChannelAsync().GetAwaiter().GetResult();
+        _channel = _connection
+            .CreateChannelAsync(_publisherConfirms ? new CreateChannelOptions(true, true) : null)
+            .GetAwaiter()
+            .GetResult();
         if (_rabbitMqReaderConfig == null)
+        {
+            if (!_validateEveryOperation && !string.IsNullOrEmpty(ExchangeName))
+                _channel.ExchangeDeclarePassiveAsync(ExchangeName).GetAwaiter().GetResult();
             return;
+        }
 
         var queueToDeclare = _queueName ?? _defaultQueueName;
         var arguments = BuildReaderQueueArguments();
@@ -421,13 +488,58 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
                 .GetAwaiter()
                 .GetResult();
         }
+        if (_rabbitMqReaderConfig.UseSubscription)
+            StartSubscription(queueToDeclare);
+    }
+
+    private void StartSubscription(string queue)
+    {
+        var capacity = _rabbitMqReaderConfig!.PrefetchCount;
+        ArgumentOutOfRangeException.ThrowIfLessThan(capacity, (ushort)1);
+        _subscriptionCancellation?.Dispose();
+        var cancellation = _subscriptionCancellation = new CancellationTokenSource();
+        var deliveries = _deliveries = Channel.CreateBounded<BasicGetResult>(
+            new BoundedChannelOptions(capacity)
+            {
+                SingleWriter = true,
+                SingleReader = true,
+                FullMode = BoundedChannelFullMode.Wait,
+            }
+        );
+        _channel.BasicQosAsync(0, capacity, false).GetAwaiter().GetResult();
+        var consumer = new AsyncEventingBasicConsumer(_channel);
+        consumer.ReceivedAsync += async (_, delivery) =>
+        {
+            // The RabbitMQ receive memory is valid only during the callback.
+            var copy = new BasicGetResult(
+                delivery.DeliveryTag,
+                delivery.Redelivered,
+                delivery.Exchange,
+                delivery.RoutingKey,
+                0,
+                new BasicProperties(delivery.BasicProperties),
+                delivery.Body.ToArray()
+            );
+            try
+            {
+                await deliveries.Writer.WriteAsync(copy, cancellation.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        };
+        consumer.ShutdownAsync += (_, _) =>
+        {
+            deliveries.Writer.TryComplete(new IOException("RabbitMQ subscription channel closed."));
+            return Task.CompletedTask;
+        };
+        _consumerTag = _channel.BasicConsumeAsync(queue, false, consumer).GetAwaiter().GetResult();
     }
 
     private Dictionary<string, object?> BuildReaderQueueArguments()
     {
-        var rawArguments = _rabbitMqReaderConfig?.Arguments != null
-            ? new Dictionary<string, object?>(_rabbitMqReaderConfig.Arguments)
-            : new Dictionary<string, object?>();
+        var rawArguments =
+            _rabbitMqReaderConfig?.Arguments != null
+                ? new Dictionary<string, object?>(_rabbitMqReaderConfig.Arguments)
+                : new Dictionary<string, object?>();
 
         var arguments = new Dictionary<string, object?>();
         foreach (var (key, value) in rawArguments)
@@ -457,10 +569,16 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
             }
         }
 
-        if (_queueName == null && !arguments.ContainsKey("x-expires") && _rabbitMqReaderConfig != null)
+        if (
+            _queueName == null
+            && !arguments.ContainsKey("x-expires")
+            && _rabbitMqReaderConfig != null
+        )
         {
             arguments["x-expires"] = (int)
-                TimeSpan.FromMilliseconds(_rabbitMqReaderConfig.CreatedQueueTimeToExpireMs).TotalMilliseconds;
+                TimeSpan
+                    .FromMilliseconds(_rabbitMqReaderConfig.CreatedQueueTimeToExpireMs)
+                    .TotalMilliseconds;
         }
 
         return arguments;
@@ -468,6 +586,13 @@ public class RabbitMqProtocol : IReader, ISender, IDisposable
 
     public void Disconnect()
     {
+        _subscriptionCancellation?.Cancel();
+        _deliveries?.Writer.TryComplete();
+        if (_consumerTag != null)
+        {
+            _channel.BasicCancelAsync(_consumerTag).GetAwaiter().GetResult();
+            _consumerTag = null;
+        }
         if (_rabbitMqReaderConfig != null && _queueName == null)
         {
             _channel.QueueDeleteAsync(_defaultQueueName).GetAwaiter().GetResult();

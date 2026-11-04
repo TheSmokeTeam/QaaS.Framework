@@ -7,6 +7,64 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.Kafka;
 
 public record KafkaTopicSenderConfig : BaseKafkaTopicProtocolConfig, ISenderConfig
 {
+    [
+        Description(
+            "Optional producer batching delay in milliseconds. Omitted uses the Kafka client default."
+        ),
+        Range(0d, 900000d)
+    ]
+    public double? LingerMs { get; set; }
+
+    [
+        Description(
+            "Optional producer batch size in bytes, distinct from Runner ChunkSize. Omitted uses the Kafka client default."
+        ),
+        Range(1, int.MaxValue)
+    ]
+    public int? BatchSize { get; set; }
+
+    [Description(
+        "Optional broker acknowledgement policy. Omitted preserves the Kafka client default."
+    )]
+    public Acks? Acks { get; set; }
+
+    [Description(
+        "Optional idempotent producer. The Kafka client validates compatibility with acknowledgements and in-flight limits."
+    )]
+    public bool? EnableIdempotence { get; set; }
+
+    [
+        Description(
+            "Optional delivery timeout in milliseconds. Omitted uses the Kafka client default."
+        ),
+        Range(0, int.MaxValue)
+    ]
+    public int? MessageTimeoutMs { get; set; }
+
+    [
+        Description(
+            "Optional maximum in-flight requests per broker connection. Omitted uses the Kafka client default."
+        ),
+        Range(1, int.MaxValue)
+    ]
+    public int? MaxInFlight { get; set; }
+
+    [
+        Description(
+            "Optional flush deadline in milliseconds. Disconnect fails if records remain undelivered. Omitted preserves the unbounded legacy flush."
+        ),
+        Range(1, int.MaxValue)
+    ]
+    public int? FlushTimeoutMs { get; set; }
+
+    [
+        Description(
+            "Report asynchronous delivery failures on a subsequent Send or Disconnect. Send still means enqueue, not broker acknowledgement."
+        ),
+        DefaultValue(false)
+    ]
+    public bool ReportDeliveryErrors { get; set; }
+
     [Required, Description("Name of the topic to read messages from")]
     public string? TopicName { get; set; }
 

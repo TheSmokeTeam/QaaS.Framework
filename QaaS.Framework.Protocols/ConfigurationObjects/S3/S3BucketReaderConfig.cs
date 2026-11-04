@@ -6,6 +6,15 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.S3;
 
 public record S3BucketReaderConfig : S3BucketConfig, IReaderConfig
 {
+    /// <summary>Opt into deferred body downloads instead of the legacy materialized result.</summary>
+    [
+        Description(
+            "When true, download ordered bounded windows as the result is enumerated. Errors may occur after earlier items have been returned and another enumeration downloads again. False preserves eager, repeatable results. Runner may still retain all results."
+        ),
+        DefaultValue(false)
+    ]
+    public bool StreamResults { get; set; }
+
     /// <summary>
     /// Maximum number of objects downloaded in each ordered consumer window.
     /// </summary>

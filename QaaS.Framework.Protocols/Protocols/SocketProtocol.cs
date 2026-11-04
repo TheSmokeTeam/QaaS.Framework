@@ -10,6 +10,7 @@ namespace QaaS.Framework.Protocols.Protocols;
 public class SocketProtocol : IReader, ISender, IDisposable
 {
     private readonly ILogger _logger;
+    private readonly object _sendLock = new();
 
     private readonly Socket? _socket;
     private readonly string? _socketHost;
@@ -29,6 +30,8 @@ public class SocketProtocol : IReader, ISender, IDisposable
             ReceiveTimeout = configuration.ReceiveTimeoutMs,
         };
         _bufferSize = configuration.BufferSize;
+        _socketHost = configuration.Host;
+        _socketPort = configuration.Port;
     }
 
     public SocketProtocol(SocketSenderConfig configuration, ILogger logger)
@@ -56,17 +59,30 @@ public class SocketProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object>? Read(TimeSpan timeout)
     {
-        var timeoutToken = new CancellationTokenSource(timeout).Token;
+        using var cancellation = new CancellationTokenSource(timeout);
+        var timeoutToken = cancellation.Token;
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
         // Initializing a cancellation token.
         // While the cancellation token is running, continue to read.
         while (!timeoutToken.IsCancellationRequested)
         {
             // Getting the message buffer from Socket communication.
             if (_socket is { Available: 0, Connected: true })
-                continue;
+            {
+                var remaining = timeout - elapsed.Elapsed;
+                if (remaining <= TimeSpan.Zero)
+                    return null;
+                if (
+                    !_socket.Poll(
+                        (int)Math.Min(int.MaxValue, Math.Ceiling(remaining.TotalMicroseconds)),
+                        SelectMode.SelectRead
+                    )
+                )
+                    continue;
+            }
             var message = GetMessage();
             if (message.Length <= 0)
-                continue;
+                return null; // TCP EOF: polling again would spin on a permanently readable socket.
             _logger.LogDebug("Received {NumberOfReceivedBytes} bytes from socket", message.Length);
             return new DetailedData<object>
             {
@@ -95,8 +111,28 @@ public class SocketProtocol : IReader, ISender, IDisposable
 
     public DetailedData<object> Send(Data<object> dataToSend)
     {
-        _socket!.Send(dataToSend.CastObjectData<byte[]>().Body ?? []); // Assumes data is byte[]
+        var body = dataToSend.CastObjectData<byte[]>().Body ?? [];
+        lock (_sendLock)
+            SendAll(
+                body.Length,
+                _socket!.SocketType == SocketType.Stream,
+                (offset, count) => _socket.Send(body, offset, count, SocketFlags.None)
+            );
         return dataToSend.CloneDetailed();
+    }
+
+    internal static void SendAll(int length, bool stream, Func<int, int, int> send)
+    {
+        var offset = 0;
+        do
+        {
+            var written = send(offset, length - offset);
+            if (written < 0 || written > length - offset || (written == 0 && offset < length))
+                throw new IOException("Socket closed before the entire payload was sent.");
+            offset += written;
+            if (!stream && offset != length)
+                throw new IOException("Socket did not send the entire datagram.");
+        } while (offset < length);
     }
 
     public void Connect()

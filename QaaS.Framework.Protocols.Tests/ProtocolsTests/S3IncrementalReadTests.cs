@@ -52,7 +52,7 @@ public class S3IncrementalReadTests
                 }
             );
         using var protocol = new S3Protocol(
-            new S3BucketReaderConfig { StorageBucket = "bucket" },
+            new S3BucketReaderConfig { StorageBucket = "bucket", StreamResults = true },
             new DataFilter(),
             NullLogger.Instance
         );

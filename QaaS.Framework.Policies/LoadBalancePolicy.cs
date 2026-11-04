@@ -6,6 +6,10 @@ namespace QaaS.Framework.Policies;
 public class LoadBalancePolicy : Policy
 {
     private readonly ITimer _intervalTimer;
+    private double ElapsedMilliseconds =>
+        _intervalTimer is Extentions.Stopwatch.IHighResolutionTimer highResolution
+            ? highResolution.ElapsedTotalMilliseconds
+            : _intervalTimer.ElapsedMilliseconds;
     protected double MessageIntervalMilliseconds;
     protected double MessagesPerSecond;
     protected override uint Index { get; set; } = int.MaxValue;
@@ -37,7 +41,7 @@ public class LoadBalancePolicy : Policy
     /// </summary>
     private void WaitForNextExecutionSlot()
     {
-        var remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
+        var remainingMilliseconds = MessageIntervalMilliseconds - ElapsedMilliseconds;
         while (remainingMilliseconds > 0)
         {
             if (remainingMilliseconds > 1)
@@ -49,14 +53,14 @@ public class LoadBalancePolicy : Policy
                 Thread.SpinWait(20);
             }
 
-            remainingMilliseconds = MessageIntervalMilliseconds - _intervalTimer.ElapsedMilliseconds;
+            remainingMilliseconds = MessageIntervalMilliseconds - ElapsedMilliseconds;
         }
     }
 
     /// <summary>
     /// Takes the extra time it took to perform the policy and recalculates the new adjusted rate accordingly.
     /// </summary>
-    protected virtual void AdjustRate()
-        => MessageIntervalMilliseconds =
-            (1000 - (_intervalTimer.ElapsedMilliseconds - MessageIntervalMilliseconds)) / MessagesPerSecond;
+    protected virtual void AdjustRate() =>
+        MessageIntervalMilliseconds =
+            (1000 - (ElapsedMilliseconds - MessageIntervalMilliseconds)) / MessagesPerSecond;
 }

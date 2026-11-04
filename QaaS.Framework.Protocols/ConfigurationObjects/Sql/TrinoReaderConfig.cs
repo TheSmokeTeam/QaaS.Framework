@@ -5,6 +5,14 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
 public record TrinoReaderConfig : SqlReaderConfig
 {
+    [
+        Description(
+            "Optional Trino client result buffer budget in bytes. Omitted preserves the provider's 50 MiB default. This is independent of Runner result retention."
+        ),
+        Range(typeof(long), "1", "9223372036854775807")
+    ]
+    public long? ReadBufferSizeBytes { get; set; }
+
     [Required, Description("The username to login to the Trino")]
     public string? Username { get; set; }
 

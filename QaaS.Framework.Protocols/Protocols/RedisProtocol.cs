@@ -14,6 +14,9 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
     private IDatabase? _redisDb;
     private ConnectionMultiplexer? _redisConnection;
 
+    internal RedisProtocol(RedisSenderConfig configuration, ILogger logger, IDatabase database)
+        : this(configuration, logger) => _redisDb = database;
+
     public IEnumerable<DetailedData<object>> SendChunk(IEnumerable<Data<object>> chunkDataToSend)
     {
         if (_redisDb == null)
@@ -22,17 +25,31 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
             );
 
         var toSend = chunkDataToSend.ToArray();
+        if (!configuration.UseTransactions)
+        {
+            var batch = _redisDb.CreateBatch();
+            var commands = toSend
+                .Select(message => QueueCommand(batch, message.CastObjectData<byte[]>()))
+                .ToArray();
+            batch.Execute();
+            // A pipeline has no rollback. Never replay successful commands after a partial failure.
+            Task.WhenAll(commands).GetAwaiter().GetResult();
+            return toSend.Select(message => message.CloneDetailed()).ToImmutableList();
+        }
         var retryCount = 0;
         for (; retryCount < configuration.Retries; retryCount++)
         {
             // Build a fresh transaction for every attempt: a StackExchange.Redis ITransaction cannot be
             // re-executed once it has run, so reusing one across retries would send an empty/invalid batch.
             var redisTransaction = _redisDb.CreateTransaction();
-            foreach (var message in toSend)
-                AddToRedisTransactionByRedisType(
-                    ref redisTransaction,
-                    message.CastObjectData<byte[]>()
-                ); // Assumes data is byte[]
+            var commands = toSend
+                .Select(message =>
+                    AddToRedisTransactionByRedisType(
+                        ref redisTransaction,
+                        message.CastObjectData<byte[]>()
+                    )
+                )
+                .ToArray();
             try
             {
                 var result = redisTransaction.ExecuteAsync();
@@ -42,18 +59,19 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
                         result.Exception?.ToString()
                             ?? "Redis transaction did not commit (Execute returned false with no exception)."
                     );
-                logger.LogDebug(
-                    "Sended batch of size {BatchSize} to redis successfully",
-                    toSend.Length
-                );
-                return toSend.Select(message => message.CloneDetailed()).ToImmutableList();
             }
             catch (Exception redisException)
             {
                 logger.LogError("Failed to send to redis \n {RedisException}", redisException);
                 // The for-loop header owns the retry counter; do not increment here (would halve retries).
                 Thread.Sleep(configuration.RetryIntervalMs);
+                continue;
             }
+            // EXEC success alone does not mean every command succeeded. Observe command errors
+            // outside the retry block: MULTI/EXEC does not roll back successful sibling commands.
+            Task.WhenAll(commands).GetAwaiter().GetResult();
+            logger.LogDebug("Sent batch of size {BatchSize} to Redis successfully", toSend.Length);
+            return toSend.Select(message => message.CloneDetailed()).ToImmutableList();
         }
 
         throw new RedisException($"Failed to send to redis after {retryCount} retries");
@@ -61,44 +79,42 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
 
     public SerializationType? GetSerializationType() => null;
 
-    private void AddToRedisTransactionByRedisType(
+    private Task AddToRedisTransactionByRedisType(
         ref ITransaction redisTransaction,
         Data<byte[]> dataToSend
-    )
+    ) => QueueCommand(redisTransaction, dataToSend);
+
+    private Task QueueCommand(IDatabaseAsync redisTransaction, Data<byte[]> dataToSend)
     {
         var redisKey = dataToSend.MetaData?.Redis?.Key;
         switch (configuration.RedisDataType)
         {
             case RedisDataType.SetString:
-                redisTransaction.StringSetAsync(
+                return redisTransaction.StringSetAsync(
                     redisKey,
                     dataToSend.Body,
                     when: configuration.When,
                     flags: configuration.CommandFlags
                 );
-                break;
 
             case RedisDataType.ListLeftPush:
-                redisTransaction.ListLeftPushAsync(
+                return redisTransaction.ListLeftPushAsync(
                     redisKey,
                     dataToSend.Body,
                     when: configuration.When,
                     flags: configuration.CommandFlags
                 );
-                break;
 
             case RedisDataType.ListRightPush:
-                redisTransaction.ListRightPushAsync(
+                return redisTransaction.ListRightPushAsync(
                     redisKey,
                     dataToSend.Body,
                     configuration.When,
                     flags: configuration.CommandFlags
                 );
-                break;
 
             case RedisDataType.SetAdd:
-                redisTransaction.SetAddAsync(redisKey, dataToSend.Body);
-                break;
+                return redisTransaction.SetAddAsync(redisKey, dataToSend.Body);
 
             case RedisDataType.HashSet:
                 var hashEntries = new HashEntry[]
@@ -111,15 +127,14 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
                         dataToSend.Body
                     ),
                 };
-                redisTransaction.HashSetAsync(
+                return redisTransaction.HashSetAsync(
                     redisKey,
                     hashEntries,
                     flags: configuration.CommandFlags
                 );
-                break;
 
             case RedisDataType.SortedSetAdd:
-                redisTransaction.SortedSetAddAsync(
+                return redisTransaction.SortedSetAddAsync(
                     redisKey,
                     dataToSend.Body,
                     dataToSend.MetaData?.Redis?.SetScore
@@ -128,10 +143,9 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
                         ),
                     flags: configuration.CommandFlags
                 );
-                break;
 
             case RedisDataType.GeoAdd:
-                redisTransaction.GeoAddAsync(
+                return redisTransaction.GeoAddAsync(
                     redisKey,
                     new GeoEntry(
                         dataToSend.MetaData?.Redis?.GeoLongitude
@@ -146,7 +160,6 @@ public class RedisProtocol(RedisSenderConfig configuration, ILogger logger) : IC
                     ),
                     flags: configuration.CommandFlags
                 );
-                break;
             default:
                 throw new ArgumentOutOfRangeException(
                     nameof(configuration.RedisDataType),

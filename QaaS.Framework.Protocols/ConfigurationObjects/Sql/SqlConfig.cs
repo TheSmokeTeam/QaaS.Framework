@@ -5,6 +5,14 @@ namespace QaaS.Framework.Protocols.ConfigurationObjects.Sql;
 
 public record SqlConfig
 {
+    [
+        Description(
+            "Bind every value in singular row INSERTs as data instead of legacy date/UDT expression inference. False preserves existing behavior. Chunk bulk selection is unchanged; ColumnTypes still selects typed row transactions."
+        ),
+        DefaultValue(false)
+    ]
+    public bool ParameterizeRows { get; set; }
+
     /// <summary>
     /// Optional SQL type expressions keyed by column name. Explicit types bypass automatic
     /// date and UDT inference during insertion. Omitted columns retain their existing behavior.
